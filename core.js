@@ -69,10 +69,22 @@ async function getFileSHA(filename) {
     }
 }
 
-// Функция для сохранения CSV в GitHub
+// Функция для сохранения CSV в GitHub (с сохранением токена)
 async function saveCSVToGitHub(filename, data, commitMessage) {
-    const token = prompt('Введите ваш GitHub Personal Access Token (для сохранения):');
-    if (!token) return false;
+    // Проверяем, есть ли сохранённый токен
+    let token = localStorage.getItem('github_token');
+    
+    if (!token) {
+        token = prompt('🔐 Введите ваш GitHub Personal Access Token (требуется для сохранения данных):\n\nКак создать токен:\n1. GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic)\n2. Generate new token (classic)\n3. Выберите права: "repo" (полный доступ к репозиториям)\n4. Скопируйте токен и вставьте сюда');
+        
+        if (!token) {
+            alert('Сохранение невозможно без токена');
+            return false;
+        }
+        
+        // Сохраняем токен в localStorage
+        localStorage.setItem('github_token', token);
+    }
     
     try {
         // Получаем текущий SHA файла
@@ -91,17 +103,25 @@ async function saveCSVToGitHub(filename, data, commitMessage) {
             },
             body: JSON.stringify({
                 message: commitMessage || `Update ${filename}`,
-                content: btoa(csvContent),
+                content: btoa(unescape(encodeURIComponent(csvContent))),
                 sha: sha,
                 branch: BRANCH
             })
         });
         
         if (response.ok) {
-            alert('Сохранено успешно!');
+            console.log('✅ Сохранено успешно:', filename);
             return true;
         } else {
             const error = await response.json();
+            
+            // Если ошибка 401 (неавторизован) — удаляем токен и пробуем снова
+            if (response.status === 401) {
+                localStorage.removeItem('github_token');
+                return await saveCSVToGitHub(filename, data, commitMessage);
+            }
+            
+            console.error('Ошибка сохранения:', error);
             alert(`Ошибка сохранения: ${error.message}`);
             return false;
         }
@@ -112,6 +132,45 @@ async function saveCSVToGitHub(filename, data, commitMessage) {
     }
 }
 
+// Вспомогательная функция для кодирования UTF-8 в base64
+function arrayToCSV(data) {
+    if (!data || data.length === 0) return '';
+    
+    const headers = Object.keys(data[0]);
+    const rows = [
+        headers.join(','),
+        ...data.map(obj => headers.map(header => escapeCSV(obj[header] || '')).join(','))
+    ];
+    
+    return rows.join('\n');
+}
+
+function escapeCSV(value) {
+    if (typeof value === 'string' && (value.includes(',') || value.includes('"') || value.includes('\n'))) {
+        return `"${value.replace(/"/g, '""')}"`;
+    }
+    return value;
+}
+
+async function getFileSHAWithToken(filename, token) {
+    try {
+        const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${filename}`;
+        const response = await fetch(url, {
+            headers: {
+                'Authorization': `token ${token}`,
+                'Accept': 'application/vnd.github.v3+json'
+            }
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            return data.sha;
+        }
+        return null;
+    } catch (error) {
+        return null;
+    }
+}
 async function getFileSHAWithToken(filename, token) {
     try {
         const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${filename}`;
