@@ -1,10 +1,11 @@
 // core.js - общие функции для работы с данными
 
-const REPO_OWNER = 'Allikk38'; // Замени на свой GitHub username
-const REPO_NAME = 'crm-for-team';  // Название репозитория
+const REPO_OWNER = 'Allikk38';
+const REPO_NAME = 'crm-for-team';
 const BRANCH = 'main';
 
-// Загрузка CSV файла из репозитория
+// ========== ЗАГРУЗКА ДАННЫХ ==========
+
 async function loadCSV(filename) {
     try {
         const url = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/${filename}`;
@@ -17,7 +18,6 @@ async function loadCSV(filename) {
     }
 }
 
-// Парсинг CSV в массив объектов
 function parseCSV(csvText) {
     const lines = csvText.trim().split('\n');
     if (lines.length === 0) return [];
@@ -37,24 +37,15 @@ function parseCSV(csvText) {
     return result;
 }
 
-// Сохранение данных в GitHub (будет реализовано позже)
-async function saveCSV(filename, data) {
-    console.log('Сохранение в GitHub будет реализовано позже');
-    // TODO: реализовать запись через GitHub API
-    return false;
-}
+// ========== СОХРАНЕНИЕ В GITHUB ==========
 
-// Нормализация строки (убираем лишние пробелы, приводим к нижнему регистру)
-function normalizeString(str) {
-    return str.toLowerCase().trim().replace(/\s+/g, ' ');
-}
-// Функция для получения SHA файла (нужно для обновления)
-async function getFileSHA(filename) {
+async function getFileSHAWithToken(filename, token) {
     try {
         const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${filename}`;
         const response = await fetch(url, {
             headers: {
-                'Authorization': `token ${GITHUB_TOKEN}`
+                'Authorization': `token ${token}`,
+                'Accept': 'application/vnd.github.v3+json'
             }
         });
         
@@ -69,7 +60,29 @@ async function getFileSHA(filename) {
     }
 }
 
-// Функция для сохранения CSV в GitHub (с сохранением токена)
+function escapeCSV(value) {
+    // Преобразуем в строку, обрабатываем null/undefined
+    const strValue = value === null || value === undefined ? '' : String(value);
+    
+    // Если есть спецсимволы — оборачиваем в кавычки
+    if (strValue.includes(',') || strValue.includes('"') || strValue.includes('\n')) {
+        return `"${strValue.replace(/"/g, '""')}"`;
+    }
+    return strValue;
+}
+
+function arrayToCSV(data) {
+    if (!data || data.length === 0) return '';
+    
+    const headers = Object.keys(data[0]);
+    const rows = [
+        headers.join(','),
+        ...data.map(obj => headers.map(header => escapeCSV(obj[header])).join(','))
+    ];
+    
+    return rows.join('\n');
+}
+
 async function saveCSVToGitHub(filename, data, commitMessage) {
     // Проверяем, есть ли сохранённый токен
     let token = localStorage.getItem('github_token');
@@ -132,87 +145,14 @@ async function saveCSVToGitHub(filename, data, commitMessage) {
     }
 }
 
-function arrayToCSV(data) {
-    if (!data || data.length === 0) return '';
-    
-    const headers = Object.keys(data[0]);
-    const rows = [
-        headers.join(','),
-        ...data.map(obj => headers.map(header => escapeCSV(obj[header])).join(','))
-    ];
-    
-    return rows.join('\n');
+// ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
+
+function normalizeString(str) {
+    return str.toLowerCase().trim().replace(/\s+/g, ' ');
 }
 
-function escapeCSV(value) {
-    // Преобразуем в строку, обрабатываем null/undefined
-    const strValue = value === null || value === undefined ? '' : String(value);
-    
-    // Если есть спецсимволы — оборачиваем в кавычки
-    if (strValue.includes(',') || strValue.includes('"') || strValue.includes('\n')) {
-        return `"${strValue.replace(/"/g, '""')}"`;
-    }
-    return strValue;
-}
-async function getFileSHAWithToken(filename, token) {
-    try {
-        const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${filename}`;
-        const response = await fetch(url, {
-            headers: {
-                'Authorization': `token ${token}`,
-                'Accept': 'application/vnd.github.v3+json'
-            }
-        });
-        
-        if (response.ok) {
-            const data = await response.json();
-            return data.sha;
-        }
-        return null;
-    } catch (error) {
-        return null;
-    }
-}
-async function getFileSHAWithToken(filename, token) {
-    try {
-        const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${filename}`;
-        const response = await fetch(url, {
-            headers: {
-                'Authorization': `token ${token}`
-            }
-        });
-        
-        if (response.ok) {
-            const data = await response.json();
-            return data.sha;
-        }
-        return null;
-    } catch (error) {
-        return null;
-    }
-}
+// ========== ЭКСПОРТ ==========
 
-// Конвертация массива объектов в CSV
-function arrayToCSV(data) {
-    if (!data || data.length === 0) return '';
-    
-    const headers = Object.keys(data[0]);
-    const rows = [
-        headers.join(','),
-        ...data.map(obj => headers.map(header => escapeCSV(obj[header] || '')).join(','))
-    ];
-    
-    return rows.join('\n');
-}
-
-function escapeCSV(value) {
-    if (value.includes(',') || value.includes('"') || value.includes('\n')) {
-        return `"${value.replace(/"/g, '""')}"`;
-    }
-    return value;
-}
-
-// Экспортируем новые функции
 window.utils = {
     saveCSVToGitHub,
     arrayToCSV
