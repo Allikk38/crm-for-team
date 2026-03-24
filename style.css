@@ -755,3 +755,55 @@ select:hover {
         justify-content: center;
     }
 }
+.progress-section {
+    background: var(--card-bg);
+    border-radius: 24px;
+    padding: 24px;
+    margin-bottom: 32px;
+    border: 1px solid var(--card-border);
+}
+
+.progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.progress-header h3 {
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.progress-header span {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--accent);
+}
+
+.progress-bar-container {
+    height: 12px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 20px;
+    overflow: hidden;
+    margin-bottom: 16px;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-hover));
+    border-radius: 20px;
+    transition: width 0.5s ease;
+}
+
+.progress-stats {
+    display: flex;
+    gap: 24px;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.progress-stats i {
+    margin-right: 6px;
+}
