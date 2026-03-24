@@ -12,8 +12,9 @@
     <div class="container">
         <header>
             <div class="header-top">
-                <h1>📋 Доска задач</h1>
+                <h1><i class="fas fa-kanban"></i> Доска задач</h1>
                 <div class="user-info">
+                    <i class="fas fa-user-circle"></i>
                     <span id="userName">Загрузка...</span>
                     <select id="userSelect" style="display: none;">
                         <option value="">Выберите пользователя</option>
@@ -21,46 +22,46 @@
                 </div>
             </div>
             <div class="nav-buttons">
-                <a href="index.html" class="nav-btn">🏠 Дашборд</a>
-                <a href="manager.html" class="nav-btn" data-role="admin,manager">📊 Панель менеджера</a>
-                <button id="addTaskBtn" class="nav-btn" data-role="admin,manager,agent">➕ Новая задача</button>
+                <a href="index.html" class="nav-btn"><i class="fas fa-home"></i> Дашборд</a>
+                <a href="manager.html" class="nav-btn" data-role="admin,manager"><i class="fas fa-chart-simple"></i> Панель менеджера</a>
+                <button id="addTaskBtn" class="nav-btn" data-role="admin,manager,agent"><i class="fas fa-plus"></i> Новая задача</button>
             </div>
         </header>
         
         <div class="kanban-board">
             <div class="kanban-column" data-status="todo">
                 <div class="column-header">
-                    <span>📝 To Do</span>
+                    <span><i class="fas fa-circle"></i> To Do</span>
                     <span id="todoCount">0</span>
                 </div>
                 <div id="todoTasks" class="tasks-container"></div>
-                <button class="add-task-btn" data-status="todo">+ Добавить задачу</button>
+                <button class="add-task-btn" data-status="todo"><i class="fas fa-plus"></i> Добавить задачу</button>
             </div>
             
             <div class="kanban-column" data-status="in_progress">
                 <div class="column-header">
-                    <span>🔄 В работе</span>
+                    <span><i class="fas fa-spinner fa-pulse"></i> В работе</span>
                     <span id="progressCount">0</span>
                 </div>
                 <div id="progressTasks" class="tasks-container"></div>
-                <button class="add-task-btn" data-status="in_progress">+ Добавить задачу</button>
+                <button class="add-task-btn" data-status="in_progress"><i class="fas fa-plus"></i> Добавить задачу</button>
             </div>
             
             <div class="kanban-column" data-status="done">
                 <div class="column-header">
-                    <span>✅ Готово</span>
+                    <span><i class="fas fa-check-circle"></i> Готово</span>
                     <span id="doneCount">0</span>
                 </div>
                 <div id="doneTasks" class="tasks-container"></div>
-                <button class="add-task-btn" data-status="done">+ Добавить задачу</button>
+                <button class="add-task-btn" data-status="done"><i class="fas fa-plus"></i> Добавить задачу</button>
             </div>
         </div>
     </div>
     
-    <!-- Модальное окно для создания/редактирования задачи -->
+    <!-- Модальное окно -->
     <div id="taskModal" class="modal">
         <div class="modal-content">
-            <h3 id="modalTitle">Создать задачу</h3>
+            <h3 id="modalTitle"><i class="fas fa-tasks"></i> Создать задачу</h3>
             <input type="hidden" id="taskId">
             <input type="text" id="taskTitle" placeholder="Название задачи" required>
             <textarea id="taskDescription" placeholder="Описание задачи"></textarea>
@@ -68,19 +69,19 @@
                 <option value="">Назначить исполнителя</option>
             </select>
             <select id="taskPriority">
-                <option value="low">🟢 Низкий приоритет</option>
-                <option value="medium">🟡 Средний приоритет</option>
-                <option value="high">🔴 Высокий приоритет</option>
+                <option value="low"><i class="fas fa-arrow-down"></i> Низкий приоритет</option>
+                <option value="medium"><i class="fas fa-minus"></i> Средний приоритет</option>
+                <option value="high"><i class="fas fa-arrow-up"></i> Высокий приоритет</option>
             </select>
             <input type="date" id="taskDueDate">
             <select id="taskStatus">
-                <option value="todo">📝 To Do</option>
-                <option value="in_progress">🔄 В работе</option>
-                <option value="done">✅ Готово</option>
+                <option value="todo"><i class="fas fa-circle"></i> To Do</option>
+                <option value="in_progress"><i class="fas fa-spinner"></i> В работе</option>
+                <option value="done"><i class="fas fa-check-circle"></i> Готово</option>
             </select>
             <div class="modal-buttons">
-                <button onclick="closeModal()">Отмена</button>
-                <button class="primary" onclick="saveTask()">Сохранить</button>
+                <button onclick="closeModal()"><i class="fas fa-times"></i> Отмена</button>
+                <button class="primary" onclick="saveTask()"><i class="fas fa-save"></i> Сохранить</button>
             </div>
         </div>
     </div>
@@ -88,6 +89,5 @@
     <script src="core.js"></script>
     <script src="auth.js"></script>
     <script src="tasks.js"></script>
-    
 </body>
 </html>
