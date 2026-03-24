@@ -32,7 +32,9 @@ function initTheme() {
 
 function setTheme(theme) {
     currentTheme = theme;
-    document.body.className = THEMES[theme].bodyClass;
+    // Удаляем старые классы и добавляем новый
+    document.body.classList.remove('theme-dark', 'theme-light');
+    document.body.classList.add(THEMES[theme].bodyClass);
     localStorage.setItem('crm_theme', theme);
     
     // Обновляем иконку кнопки, если она уже есть
@@ -75,3 +77,14 @@ window.theme = {
     setTheme,
     toggleTheme
 };
+
+// ========== АВТОЗАПУСК ==========
+// Инициализируем тему сразу после загрузки DOM
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        initTheme();
+    });
+} else {
+    // DOM уже загружен
+    initTheme();
+}
