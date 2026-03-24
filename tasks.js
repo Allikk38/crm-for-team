@@ -340,3 +340,173 @@ async function init() {
 
 // Запускаем инициализацию
 document.addEventListener('DOMContentLoaded', init);
+// Изменение приоритета перетаскиванием
+function setupPriorityDragAndDrop() {
+    const prioritySlots = document.querySelectorAll('.priority-slot');
+    
+    prioritySlots.forEach(slot => {
+        slot.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            slot.classList.add('drag-over');
+        });
+        
+        slot.addEventListener('dragleave', () => {
+            slot.classList.remove('drag-over');
+        });
+        
+        slot.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            slot.classList.remove('drag-over');
+            
+            const taskId = e.dataTransfer.getData('text/plain');
+            const newPriority = slot.getAttribute('data-priority');
+            
+            if (taskId && newPriority) {
+                const task = tasks.find(t => t.id === parseInt(taskId));
+                if (task && task.priority !== newPriority) {
+                    task.priority = newPriority;
+                    task.updated_at = new Date().toISOString().split('T')[0];
+                    await saveTasksToGitHub();
+                    renderKanban();
+                    showToast('success', `Приоритет задачи "${task.title}" изменён на ${getPriorityText(newPriority)}`);
+                }
+            }
+        });
+    });
+}
+
+// Обновляем createTaskCard — добавляем индикатор для drag-and-drop
+function createTaskCard(task) {
+    const card = document.createElement('div');
+    card.className = 'task-card';
+    card.draggable = true;
+    card.setAttribute('data-task-id', task.id);
+    
+    const priorityColors = {
+        high: '#ff6b6b',
+        medium: '#ffc107',
+        low: '#4caf50'
+    };
+    card.style.borderLeftColor = priorityColors[task.priority];
+    
+    const assignee = users.find(u => u.github_username === task.assigned_to);
+    const assigneeName = assignee ? assignee.name : 'Не назначен';
+    
+    card.innerHTML = `
+        <div class="task-title">${escapeHtml(task.title)}</div>
+        <div class="task-description">${escapeHtml(task.description || '')}</div>
+        <div class="task-meta">
+            <span class="task-priority priority-${task.priority}" data-priority="${task.priority}">
+                <i class="fas fa-${task.priority === 'high' ? 'arrow-up' : task.priority === 'medium' ? 'minus' : 'arrow-down'}"></i>
+                ${getPriorityText(task.priority)}
+            </span>
+            <span class="task-assignee">
+                <i class="fas fa-user"></i> ${assigneeName}
+            </span>
+        </div>
+        <div class="task-meta">
+            <span><i class="fas fa-calendar"></i> ${task.due_date || 'без срока'}</span>
+            <button class="delete-task" onclick="deleteTask(${task.id})"><i class="fas fa-trash"></i></button>
+        </div>
+    `;
+    
+    card.addEventListener('dragstart', handleDragStart);
+    card.addEventListener('dragend', handleDragEnd);
+    card.addEventListener('click', (e) => {
+        if (!e.target.classList.contains('delete-task') && !e.target.closest('.delete-task')) {
+            editTask(task.id);
+        }
+    });
+    
+    return card;
+}
+
+// Добавляем панель для сброса приоритета
+function addPriorityPanel() {
+    const kanbanBoard = document.querySelector('.kanban-board');
+    if (!kanbanBoard || document.querySelector('.priority-panel')) return;
+    
+    const panel = document.createElement('div');
+    panel.className = 'priority-panel';
+    panel.innerHTML = `
+        <div class="priority-panel-title">
+            <i class="fas fa-tag"></i> Перетащите задачу для изменения приоритета
+        </div>
+        <div class="priority-slots">
+            <div class="priority-slot" data-priority="high">
+                <i class="fas fa-arrow-up"></i> Высокий
+            </div>
+            <div class="priority-slot" data-priority="medium">
+                <i class="fas fa-minus"></i> Средний
+            </div>
+            <div class="priority-slot" data-priority="low">
+                <i class="fas fa-arrow-down"></i> Низкий
+            </div>
+        </div>
+    `;
+    
+    kanbanBoard.parentNode.insertBefore(panel, kanbanBoard);
+    
+    // Добавляем стили для панели
+    const style = document.createElement('style');
+    style.textContent = `
+        .priority-panel {
+            background: var(--card-bg);
+            border-radius: 20px;
+            padding: 16px 24px;
+            margin-bottom: 24px;
+            border: 1px solid var(--card-border);
+        }
+        .priority-panel-title {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+        }
+        .priority-slots {
+            display: flex;
+            gap: 16px;
+        }
+        .priority-slot {
+            flex: 1;
+            padding: 10px;
+            text-align: center;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px dashed transparent;
+        }
+        .priority-slot[data-priority="high"] { border-left-color: #ff6b6b; }
+        .priority-slot[data-priority="medium"] { border-left-color: #ffc107; }
+        .priority-slot[data-priority="low"] { border-left-color: #4caf50; }
+        .priority-slot.drag-over {
+            border-color: var(--accent);
+            background: var(--card-hover);
+            transform: scale(1.02);
+        }
+        body.theme-light .priority-slot {
+            background: rgba(0, 0, 0, 0.05);
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+// В init() добавим вызов
+async function init() {
+    await auth.initAuth();
+    await loadUsersForSelect();
+    await loadTasks();
+    setupDropZones();
+    setupPriorityDragAndDrop();
+    addPriorityPanel();
+    
+    document.querySelectorAll('.add-task-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const status = btn.getAttribute('data-status');
+            document.getElementById('taskStatus').value = status;
+            openModal();
+        });
+    });
+    
+    document.getElementById('addTaskBtn')?.addEventListener('click', () => openModal());
+}
