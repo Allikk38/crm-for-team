@@ -1,19 +1,24 @@
 // app.js - логика главной страницы
 
-// Загрузка и отображение статистики
 async function loadDashboardStats() {
     try {
-        // Загружаем пользователей
         const users = await loadCSV('data/users.csv');
         document.getElementById('usersCount').textContent = users.length;
         
-        // Загружаем задачи и считаем активные (не выполненные)
         const tasks = await loadCSV('data/tasks.csv');
         const activeTasks = tasks.filter(task => task.status !== 'done').length;
         document.getElementById('tasksCount').textContent = activeTasks;
         
-        // Загружаем объекты (пока заглушка, будет из realty-search)
-        // TODO: после импорта complexes.csv
+        // Прогресс проекта
+        const totalTasks = tasks.length;
+        const completedTasks = tasks.filter(task => task.status === 'done').length;
+        const progressPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+        
+        document.getElementById('totalTasksCount').textContent = totalTasks;
+        document.getElementById('completedTasks').textContent = completedTasks;
+        document.getElementById('progressPercent').textContent = `${progressPercent}%`;
+        document.getElementById('progressFill').style.width = `${progressPercent}%`;
+        
         document.getElementById('complexesCount').textContent = '0';
         
     } catch (error) {
@@ -21,14 +26,10 @@ async function loadDashboardStats() {
     }
 }
 
-// Инициализация приложения
 async function init() {
-    // Инициализируем авторизацию
     await auth.initAuth();
-    
-    // Загружаем статистику
     await loadDashboardStats();
+    window.theme?.initTheme();
 }
 
-// Запускаем приложение после загрузки страницы
 document.addEventListener('DOMContentLoaded', init);
