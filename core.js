@@ -132,26 +132,28 @@ async function saveCSVToGitHub(filename, data, commitMessage) {
     }
 }
 
-// Вспомогательная функция для кодирования UTF-8 в base64
 function arrayToCSV(data) {
     if (!data || data.length === 0) return '';
     
     const headers = Object.keys(data[0]);
     const rows = [
         headers.join(','),
-        ...data.map(obj => headers.map(header => escapeCSV(obj[header] || '')).join(','))
+        ...data.map(obj => headers.map(header => escapeCSV(obj[header])).join(','))
     ];
     
     return rows.join('\n');
 }
 
 function escapeCSV(value) {
-    if (typeof value === 'string' && (value.includes(',') || value.includes('"') || value.includes('\n'))) {
-        return `"${value.replace(/"/g, '""')}"`;
+    // Преобразуем в строку, обрабатываем null/undefined
+    const strValue = value === null || value === undefined ? '' : String(value);
+    
+    // Если есть спецсимволы — оборачиваем в кавычки
+    if (strValue.includes(',') || strValue.includes('"') || strValue.includes('\n')) {
+        return `"${strValue.replace(/"/g, '""')}"`;
     }
-    return value;
+    return strValue;
 }
-
 async function getFileSHAWithToken(filename, token) {
     try {
         const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${filename}`;
