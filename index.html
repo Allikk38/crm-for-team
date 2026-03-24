@@ -1,1 +1,48 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRM для команды</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🏢 CRM для команды</h1>
+            <div class="user-info">
+                <span id="userName">Загрузка...</span>
+                <select id="userSelect" style="display: none;">
+                    <option value="">Выберите пользователя</option>
+                </select>
+            </div>
+        </header>
 
+        <main>
+            <div class="dashboard">
+                <div class="card">
+                    <h3>👥 Пользователи</h3>
+                    <p id="usersCount">0</p>
+                </div>
+                <div class="card">
+                    <h3>📋 Активные задачи</h3>
+                    <p id="tasksCount">0</p>
+                </div>
+                <div class="card">
+                    <h3>🏗️ Объекты</h3>
+                    <p id="complexesCount">0</p>
+                </div>
+            </div>
+
+            <div class="info-panel">
+                <h2>Добро пожаловать!</h2>
+                <p id="welcomeMessage">Выберите пользователя для начала работы</p>
+            </div>
+        </main>
+    </div>
+
+    <script src="core.js"></script>
+    <script src="auth.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
