@@ -1,6 +1,6 @@
 // core.js - общие функции для работы с данными
 
-const REPO_OWNER = 'твойаккаунт'; // Замени на свой GitHub username
+const REPO_OWNER = 'Allikk38'; // Замени на свой GitHub username
 const REPO_NAME = 'crm-for-team';  // Название репозитория
 const BRANCH = 'main';
 
