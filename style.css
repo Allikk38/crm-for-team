@@ -681,7 +681,8 @@ select:hover {
     margin-right: 6px;
 }
 
-/* Calendar */
+/* ========== КАЛЕНДАРЬ С DRAG-AND-DROP ========== */
+
 .calendar-container {
     padding: 24px;
 }
@@ -716,6 +717,7 @@ select:hover {
     margin-bottom: 12px;
     padding: 12px 0;
     border-bottom: 1px solid var(--card-border);
+    font-weight: 600;
 }
 
 .calendar-days {
@@ -725,12 +727,13 @@ select:hover {
 }
 
 .calendar-day {
-    min-height: 100px;
+    min-height: 110px;
     background: var(--input-bg);
     border-radius: 16px;
     padding: 8px;
     transition: all 0.2s;
     cursor: pointer;
+    position: relative;
 }
 
 .calendar-day:hover {
@@ -738,18 +741,39 @@ select:hover {
     transform: translateY(-2px);
 }
 
+.calendar-day.drag-over {
+    background: var(--accent);
+    transform: scale(1.02);
+    box-shadow: 0 0 0 2px var(--accent);
+}
+
 .calendar-day.today {
     border: 2px solid var(--accent);
+}
+
+.calendar-day.empty {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.calendar-day.empty:hover {
+    transform: none;
+    background: var(--input-bg);
 }
 
 .day-number {
     font-weight: 600;
     margin-bottom: 8px;
     font-size: 0.9rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
 .day-tasks {
     font-size: 0.7rem;
+    max-height: 80px;
+    overflow-y: auto;
 }
 
 .day-task {
@@ -757,14 +781,82 @@ select:hover {
     border-radius: 8px;
     padding: 4px 6px;
     margin-bottom: 4px;
+    cursor: grab;
+    transition: all 0.2s;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 4px;
+}
+
+.day-task:active {
+    cursor: grabbing;
+}
+
+.day-task:hover {
+    background: rgba(108, 108, 255, 0.4);
+    transform: translateX(2px);
+}
+
+.day-task.dragging {
+    opacity: 0.5;
+    cursor: grabbing;
+}
+
+.day-task.high { 
+    border-left: 3px solid #ff6b6b; 
+    background: rgba(255, 107, 107, 0.15);
+}
+
+.day-task.medium { 
+    border-left: 3px solid #ffc107;
+    background: rgba(255, 193, 68, 0.15);
+}
+
+.day-task.low { 
+    border-left: 3px solid #4caf50;
+    background: rgba(76, 175, 80, 0.15);
+}
+
+.task-title-small {
+    flex: 1;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
-.day-task.high { border-left: 2px solid #ff6b6b; }
-.day-task.medium { border-left: 2px solid #ffc107; }
-.day-task.low { border-left: 2px solid #4caf50; }
+.remove-date {
+    opacity: 0;
+    transition: opacity 0.2s;
+    cursor: pointer;
+    color: #ff6b6b;
+    font-size: 0.7rem;
+    padding: 2px 4px;
+    border-radius: 4px;
+}
+
+.remove-date:hover {
+    background: rgba(255, 107, 107, 0.3);
+}
+
+.day-task:hover .remove-date {
+    opacity: 1;
+}
+
+/* Инфо-панель календаря */
+.info-panel-calendar {
+    background: var(--card-bg);
+    border-radius: 20px;
+    padding: 16px 24px;
+    border: 1px solid var(--card-border);
+    text-align: center;
+    margin-top: 24px;
+}
+
+.info-panel-calendar i {
+    color: var(--accent);
+    margin-right: 8px;
+}
 
 /* Priority Panel */
 .priority-panel {
@@ -847,6 +939,55 @@ select:hover {
     background: var(--accent-hover);
 }
 
+/* Toast уведомления */
+.toast {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: var(--card-bg);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--accent);
+    border-radius: 12px;
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    z-index: 10000;
+    animation: slideIn 0.3s ease;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    color: var(--text-primary);
+}
+
+.toast-success {
+    border-left: 3px solid var(--success);
+}
+
+.toast-info {
+    border-left: 3px solid var(--accent);
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOut {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+}
+
 /* Animations */
 @keyframes fadeInUp {
     from {
@@ -861,6 +1002,52 @@ select:hover {
 
 .card, .kanban-column, .info-panel, .kpi-card, .progress-section, .calendar-container {
     animation: fadeInUp 0.5s ease-out;
+}
+
+/* Адаптив для календаря на мобильных */
+@media (max-width: 768px) {
+    .calendar-day {
+        min-height: 70px;
+        font-size: 0.7rem;
+        position: relative;
+    }
+    
+    .day-task {
+        display: none;
+    }
+    
+    .calendar-day:hover .day-task {
+        display: block;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: var(--card-bg);
+        z-index: 10;
+        border-radius: 8px;
+        padding: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    
+    .calendar-day:hover {
+        z-index: 11;
+    }
+}
+
+/* Стили для скролла в календаре */
+.day-tasks::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+}
+
+.day-tasks::-webkit-scrollbar-track {
+    background: var(--input-bg);
+    border-radius: 4px;
+}
+
+.day-tasks::-webkit-scrollbar-thumb {
+    background: var(--accent);
+    border-radius: 4px;
 }
 
 /* Responsive */
@@ -912,62 +1099,5 @@ select:hover {
     .nav-btn {
         flex: 1;
         justify-content: center;
-    }
-    
-    .calendar-day {
-        min-height: 70px;
-        font-size: 0.7rem;
-    }
-    
-    .day-task {
-        display: none;
-    }
-}
-/* Toast уведомления */
-.toast {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    background: var(--card-bg);
-    backdrop-filter: blur(10px);
-    border: 1px solid var(--accent);
-    border-radius: 12px;
-    padding: 12px 20px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    z-index: 10000;
-    animation: slideIn 0.3s ease;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-    color: var(--text-primary);
-}
-
-.toast-success {
-    border-left: 3px solid var(--success);
-}
-
-.toast-info {
-    border-left: 3px solid var(--accent);
-}
-
-@keyframes slideIn {
-    from {
-        transform: translateX(100%);
-        opacity: 0;
-    }
-    to {
-        transform: translateX(0);
-        opacity: 1;
-    }
-}
-
-@keyframes slideOut {
-    from {
-        transform: translateX(0);
-        opacity: 1;
-    }
-    to {
-        transform: translateX(100%);
-        opacity: 0;
     }
 }
