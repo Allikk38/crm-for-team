@@ -7,11 +7,13 @@ async function loadDashboardStats() {
         const users = await loadCSV('data/users.csv');
         document.getElementById('usersCount').textContent = users.length;
         
-        // Загружаем задачи (пока заглушка)
-        // TODO: после создания tasks.csv
-        document.getElementById('tasksCount').textContent = '0';
+        // Загружаем задачи и считаем активные (не выполненные)
+        const tasks = await loadCSV('data/tasks.csv');
+        const activeTasks = tasks.filter(task => task.status !== 'done').length;
+        document.getElementById('tasksCount').textContent = activeTasks;
         
-        // Загружаем ЖК (пока заглушка)
+        // Загружаем объекты (пока заглушка, будет из realty-search)
+        // TODO: после импорта complexes.csv
         document.getElementById('complexesCount').textContent = '0';
         
     } catch (error) {
