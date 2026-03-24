@@ -16,13 +16,11 @@
                 <div class="user-info">
                     <i class="fas fa-user-circle"></i>
                     <span id="userName">Загрузка...</span>
-                    <select id="userSelect" style="display: none;">
-                        <option value="">Выберите пользователя</option>
-                    </select>
                 </div>
             </div>
             <div class="nav-buttons">
                 <a href="tasks.html" class="nav-btn"><i class="fas fa-tasks"></i> Доска задач</a>
+                <a href="calendar.html" class="nav-btn"><i class="fas fa-calendar-alt"></i> Календарь</a>
                 <a href="manager.html" class="nav-btn" data-role="admin,manager"><i class="fas fa-chart-simple"></i> Панель менеджера</a>
             </div>
         </header>
@@ -43,13 +41,28 @@
                 </div>
             </div>
 
+            <!-- Прогресс-бар проекта -->
+            <div class="progress-section">
+                <div class="progress-header">
+                    <h3><i class="fas fa-chart-line"></i> Общий прогресс проекта</h3>
+                    <span id="progressPercent">0%</span>
+                </div>
+                <div class="progress-bar-container">
+                    <div class="progress-bar-fill" id="progressFill" style="width: 0%"></div>
+                </div>
+                <div class="progress-stats">
+                    <span><i class="fas fa-check-circle"></i> <span id="completedTasks">0</span> завершено</span>
+                    <span><i class="fas fa-list"></i> <span id="totalTasksCount">0</span> всего</span>
+                </div>
+            </div>
+
             <div class="info-panel">
                 <h2><i class="fas fa-rocket"></i> Добро пожаловать в CRM!</h2>
-                <p id="welcomeMessage">Выберите пользователя для начала работы</p>
+                <p id="welcomeMessage">Войдите через GitHub для начала работы</p>
                 <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid rgba(108,108,255,0.2);">
                     <p style="font-size: 0.85rem; opacity: 0.7;">
-                        <i class="fas fa-lightbulb"></i> <strong>Совет:</strong> Перетаскивайте задачи между колонками на доске задач для изменения статуса.
-                        Администратор может управлять всеми задачами и пользователями.
+                        <i class="fas fa-lightbulb"></i> <strong>Совет:</strong> Перетаскивайте задачи между колонками для изменения статуса.
+                        Менеджеры могут менять приоритет задач перетаскиванием на специальную панель.
                     </p>
                 </div>
             </div>
@@ -58,6 +71,7 @@
 
     <script src="core.js"></script>
     <script src="auth.js"></script>
+    <script src="theme.js"></script>
     <script src="app.js"></script>
 </body>
 </html>
