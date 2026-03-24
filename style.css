@@ -1,3 +1,93 @@
+/* ========== ТЕМЫ ========== */
+:root {
+    /* Тёмная тема (по умолчанию) */
+    --bg-gradient-start: #0a0a1a;
+    --bg-gradient-end: #050510;
+    --card-bg: rgba(15, 15, 35, 0.7);
+    --card-border: rgba(108, 108, 255, 0.3);
+    --text-primary: #ffffff;
+    --text-secondary: rgba(255, 255, 255, 0.7);
+    --text-muted: rgba(255, 255, 255, 0.5);
+    --accent: #6c6cff;
+    --accent-hover: #4c4cff;
+    --danger: #ff6b6b;
+    --success: #4caf50;
+    --warning: #ffc107;
+    --input-bg: rgba(0, 0, 0, 0.4);
+    --input-border: rgba(108, 108, 255, 0.3);
+    --card-hover: rgba(108, 108, 255, 0.12);
+}
+
+body.theme-light {
+    --bg-gradient-start: #f5f7fa;
+    --bg-gradient-end: #eef2f5;
+    --card-bg: rgba(255, 255, 255, 0.9);
+    --card-border: rgba(0, 0, 0, 0.1);
+    --text-primary: #1a1a2e;
+    --text-secondary: rgba(0, 0, 0, 0.7);
+    --text-muted: rgba(0, 0, 0, 0.5);
+    --accent: #5a5ae6;
+    --accent-hover: #4a4ad6;
+    --input-bg: rgba(0, 0, 0, 0.05);
+    --input-border: rgba(0, 0, 0, 0.2);
+    --card-hover: rgba(90, 90, 230, 0.08);
+}
+
+/* Обновляем существующие стили с использованием переменных */
+body {
+    background: radial-gradient(ellipse at 20% 30%, var(--bg-gradient-start), var(--bg-gradient-end));
+    color: var(--text-primary);
+}
+
+header, .card, .kanban-column, .agent-list, .overdue-list, .activity-chart, .info-panel, .kpi-card {
+    background: var(--card-bg);
+    border-color: var(--card-border);
+}
+
+.card h3 {
+    color: var(--text-secondary);
+}
+
+.info-panel p {
+    color: var(--text-secondary);
+}
+
+.task-card {
+    background: rgba(0, 0, 0, 0.2);
+}
+
+body.theme-light .task-card {
+    background: rgba(0, 0, 0, 0.03);
+}
+
+.task-card:hover {
+    background: var(--card-hover);
+}
+
+select, input, textarea {
+    background: var(--input-bg);
+    border-color: var(--input-border);
+    color: var(--text-primary);
+}
+
+/* Кнопка переключения темы */
+.theme-toggle {
+    background: rgba(108, 108, 255, 0.15);
+    border: 1px solid var(--card-border);
+    border-radius: 40px;
+    padding: 8px 16px;
+    cursor: pointer;
+    color: var(--text-primary);
+    transition: all 0.3s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.theme-toggle:hover {
+    background: rgba(108, 108, 255, 0.25);
+    transform: scale(1.02);
+}
 * {
     margin: 0;
     padding: 0;
