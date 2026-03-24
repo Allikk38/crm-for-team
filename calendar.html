@@ -2,8 +2,9 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-     <!-- Применяем тему до рендеринга страницы (без мерцания) -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    
+    <!-- Применяем тему до рендеринга страницы (без мерцания) -->
     <script>
         (function() {
             const savedTheme = localStorage.getItem('crm_theme');
@@ -16,7 +17,9 @@
             }
         })();
     </script>
-    <title>Календарь задач - CRM</title>
+    
+    <title>Календарь задач - CRM для команды</title>
+    
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="style.css">
@@ -26,7 +29,9 @@
             border-radius: 28px;
             padding: 24px;
             border: 1px solid var(--card-border);
+            margin-bottom: 24px;
         }
+        
         .calendar-header {
             display: flex;
             justify-content: space-between;
@@ -35,11 +40,13 @@
             flex-wrap: wrap;
             gap: 16px;
         }
+        
         .calendar-nav {
             display: flex;
             gap: 12px;
             align-items: center;
         }
+        
         .calendar-nav button {
             background: rgba(108, 108, 255, 0.15);
             border: none;
@@ -49,13 +56,16 @@
             color: var(--text-primary);
             transition: all 0.2s;
         }
+        
         .calendar-nav button:hover {
             background: rgba(108, 108, 255, 0.3);
         }
+        
         .current-month {
             font-size: 1.3rem;
             font-weight: 600;
         }
+        
         .calendar-weekdays {
             display: grid;
             grid-template-columns: repeat(7, 1fr);
@@ -63,65 +73,149 @@
             margin-bottom: 12px;
             padding: 12px 0;
             border-bottom: 1px solid var(--card-border);
+            font-weight: 600;
         }
+        
         .calendar-days {
             display: grid;
             grid-template-columns: repeat(7, 1fr);
             gap: 8px;
         }
+        
         .calendar-day {
-            min-height: 100px;
-            background: rgba(0, 0, 0, 0.2);
+            min-height: 110px;
+            background: var(--input-bg);
             border-radius: 16px;
             padding: 8px;
             transition: all 0.2s;
             cursor: pointer;
+            position: relative;
         }
-        body.theme-light .calendar-day {
-            background: rgba(0, 0, 0, 0.03);
-        }
+        
         .calendar-day:hover {
             background: var(--card-hover);
             transform: translateY(-2px);
         }
+        
+        .calendar-day.drag-over {
+            background: var(--accent);
+            transform: scale(1.02);
+            box-shadow: 0 0 0 2px var(--accent);
+        }
+        
         .calendar-day.today {
             border: 2px solid var(--accent);
         }
+        
+        .calendar-day.empty {
+            opacity: 0.5;
+            cursor: default;
+        }
+        
+        .calendar-day.empty:hover {
+            transform: none;
+            background: var(--input-bg);
+        }
+        
         .day-number {
             font-weight: 600;
             margin-bottom: 8px;
             font-size: 0.9rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
+        
         .day-tasks {
             font-size: 0.7rem;
+            max-height: 80px;
+            overflow-y: auto;
         }
+        
         .day-task {
             background: rgba(108, 108, 255, 0.2);
             border-radius: 8px;
             padding: 4px 6px;
             margin-bottom: 4px;
+            cursor: grab;
+            transition: all 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .day-task:active {
+            cursor: grabbing;
+        }
+        
+        .day-task:hover {
+            background: rgba(108, 108, 255, 0.4);
+            transform: translateX(2px);
+        }
+        
+        .day-task.dragging {
+            opacity: 0.5;
+            cursor: grabbing;
+        }
+        
+        .day-task.high { border-left: 3px solid #ff6b6b; }
+        .day-task.medium { border-left: 3px solid #ffc107; }
+        .day-task.low { border-left: 3px solid #4caf50; }
+        
+        .task-title-small {
+            flex: 1;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
         }
-        .day-task.high { border-left: 2px solid #ff6b6b; }
-        .day-task.medium { border-left: 2px solid #ffc107; }
-        .day-task.low { border-left: 2px solid #4caf50; }
-        .calendar-day.empty {
-            opacity: 0.4;
-            cursor: default;
+        
+        .remove-date {
+            opacity: 0;
+            transition: opacity 0.2s;
+            cursor: pointer;
+            color: #ff6b6b;
+            font-size: 0.7rem;
         }
-        .calendar-day.empty:hover {
-            transform: none;
-            background: rgba(0, 0, 0, 0.2);
+        
+        .day-task:hover .remove-date {
+            opacity: 1;
         }
+        
+        .info-panel-calendar {
+            background: var(--card-bg);
+            border-radius: 20px;
+            padding: 16px 24px;
+            border: 1px solid var(--card-border);
+            text-align: center;
+        }
+        
+        .info-panel-calendar i {
+            color: var(--accent);
+            margin-right: 8px;
+        }
+        
         @media (max-width: 768px) {
             .calendar-day {
                 min-height: 70px;
                 font-size: 0.7rem;
             }
+            
             .day-task {
                 display: none;
+            }
+            
+            .calendar-day:hover .day-task {
+                display: block;
+                position: absolute;
+                top: 100%;
+                left: 0;
+                right: 0;
+                background: var(--card-bg);
+                z-index: 10;
+                border-radius: 8px;
+                padding: 8px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
             }
         }
     </style>
@@ -145,10 +239,12 @@
         
         <div class="calendar-container">
             <div class="calendar-header">
-                <h2><i class="fas fa-calendar-week"></i> <span id="currentMonth">Март 2026</span></h2>
+                <div class="current-month">
+                    <i class="fas fa-calendar-week"></i> <span id="currentMonth">Март 2026</span>
+                </div>
                 <div class="calendar-nav">
                     <button id="prevMonth"><i class="fas fa-chevron-left"></i></button>
-                    <button id="todayBtn">Сегодня</button>
+                    <button id="todayBtn"><i class="fas fa-calendar-day"></i> Сегодня</button>
                     <button id="nextMonth"><i class="fas fa-chevron-right"></i></button>
                 </div>
             </div>
@@ -156,6 +252,12 @@
                 <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Вс</span>
             </div>
             <div id="calendarDays" class="calendar-days"></div>
+        </div>
+        
+        <div class="info-panel-calendar">
+            <i class="fas fa-info-circle"></i> 
+            <strong>Drag & Drop:</strong> Перетащите задачу из календаря на другую дату для изменения дедлайна. 
+            Нажмите <i class="fas fa-trash-alt"></i> рядом с задачей, чтобы удалить дедлайн.
         </div>
     </div>
     
