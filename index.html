@@ -2,8 +2,9 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CRM для команды</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>CRM для команды | Управление проектами</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -20,6 +21,7 @@
             </div>
             <div class="nav-buttons">
                 <a href="tasks.html" class="nav-btn">📋 Доска задач</a>
+                <a href="#" class="nav-btn" style="opacity: 0.6; pointer-events: none;">🗺️ Карта (скоро)</a>
             </div>
         </header>
 
@@ -40,8 +42,14 @@
             </div>
 
             <div class="info-panel">
-                <h2>Добро пожаловать!</h2>
+                <h2>✨ Добро пожаловать в CRM!</h2>
                 <p id="welcomeMessage">Выберите пользователя для начала работы</p>
+                <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.1);">
+                    <p style="font-size: 0.85rem; opacity: 0.7;">
+                        💡 <strong>Совет:</strong> Перетаскивайте задачи между колонками на доске задач для изменения статуса.
+                        Администратор может управлять всеми задачами и пользователями.
+                    </p>
+                </div>
             </div>
         </main>
     </div>
