@@ -5,14 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>CRM для команды | Управление проектами</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
         <header>
             <div class="header-top">
-                <h1>🏢 CRM для команды</h1>
+                <h1><i class="fas fa-chart-line" style="margin-right: 12px; background: linear-gradient(135deg, #fff, #6c6cff); -webkit-background-clip: text; -webkit-text-fill-color: transparent;"></i> CRM для команды</h1>
                 <div class="user-info">
+                    <i class="fas fa-user-circle"></i>
                     <span id="userName">Загрузка...</span>
                     <select id="userSelect" style="display: none;">
                         <option value="">Выберите пользователя</option>
@@ -20,33 +22,33 @@
                 </div>
             </div>
             <div class="nav-buttons">
-                <a href="tasks.html" class="nav-btn">📋 Доска задач</a>
-                <a href="manager.html" class="nav-btn" data-role="admin,manager">📊 Панель менеджера</a>
+                <a href="tasks.html" class="nav-btn"><i class="fas fa-tasks"></i> Доска задач</a>
+                <a href="manager.html" class="nav-btn" data-role="admin,manager"><i class="fas fa-chart-simple"></i> Панель менеджера</a>
             </div>
         </header>
 
         <main>
             <div class="dashboard">
                 <div class="card">
-                    <h3>👥 Пользователи</h3>
+                    <h3><i class="fas fa-users"></i> Пользователи</h3>
                     <p id="usersCount">0</p>
                 </div>
                 <div class="card">
-                    <h3>📋 Активные задачи</h3>
+                    <h3><i class="fas fa-play-circle"></i> Активные задачи</h3>
                     <p id="tasksCount">0</p>
                 </div>
                 <div class="card">
-                    <h3>🏗️ Объекты</h3>
+                    <h3><i class="fas fa-building"></i> Объекты</h3>
                     <p id="complexesCount">0</p>
                 </div>
             </div>
 
             <div class="info-panel">
-                <h2>✨ Добро пожаловать в CRM!</h2>
+                <h2><i class="fas fa-rocket"></i> Добро пожаловать в CRM!</h2>
                 <p id="welcomeMessage">Выберите пользователя для начала работы</p>
-                <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.1);">
+                <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid rgba(108,108,255,0.2);">
                     <p style="font-size: 0.85rem; opacity: 0.7;">
-                        💡 <strong>Совет:</strong> Перетаскивайте задачи между колонками на доске задач для изменения статуса.
+                        <i class="fas fa-lightbulb"></i> <strong>Совет:</strong> Перетаскивайте задачи между колонками на доске задач для изменения статуса.
                         Администратор может управлять всеми задачами и пользователями.
                     </p>
                 </div>
