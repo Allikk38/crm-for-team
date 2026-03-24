@@ -211,10 +211,31 @@ async function deleteTask(taskId) {
 
 // Сохранение задач в GitHub
 async function saveTasksToGitHub() {
-    // TODO: реализовать запись через GitHub API
-    console.log('Сохранение задач:', tasks);
-    alert('Сохранение в GitHub будет реализовано позже. Пока данные только в памяти.');
-    return true;
+    const currentUser = auth.getCurrentUser();
+    if (!currentUser || !auth.hasPermission('edit')) {
+        alert('У вас нет прав на редактирование задач');
+        return false;
+    }
+    
+    // Подготавливаем данные для сохранения (убираем лишние поля)
+    const tasksToSave = tasks.map(task => ({
+        id: task.id,
+        title: task.title,
+        description: task.description || '',
+        assigned_to: task.assigned_to || '',
+        created_by: task.created_by,
+        status: task.status,
+        priority: task.priority,
+        created_at: task.created_at,
+        updated_at: task.updated_at,
+        due_date: task.due_date || ''
+    }));
+    
+    return await window.utils.saveCSVToGitHub(
+        'data/tasks.csv',
+        tasksToSave,
+        `Update tasks by ${currentUser.name}`
+    );
 }
 
 // Вспомогательные функции
