@@ -53,7 +53,7 @@ function renderCalendar() {
                         'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
     
     const currentMonthEl = document.getElementById('currentMonth');
-    if (currentMonthEl) currentMonthEl.textContent = `${monthNames[month]} ${year}`;
+    if (currentMonthEl) currentMonthEl.textContent = monthNames[month] + ' ' + year;
     
     const calendarDays = document.getElementById('calendarDays');
     if (!calendarDays) return;
@@ -104,10 +104,14 @@ function addCalendarDay(container, date, tasksByDate, isEmpty) {
     const dayTasks = tasksByDate[dateStr] || [];
     
     let tasksHtml = '';
-    dayTasks.forEach(task => {
-        const assignee = users.find(u => u.github_username === task.assigned_to);
+    for (let i = 0; i < dayTasks.length; i++) {
+        const task = dayTasks[i];
+        const assignee = users.find(function(u) { return u.github_username === task.assigned_to; });
         const assigneeName = assignee ? assignee.name.split(' ')[0] : '?';
-        const shortTitle = task.title.length > 18 ? task.title.slice(0, 15) + '…' : task.title;
+        let shortTitle = task.title;
+        if (task.title.length > 18) {
+            shortTitle = task.title.slice(0, 15) + '…';
+        }
         
         tasksHtml += '<div class="day-task ' + task.priority + '" draggable="true" data-task-id="' + task.id + '" data-task-title="' + escapeHtml(task.title) + '">' +
             '<span class="task-title-small" title="' + escapeHtml(task.title) + ' (' + assigneeName + ')">' +
@@ -115,25 +119,30 @@ function addCalendarDay(container, date, tasksByDate, isEmpty) {
             '</span>' +
             '<i class="fas fa-times remove-date" data-task-id="' + task.id + '" data-date="' + dateStr + '" title="Удалить дедлайн"></i>' +
         '</div>';
-    });
+    }
+    
+    let countHtml = '';
+    if (dayTasks.length > 0) {
+        countHtml = '<span class="task-count">' + dayTasks.length + '</span>';
+    }
     
     dayDiv.innerHTML = '<div class="day-number">' +
         '<span>' + date.getDate() + '</span>' +
-        (dayTasks.length > 0 ? '<span class="task-count">' + dayTasks.length + '</span>' : '') +
+        countHtml +
     '</div>' +
     '<div class="day-tasks">' + tasksHtml + '</div>';
     
     if (!isEmpty) {
-        dayDiv.addEventListener('dragover', (e) => {
+        dayDiv.addEventListener('dragover', function(e) {
             e.preventDefault();
             dayDiv.classList.add('drag-over');
         });
         
-        dayDiv.addEventListener('dragleave', () => {
+        dayDiv.addEventListener('dragleave', function() {
             dayDiv.classList.remove('drag-over');
         });
         
-        dayDiv.addEventListener('drop', async (e) => {
+        dayDiv.addEventListener('drop', async function(e) {
             e.preventDefault();
             dayDiv.classList.remove('drag-over');
             
@@ -146,19 +155,21 @@ function addCalendarDay(container, date, tasksByDate, isEmpty) {
     
     container.appendChild(dayDiv);
     
-    dayDiv.querySelectorAll('.day-task').forEach(taskEl => {
+    const taskElements = dayDiv.querySelectorAll('.day-task');
+    for (let i = 0; i < taskElements.length; i++) {
+        const taskEl = taskElements[i];
         taskEl.addEventListener('dragstart', handleTaskDragStart);
         taskEl.addEventListener('dragend', handleTaskDragEnd);
         
         const removeBtn = taskEl.querySelector('.remove-date');
         if (removeBtn) {
-            removeBtn.addEventListener('click', async (e) => {
+            removeBtn.addEventListener('click', async function(e) {
                 e.stopPropagation();
-                const taskId = parseInt(removeBtn.dataset.taskId);
+                const taskId = parseInt(removeBtn.getAttribute('data-task-id'));
                 await updateTaskDueDate(taskId, null);
             });
         }
-    });
+    }
 }
 
 function handleTaskDragStart(e) {
@@ -179,7 +190,7 @@ function handleTaskDragEnd(e) {
 }
 
 async function updateTaskDueDate(taskId, newDueDate) {
-    const task = tasks.find(t => t.id === taskId);
+    const task = tasks.find(function(t) { return t.id === taskId; });
     if (!task) return;
     
     const oldDate = task.due_date;
@@ -190,12 +201,11 @@ async function updateTaskDueDate(taskId, newDueDate) {
     
     if (saved) {
         renderCalendar();
-        showToast(
-            newDueDate ? 'success' : 'info',
-            newDueDate 
-                ? 'Дедлайн задачи "' + task.title + '" изменён на ' + formatDate(newDueDate)
-                : 'Дедлайн задачи "' + task.title + '" удалён'
-        );
+        if (newDueDate) {
+            showToast('success', 'Дедлайн задачи "' + task.title + '" изменён на ' + formatDate(newDueDate));
+        } else {
+            showToast('info', 'Дедлайн задачи "' + task.title + '" удалён');
+        }
     } else {
         task.due_date = oldDate;
         alert('Ошибка сохранения. Попробуйте ещё раз.');
@@ -209,18 +219,22 @@ async function saveTasksToGitHub() {
         return false;
     }
     
-    const tasksToSave = tasks.map(task => ({
-        id: task.id,
-        title: task.title,
-        description: task.description || '',
-        assigned_to: task.assigned_to || '',
-        created_by: task.created_by,
-        status: task.status,
-        priority: task.priority,
-        created_at: task.created_at,
-        updated_at: task.updated_at,
-        due_date: task.due_date || ''
-    }));
+    const tasksToSave = [];
+    for (let i = 0; i < tasks.length; i++) {
+        const task = tasks[i];
+        tasksToSave.push({
+            id: task.id,
+            title: task.title,
+            description: task.description || '',
+            assigned_to: task.assigned_to || '',
+            created_by: task.created_by,
+            status: task.status,
+            priority: task.priority,
+            created_at: task.created_at,
+            updated_at: task.updated_at,
+            due_date: task.due_date || ''
+        });
+    }
     
     return await window.utils.saveCSVToGitHub(
         'data/tasks.csv',
@@ -232,14 +246,15 @@ async function saveTasksToGitHub() {
 function showToast(type, message) {
     const toast = document.createElement('div');
     toast.className = 'toast toast-' + type;
-    toast.innerHTML = '<i class="fas ' + (type === 'success' ? 'fa-check-circle' : 'fa-info-circle') + '"></i>' +
+    const iconClass = type === 'success' ? 'fa-check-circle' : 'fa-info-circle';
+    toast.innerHTML = '<i class="fas ' + iconClass + '"></i>' +
         '<span>' + escapeHtml(message) + '</span>';
     
     document.body.appendChild(toast);
     
-    setTimeout(() => {
+    setTimeout(function() {
         toast.style.animation = 'slideOut 0.3s ease';
-        setTimeout(() => toast.remove(), 300);
+        setTimeout(function() { toast.remove(); }, 300);
     }, 3000);
 }
 
