@@ -1,6 +1,5 @@
 github_username,name,role,email,created_at
-ivanov,Иван Иванов,admin,ivan@example.com,2026-03-24
 petrov,Пётр Петров,manager,petr@example.com,2026-03-24
 sidorova,Анна Сидорова,agent,anna@example.com,2026-03-24
 smirnov,Алексей Смирнов,viewer,alex@example.com,2026-03-24
-allikk38,allikk38,agent,,2026-03-24
+allikk38,allikk38,admin,,2026-03-24
