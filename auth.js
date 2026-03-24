@@ -1,4 +1,3 @@
-
 // auth.js - управление пользователями и ролями
 
 let currentUser = null;
@@ -29,47 +28,57 @@ function hasRole(role) {
     return currentUser && currentUser.role === role;
 }
 
-// Инициализация авторизации (для теста используем выпадающий список)
-async function initAuth() {
-    const users = await loadUsers();
-    
-    if (users.length === 0) {
-        console.warn('Нет пользователей в системе');
-        return null;
+// Проверка сессии
+function checkSession() {
+    const session = localStorage.getItem('crm_session');
+    if (session) {
+        try {
+            currentUser = JSON.parse(session);
+            return currentUser;
+        } catch(e) {
+            return null;
+        }
     }
-    
-    const userSelect = document.getElementById('userSelect');
-    const userNameSpan = document.getElementById('userName');
-    
-    if (userSelect) {
-        // Заполняем выпадающий список
-        users.forEach(user => {
-            const option = document.createElement('option');
-            option.value = user.github_username;
-            option.textContent = `${user.name} (${user.role})`;
-            userSelect.appendChild(option);
-        });
-        
-        // Обработчик выбора пользователя
-        userSelect.addEventListener('change', (e) => {
-            const selectedUser = users.find(u => u.github_username === e.target.value);
-            if (selectedUser) {
-                currentUser = selectedUser;
-                updateUserInterface();
-            }
-        });
-        
-        // Выбираем первого пользователя по умолчанию
-        if (users[0]) {
-            userSelect.value = users[0].github_username;
-            currentUser = users[0];
-            updateUserInterface();
+    return null;
+}
+
+// Инициализация авторизации
+async function initAuth() {
+    // Проверяем сессию
+    const sessionUser = checkSession();
+    if (sessionUser) {
+        // Проверяем, не изменилась ли роль в users.csv
+        const users = await loadUsers();
+        const updatedUser = users.find(u => u.github_username === sessionUser.github_username);
+        if (updatedUser) {
+            currentUser = {
+                github_username: updatedUser.github_username,
+                name: updatedUser.name,
+                role: updatedUser.role,
+                email: updatedUser.email || ''
+            };
+            // Обновляем сессию
+            localStorage.setItem('crm_session', JSON.stringify(currentUser));
+        } else {
+            currentUser = sessionUser;
         }
         
-        userSelect.style.display = 'block';
+        updateUserInterface();
+        return currentUser;
     }
     
-    return currentUser;
+    // Нет сессии — перенаправляем на страницу входа
+    if (!window.location.pathname.includes('auth.html')) {
+        window.location.href = 'auth.html';
+    }
+    
+    return null;
+}
+
+// Выход из системы
+function logout() {
+    localStorage.removeItem('crm_session');
+    window.location.href = 'auth.html';
 }
 
 // Обновление интерфейса в зависимости от пользователя
@@ -78,11 +87,11 @@ function updateUserInterface() {
     const welcomeMessage = document.getElementById('welcomeMessage');
     
     if (userNameSpan && currentUser) {
-        userNameSpan.textContent = `${currentUser.name} (${currentUser.role})`;
+        userNameSpan.innerHTML = `<i class="fab fa-github"></i> ${currentUser.name} (${getRoleLabel(currentUser.role)})`;
     }
     
     if (welcomeMessage && currentUser) {
-        welcomeMessage.textContent = `Добро пожаловать, ${currentUser.name}! Ваша роль: ${currentUser.role}`;
+        welcomeMessage.textContent = `Добро пожаловать, ${currentUser.name}! Ваша роль: ${getRoleLabel(currentUser.role)}`;
     }
     
     // Скрываем/показываем элементы в зависимости от роли
@@ -91,12 +100,37 @@ function updateUserInterface() {
         const hasAccess = requiredRoles.includes(currentUser.role);
         el.style.display = hasAccess ? '' : 'none';
     });
+    
+    // Добавляем кнопку выхода, если её нет
+    if (!document.getElementById('logoutBtn') && currentUser) {
+        const navButtons = document.querySelector('.nav-buttons');
+        if (navButtons) {
+            const logoutBtn = document.createElement('button');
+            logoutBtn.id = 'logoutBtn';
+            logoutBtn.className = 'nav-btn';
+            logoutBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i> Выйти';
+            logoutBtn.style.marginLeft = 'auto';
+            logoutBtn.onclick = logout;
+            navButtons.appendChild(logoutBtn);
+        }
+    }
 }
 
-// Экспорт функций (для глобального доступа)
+function getRoleLabel(role) {
+    const labels = {
+        admin: 'Администратор',
+        manager: 'Менеджер',
+        agent: 'Агент',
+        viewer: 'Наблюдатель'
+    };
+    return labels[role] || role;
+}
+
+// Экспорт функций
 window.auth = {
     initAuth,
     hasPermission,
     hasRole,
-    getCurrentUser: () => currentUser
+    getCurrentUser: () => currentUser,
+    logout
 };
