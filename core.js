@@ -48,3 +48,111 @@ async function saveCSV(filename, data) {
 function normalizeString(str) {
     return str.toLowerCase().trim().replace(/\s+/g, ' ');
 }
+// Функция для получения SHA файла (нужно для обновления)
+async function getFileSHA(filename) {
+    try {
+        const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${filename}`;
+        const response = await fetch(url, {
+            headers: {
+                'Authorization': `token ${GITHUB_TOKEN}`
+            }
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            return data.sha;
+        }
+        return null;
+    } catch (error) {
+        console.error('Ошибка получения SHA:', error);
+        return null;
+    }
+}
+
+// Функция для сохранения CSV в GitHub
+async function saveCSVToGitHub(filename, data, commitMessage) {
+    const token = prompt('Введите ваш GitHub Personal Access Token (для сохранения):');
+    if (!token) return false;
+    
+    try {
+        // Получаем текущий SHA файла
+        const sha = await getFileSHAWithToken(filename, token);
+        
+        // Конвертируем данные в CSV
+        const csvContent = arrayToCSV(data);
+        
+        // Отправляем запрос на обновление
+        const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${filename}`;
+        const response = await fetch(url, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `token ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                message: commitMessage || `Update ${filename}`,
+                content: btoa(csvContent),
+                sha: sha,
+                branch: BRANCH
+            })
+        });
+        
+        if (response.ok) {
+            alert('Сохранено успешно!');
+            return true;
+        } else {
+            const error = await response.json();
+            alert(`Ошибка сохранения: ${error.message}`);
+            return false;
+        }
+    } catch (error) {
+        console.error('Ошибка сохранения:', error);
+        alert('Ошибка сохранения: ' + error.message);
+        return false;
+    }
+}
+
+async function getFileSHAWithToken(filename, token) {
+    try {
+        const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${filename}`;
+        const response = await fetch(url, {
+            headers: {
+                'Authorization': `token ${token}`
+            }
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            return data.sha;
+        }
+        return null;
+    } catch (error) {
+        return null;
+    }
+}
+
+// Конвертация массива объектов в CSV
+function arrayToCSV(data) {
+    if (!data || data.length === 0) return '';
+    
+    const headers = Object.keys(data[0]);
+    const rows = [
+        headers.join(','),
+        ...data.map(obj => headers.map(header => escapeCSV(obj[header] || '')).join(','))
+    ];
+    
+    return rows.join('\n');
+}
+
+function escapeCSV(value) {
+    if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+        return `"${value.replace(/"/g, '""')}"`;
+    }
+    return value;
+}
+
+// Экспортируем новые функции
+window.utils = {
+    saveCSVToGitHub,
+    arrayToCSV
+};
