@@ -1,9 +1,7 @@
 // manager.js - панель управления менеджера
 
-// Объявляем переменные только один раз
 var allTasks = [];
 var allUsers = [];
-var currentUserManager = null;  // переименовал, чтобы избежать конфликта
 
 console.log('=== manager.js загружен ===');
 
@@ -13,29 +11,31 @@ async function loadData() {
     
     try {
         var tasksData = await loadCSV('data/tasks.csv');
-        console.log('tasksData загружено:', tasksData.length);
+        console.log('tasksData загружено:', tasksData ? tasksData.length : 0);
         
         allTasks = [];
-        for (var i = 0; i < tasksData.length; i++) {
-            var task = tasksData[i];
-            allTasks.push({
-                id: parseInt(task.id),
-                title: task.title || 'Без названия',
-                description: task.description || '',
-                assigned_to: task.assigned_to || '',
-                created_by: task.created_by || '',
-                status: task.status || 'todo',
-                priority: task.priority || 'medium',
-                created_at: task.created_at || '',
-                updated_at: task.updated_at || '',
-                due_date: task.due_date || ''
-            });
+        if (tasksData && tasksData.length > 0) {
+            for (var i = 0; i < tasksData.length; i++) {
+                var task = tasksData[i];
+                allTasks.push({
+                    id: parseInt(task.id),
+                    title: task.title || 'Без названия',
+                    description: task.description || '',
+                    assigned_to: task.assigned_to || '',
+                    created_by: task.created_by || '',
+                    status: task.status || 'todo',
+                    priority: task.priority || 'medium',
+                    created_at: task.created_at || '',
+                    updated_at: task.updated_at || '',
+                    due_date: task.due_date || ''
+                });
+            }
         }
         
         allUsers = await loadCSV('data/users.csv');
-        console.log('allUsers загружено:', allUsers.length);
+        console.log('allUsers загружено:', allUsers ? allUsers.length : 0);
         
-        return allUsers.filter(function(u) { return u.role === 'agent'; });
+        return allUsers ? allUsers.filter(function(u) { return u.role === 'agent'; }) : [];
     } catch (error) {
         console.error('Ошибка загрузки данных:', error);
         return [];
@@ -84,6 +84,8 @@ function calculateKPI() {
 
 // Расчёт нагрузки по агентам
 function calculateAgentLoad() {
+    if (!allUsers || allUsers.length === 0) return [];
+    
     var agents = [];
     for (var u = 0; u < allUsers.length; u++) {
         if (allUsers[u].role === 'agent') agents.push(allUsers[u]);
@@ -141,7 +143,7 @@ function renderAgentLoad(agentLoad) {
         return;
     }
     
-    if (agentLoad.length === 0) {
+    if (!agentLoad || agentLoad.length === 0) {
         container.innerHTML = '<p style="opacity: 0.6; text-align: center;">Нет агентов в системе</p>';
         return;
     }
@@ -184,7 +186,7 @@ function renderOverdueTasks(overdueList) {
     var container = document.getElementById('overdueTasksList');
     if (!container) return;
     
-    if (overdueList.length === 0) {
+    if (!overdueList || overdueList.length === 0) {
         container.innerHTML = '<p style="opacity: 0.6; text-align: center; padding: 20px;"><i class="fas fa-check-circle"></i> Нет просроченных задач</p>';
         return;
     }
@@ -307,15 +309,18 @@ async function init() {
             else if (authUser.role === 'manager') roleLabel = 'Менеджер';
             else if (authUser.role === 'agent') roleLabel = 'Агент';
             else roleLabel = 'Наблюдатель';
-            userNameSpan.innerHTML = '<i class="fab fa-github"></i> ' + authUser.name + ' (' + roleLabel + ')';
+            userNameSpan.innerHTML = '<i class="fab fa-github"></i> ' + escapeHtml(authUser.name) + ' (' + roleLabel + ')';
             console.log('Имя пользователя обновлено:', authUser.name);
         }
     } else {
         console.error('authUser = null, пользователь не авторизован');
+        // Перенаправляем на страницу входа
+        window.location.href = 'auth.html';
+        return;
     }
     
     // Проверка прав доступа
-    if (!authUser || (authUser.role !== 'manager' && authUser.role !== 'admin')) {
+    if (authUser.role !== 'manager' && authUser.role !== 'admin') {
         var mainEl = document.querySelector('main');
         if (mainEl) {
             mainEl.innerHTML = '<div class="info-panel" style="text-align: center;">' +
