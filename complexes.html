@@ -49,6 +49,7 @@
             display: flex;
             gap: 12px;
             flex-wrap: wrap;
+            align-items: center;
         }
         
         .complexes-filters input,
@@ -60,9 +61,50 @@
             color: var(--text-primary);
         }
         
+        .sort-buttons {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .sort-btn {
+            background: rgba(108, 108, 255, 0.15);
+            border: 1px solid var(--card-border);
+            padding: 8px 16px;
+            border-radius: 40px;
+            cursor: pointer;
+            color: var(--text-primary);
+            transition: all 0.2s;
+            font-size: 0.8rem;
+        }
+        
+        .sort-btn.active {
+            background: var(--accent);
+            border-color: var(--accent);
+        }
+        
+        .sort-btn:hover {
+            background: rgba(108, 108, 255, 0.3);
+        }
+        
+        .my-objects-toggle {
+            background: rgba(108, 108, 255, 0.15);
+            border: 1px solid var(--card-border);
+            padding: 8px 16px;
+            border-radius: 40px;
+            cursor: pointer;
+            color: var(--text-primary);
+            transition: all 0.2s;
+            font-size: 0.8rem;
+        }
+        
+        .my-objects-toggle.active {
+            background: var(--accent);
+            border-color: var(--accent);
+        }
+        
         .complexes-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
             gap: 24px;
             margin-top: 24px;
         }
@@ -80,23 +122,58 @@
         .complex-card:hover {
             transform: translateY(-4px);
             border-color: var(--accent);
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
         }
         
         .complex-card-header {
-            padding: 20px 20px 12px;
+            display: flex;
+            gap: 16px;
+            padding: 20px;
             border-bottom: 1px solid var(--card-border);
         }
         
-        .complex-card-header h3 {
-            font-size: 1.2rem;
+        .complex-card-image {
+            width: 80px;
+            height: 80px;
+            border-radius: 16px;
+            background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            flex-shrink: 0;
+        }
+        
+        .complex-card-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 16px;
+        }
+        
+        .complex-card-info {
+            flex: 1;
+        }
+        
+        .complex-card-info h3 {
+            font-size: 1.1rem;
+            margin-bottom: 4px;
+        }
+        
+        .complex-address {
+            font-size: 0.75rem;
+            opacity: 0.7;
             margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
         
         .complex-status {
             display: inline-block;
-            padding: 4px 12px;
+            padding: 2px 8px;
             border-radius: 20px;
-            font-size: 0.7rem;
+            font-size: 0.65rem;
             font-weight: 600;
         }
         
@@ -108,47 +185,82 @@
             padding: 16px 20px;
         }
         
-        .complex-info-row {
+        .complex-stats {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+        
+        .complex-stat {
             display: flex;
             align-items: center;
-            gap: 12px;
-            margin-bottom: 10px;
-            font-size: 0.85rem;
+            gap: 6px;
+            font-size: 0.75rem;
+            background: var(--input-bg);
+            padding: 4px 10px;
+            border-radius: 20px;
         }
         
-        .complex-info-row i {
-            width: 20px;
+        .complex-stat i {
             color: var(--accent);
+            font-size: 0.7rem;
         }
         
-        .complex-price {
-            font-weight: 700;
-            color: var(--accent);
+        .complex-progress {
             margin-top: 12px;
-            font-size: 1.1rem;
+        }
+        
+        .progress-bar-small {
+            height: 4px;
+            background: var(--input-bg);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 4px;
+        }
+        
+        .progress-fill-small {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent), var(--accent-hover));
+            border-radius: 4px;
+            transition: width 0.3s;
         }
         
         .complex-card-footer {
             padding: 12px 20px 20px;
             display: flex;
-            gap: 12px;
+            gap: 8px;
+            flex-wrap: wrap;
             border-top: 1px solid var(--card-border);
         }
         
         .complex-btn {
             flex: 1;
-            padding: 8px;
+            padding: 8px 12px;
             background: rgba(108, 108, 255, 0.15);
             border: none;
             border-radius: 40px;
             color: var(--text-primary);
             cursor: pointer;
             transition: all 0.2s;
-            font-size: 0.8rem;
+            font-size: 0.75rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
         }
         
         .complex-btn:hover {
             background: rgba(108, 108, 255, 0.3);
+            transform: translateY(-2px);
+        }
+        
+        .complex-btn-danger {
+            background: rgba(255, 107, 107, 0.15);
+        }
+        
+        .complex-btn-danger:hover {
+            background: rgba(255, 107, 107, 0.3);
         }
         
         .complex-modal-content {
@@ -220,6 +332,98 @@
             .complexes-grid {
                 grid-template-columns: 1fr;
             }
+            
+            .complex-card-header {
+                flex-direction: column;
+                align-items: center;
+                text-align: center;
+            }
+            
+            .complex-card-image {
+                width: 100px;
+                height: 100px;
+            }
+        }
+        
+        .quick-add-panel {
+            background: var(--card-bg);
+            border-radius: 24px;
+            padding: 20px;
+            margin-bottom: 24px;
+            border: 1px solid var(--card-border);
+            display: none;
+        }
+        
+        .quick-add-panel.active {
+            display: block;
+        }
+        
+        .quick-add-form {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+            margin-top: 16px;
+        }
+        
+        .quick-add-form input,
+        .quick-add-form select {
+            padding: 10px 14px;
+            background: var(--input-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            color: var(--text-primary);
+        }
+        
+        .photo-gallery {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+        }
+        
+        .photo-item {
+            width: 80px;
+            height: 80px;
+            background: var(--input-bg);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .photo-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .photo-item i {
+            font-size: 1.5rem;
+            color: var(--text-muted);
+        }
+        
+        .photo-remove {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            background: rgba(0,0,0,0.6);
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        
+        .photo-item:hover .photo-remove {
+            opacity: 1;
         }
     </style>
 </head>
@@ -239,8 +443,24 @@
                 <a href="calendar.html" class="nav-btn"><i class="fas fa-calendar-alt"></i> Календарь</a>
                 <a href="manager.html" class="nav-btn" data-role="admin,manager"><i class="fas fa-chart-simple"></i> Панель менеджера</a>
                 <button id="addComplexBtn" class="nav-btn" data-role="admin,manager"><i class="fas fa-plus"></i> Добавить объект</button>
+                <button id="quickAddBtn" class="nav-btn" data-role="admin,manager"><i class="fas fa-bolt"></i> Быстрый ввод</button>
             </div>
         </header>
+        
+        <!-- Панель быстрого ввода -->
+        <div id="quickAddPanel" class="quick-add-panel">
+            <h4><i class="fas fa-bolt"></i> Быстрое добавление объекта</h4>
+            <div class="quick-add-form">
+                <input type="text" id="quickTitle" placeholder="Название ЖК">
+                <input type="text" id="quickAddress" placeholder="Адрес">
+                <select id="quickAssignee">
+                    <option value="">Ответственный агент</option>
+                </select>
+                <input type="text" id="quickPriceFrom" placeholder="Цена от" style="width: auto;">
+                <input type="text" id="quickPriceTo" placeholder="Цена до" style="width: auto;">
+                <button id="quickSaveBtn" class="add-complex-btn">Сохранить</button>
+            </div>
+        </div>
         
         <div class="complexes-header">
             <div class="complexes-filters">
@@ -254,6 +474,15 @@
                 <select id="agentFilter">
                     <option value="all">Все агенты</option>
                 </select>
+                <button id="myObjectsToggle" class="my-objects-toggle" title="Показать только мои объекты">
+                    <i class="fas fa-user"></i> Мои объекты
+                </button>
+            </div>
+            <div class="sort-buttons">
+                <button class="sort-btn" data-sort="name"><i class="fas fa-sort-alpha-down"></i> По названию</button>
+                <button class="sort-btn" data-sort="price"><i class="fas fa-sort-amount-down"></i> По цене</button>
+                <button class="sort-btn" data-sort="date"><i class="fas fa-calendar"></i> По дате</button>
+                <button class="sort-btn" data-sort="tasks"><i class="fas fa-tasks"></i> По задачам</button>
             </div>
         </div>
         
