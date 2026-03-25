@@ -16,7 +16,7 @@
       1. Боковая панель с навигацией (можно сворачивать)
       2. Кликабельный профиль в правом верхнем углу
       3. Kanban-доска с тремя статусами
-      4. Модальное окно задачи с комментариями
+      4. Модальное окно задачи с комментариями и приватностью
       5. Push-уведомления
     ============================================
     -->
@@ -169,6 +169,30 @@
             align-items: center;
             gap: 16px;
         }
+        
+        .private-badge {
+            display: inline-block;
+            background: rgba(255, 107, 107, 0.2);
+            color: #ff6b6b;
+            font-size: 0.6rem;
+            padding: 2px 6px;
+            border-radius: 12px;
+            margin-left: 8px;
+        }
+        
+        .private-checkbox-wrapper {
+            margin: 12px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .private-checkbox-wrapper label {
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
     </style>
 </head>
 <body>
@@ -205,12 +229,20 @@
                     <i class="fas fa-chart-simple"></i>
                     <span>Панель менеджера</span>
                 </a>
+                <a href="admin.html" class="nav-item" data-role="admin">
+                    <i class="fas fa-users-cog"></i>
+                    <span>Управление</span>
+                </a>
             </nav>
             
             <div class="sidebar-footer">
                 <button class="collapse-btn" onclick="window.sidebar?.toggleSidebar()">
                     <i class="fas fa-chevron-left"></i>
                     <span>Свернуть</span>
+                </button>
+                <button class="logout-btn" onclick="window.sidebar?.logout()">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>Выйти</span>
                 </button>
             </div>
         </aside>
@@ -219,7 +251,7 @@
         <main class="main-content">
             <div class="top-bar">
                 <div class="top-bar-actions">
-                    <button id="addTaskBtn" class="add-task-btn-header" data-role="admin,manager,agent">
+                    <button id="addTaskBtn" class="add-task-btn-header">
                         <i class="fas fa-plus"></i> Новая задача
                     </button>
                     <div class="notification-btn-wrapper">
@@ -295,6 +327,14 @@
                 <option value="in_progress"><i class="fas fa-spinner"></i> В работе</option>
                 <option value="done"><i class="fas fa-check-circle"></i> Готово</option>
             </select>
+            
+            <!-- Чекбокс приватности -->
+            <div class="private-checkbox-wrapper" id="privateCheckboxGroup">
+                <label>
+                    <input type="checkbox" id="taskPrivate">
+                    <i class="fas fa-lock"></i> Приватная задача (видна только исполнителю и менеджерам)
+                </label>
+            </div>
             
             <!-- Блок комментариев -->
             <div class="comments-section">
