@@ -4,7 +4,23 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     
-    <!-- Применяем тему до рендеринга страницы (без мерцания) -->
+    <!-- 
+    ============================================
+    ФАЙЛ: tasks.html
+    РОЛЬ: Доска задач (Kanban) с боковой панелью
+    СВЯЗИ:
+      - CSS: base.css, theme.css, components.css, kanban.css, modal.css, responsive.css
+      - JS: core.js, auth.js, theme.js, layout.js, notifications.js, tasks.js
+      - Данные: data/tasks.csv, data/users.csv, data/complexes.csv, data/comments.csv
+    МЕХАНИКА:
+      1. Боковая панель с навигацией (можно сворачивать)
+      2. Кликабельный профиль в правом верхнем углу
+      3. Kanban-доска с тремя статусами
+      4. Модальное окно задачи с комментариями
+      5. Push-уведомления
+    ============================================
+    -->
+    
     <script>
         (function() {
             try {
@@ -111,6 +127,7 @@
         
         .notification-btn-wrapper {
             position: relative;
+            margin-left: auto;
         }
         
         #notificationBadge {
@@ -127,64 +144,131 @@
             align-items: center;
             justify-content: center;
         }
+        
+        .add-task-btn-header {
+            background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+            border: none;
+            padding: 10px 20px;
+            border-radius: 40px;
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 500;
+        }
+        
+        .add-task-btn-header:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(108, 108, 255, 0.4);
+        }
+        
+        .top-bar-actions {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <div class="header-top">
-                <h1><i class="fas fa-kanban"></i> Доска задач</h1>
-                <div class="user-info">
-                    <i class="fas fa-user-circle"></i>
-                    <span id="userName">Загрузка...</span>
-                </div>
+    <div class="app-layout">
+        <!-- Боковая панель навигации -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-logo">
+                <i class="fas fa-chart-line"></i>
+                <span>CRM Team</span>
             </div>
-            <div class="nav-buttons">
-                <a href="index.html" class="nav-btn"><i class="fas fa-home"></i> Дашборд</a>
-                <a href="tasks.html" class="nav-btn"><i class="fas fa-tasks"></i> Доска задач</a>
-                <a href="complexes.html" class="nav-btn"><i class="fas fa-building"></i> Объекты</a>
-                <a href="calendar.html" class="nav-btn"><i class="fas fa-calendar-alt"></i> Календарь</a>
-                <a href="calendar-integration.html" class="nav-btn"><i class="fas fa-plug"></i> Подключить календарь</a>
-                <a href="manager.html" class="nav-btn" data-role="admin,manager"><i class="fas fa-chart-simple"></i> Панель менеджера</a>
-                <a href="profile.html" class="nav-btn"><i class="fas fa-user-circle"></i> Профиль</a>
+            
+            <nav class="sidebar-nav">
+                <a href="index.html" class="nav-item">
+                    <i class="fas fa-home"></i>
+                    <span>Дашборд</span>
+                </a>
+                <a href="tasks.html" class="nav-item active">
+                    <i class="fas fa-tasks"></i>
+                    <span>Доска задач</span>
+                </a>
+                <a href="complexes.html" class="nav-item">
+                    <i class="fas fa-building"></i>
+                    <span>Объекты</span>
+                </a>
+                <a href="calendar.html" class="nav-item">
+                    <i class="fas fa-calendar-alt"></i>
+                    <span>Календарь</span>
+                </a>
+                <a href="calendar-integration.html" class="nav-item">
+                    <i class="fas fa-plug"></i>
+                    <span>Подключить календарь</span>
+                </a>
+                <a href="manager.html" class="nav-item" data-role="admin,manager">
+                    <i class="fas fa-chart-simple"></i>
+                    <span>Панель менеджера</span>
+                </a>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <button class="collapse-btn" onclick="window.sidebar?.toggleSidebar()">
+                    <i class="fas fa-chevron-left"></i>
+                    <span>Свернуть</span>
+                </button>
             </div>
-                    <a href="notifications.html" class="nav-btn" id="notificationBtn">
-                        <i class="fas fa-bell"></i>
-                    </a>
-                    <span id="notificationBadge" style="display: none;"></span>
-                </div>
-                <button id="addTaskBtn" class="nav-btn" data-role="admin,manager,agent"><i class="fas fa-plus"></i> Новая задача</button>
-            </div>
-        </header>
+        </aside>
         
-        <div class="kanban-board">
-            <div class="kanban-column" data-status="todo">
-                <div class="column-header">
-                    <span><i class="fas fa-circle"></i> To Do</span>
-                    <span id="todoCount">0</span>
+        <!-- Основной контент -->
+        <main class="main-content">
+            <div class="top-bar">
+                <div class="top-bar-actions">
+                    <button id="addTaskBtn" class="add-task-btn-header" data-role="admin,manager,agent">
+                        <i class="fas fa-plus"></i> Новая задача
+                    </button>
+                    <div class="notification-btn-wrapper">
+                        <a href="notifications.html" class="nav-btn" id="notificationBtn" style="background: rgba(108, 108, 255, 0.12); padding: 10px 16px;">
+                            <i class="fas fa-bell"></i>
+                        </a>
+                        <span id="notificationBadge" style="display: none;"></span>
+                    </div>
                 </div>
-                <div id="todoTasks" class="tasks-container"></div>
-                <button class="add-task-btn" data-status="todo"><i class="fas fa-plus"></i> Добавить задачу</button>
+                <div class="user-profile" onclick="window.sidebar?.goToProfile()">
+                    <div class="user-info">
+                        <div class="user-name" id="userName">Загрузка...</div>
+                        <div class="user-role" id="userRole">—</div>
+                    </div>
+                    <div class="user-avatar" id="userAvatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                </div>
             </div>
             
-            <div class="kanban-column" data-status="in_progress">
-                <div class="column-header">
-                    <span><i class="fas fa-spinner fa-pulse"></i> В работе</span>
-                    <span id="progressCount">0</span>
+            <div class="kanban-board">
+                <div class="kanban-column" data-status="todo">
+                    <div class="column-header">
+                        <span><i class="fas fa-circle"></i> To Do</span>
+                        <span id="todoCount">0</span>
+                    </div>
+                    <div id="todoTasks" class="tasks-container"></div>
+                    <button class="add-task-btn" data-status="todo"><i class="fas fa-plus"></i> Добавить задачу</button>
                 </div>
-                <div id="progressTasks" class="tasks-container"></div>
-                <button class="add-task-btn" data-status="in_progress"><i class="fas fa-plus"></i> Добавить задачу</button>
-            </div>
-            
-            <div class="kanban-column" data-status="done">
-                <div class="column-header">
-                    <span><i class="fas fa-check-circle"></i> Готово</span>
-                    <span id="doneCount">0</span>
+                
+                <div class="kanban-column" data-status="in_progress">
+                    <div class="column-header">
+                        <span><i class="fas fa-spinner fa-pulse"></i> В работе</span>
+                        <span id="progressCount">0</span>
+                    </div>
+                    <div id="progressTasks" class="tasks-container"></div>
+                    <button class="add-task-btn" data-status="in_progress"><i class="fas fa-plus"></i> Добавить задачу</button>
                 </div>
-                <div id="doneTasks" class="tasks-container"></div>
-                <button class="add-task-btn" data-status="done"><i class="fas fa-plus"></i> Добавить задачу</button>
+                
+                <div class="kanban-column" data-status="done">
+                    <div class="column-header">
+                        <span><i class="fas fa-check-circle"></i> Готово</span>
+                        <span id="doneCount">0</span>
+                    </div>
+                    <div id="doneTasks" class="tasks-container"></div>
+                    <button class="add-task-btn" data-status="done"><i class="fas fa-plus"></i> Добавить задачу</button>
+                </div>
             </div>
-        </div>
+        </main>
     </div>
     
     <!-- Модальное окно задачи с комментариями -->
@@ -236,10 +320,39 @@
     <script src="core.js"></script>
     <script src="auth.js"></script>
     <script src="theme.js"></script>
+    <script src="layout.js"></script>
     <script src="notifications.js"></script>
     <script src="tasks.js"></script>
     
     <script>
+        // Обновление информации о пользователе
+        function updateUserProfile() {
+            var user = auth.getCurrentUser();
+            if (!user) return;
+            
+            var userNameSpan = document.getElementById('userName');
+            var userRoleSpan = document.getElementById('userRole');
+            var userAvatar = document.getElementById('userAvatar');
+            
+            if (userNameSpan) {
+                userNameSpan.textContent = user.name;
+            }
+            
+            if (userRoleSpan) {
+                var roleLabel = '';
+                if (user.role === 'admin') roleLabel = 'Администратор';
+                else if (user.role === 'manager') roleLabel = 'Менеджер';
+                else if (user.role === 'agent') roleLabel = 'Агент';
+                else roleLabel = 'Наблюдатель';
+                userRoleSpan.textContent = roleLabel;
+            }
+            
+            if (userAvatar) {
+                var initials = user.name.split(' ').map(function(n) { return n[0]; }).join('').toUpperCase();
+                userAvatar.innerHTML = initials || '<i class="fas fa-user"></i>';
+            }
+        }
+        
         // Обновление счётчика уведомлений
         function updateNotificationBadge() {
             var notifications = JSON.parse(localStorage.getItem('crm_notifications_center') || '[]');
@@ -258,7 +371,7 @@
             }
         }
         
-        // Запрос разрешения на уведомления при загрузке
+        // Запрос разрешения на уведомления
         if (window.notifications && window.notifications.requestPermission) {
             window.notifications.requestPermission();
         }
@@ -266,12 +379,20 @@
         // Обновляем бейдж при загрузке
         updateNotificationBadge();
         
-        // Слушаем изменения в localStorage (для уведомлений из других вкладок)
+        // Обновляем профиль
+        setTimeout(updateUserProfile, 500);
+        
+        // Слушаем изменения в localStorage
         window.addEventListener('storage', function(e) {
             if (e.key === 'crm_notifications_center') {
                 updateNotificationBadge();
             }
         });
+        
+        // Инициализация боковой панели
+        if (window.sidebar) {
+            window.sidebar.initSidebar();
+        }
     </script>
 </body>
 </html>
