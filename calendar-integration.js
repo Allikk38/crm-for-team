@@ -7,37 +7,32 @@
  *   - auth.js: auth.getCurrentUser()
  *   - Данные: data/tasks.csv, data/user_settings.csv
  * МЕХАНИКА:
- *   1. Генерация iCal-ссылки для подписки на задачи
+ *   1. Генерация iCal-ссылки для подписки на задачи (требует бэкенд)
  *   2. Экспорт задач в .ics файл (для импорта в календарь)
- *   3. Сохранение настроек уведомлений
- *   4. Генерация тестового события для проверки
+ *   3. Прямое добавление событий в Google Календарь
+ *   4. Сохранение настроек уведомлений
+ *   5. Генерация тестового события
  * ============================================
  */
 
 let currentUserTasks = [];
 let allTasks = [];
 
-// Генерация iCal-ссылки (в реальной реализации нужен бэкенд)
+// Генерация iCal-ссылки (требует бэкенд, пока демо)
 function generateIcalUrl() {
     const user = auth.getCurrentUser();
     if (!user) return '';
     
-    // Для демонстрации генерируем локальную ссылку
-    // В реальной CRM нужен бэкенд, который будет отдавать .ics файл
-    const baseUrl = window.location.origin + window.location.pathname.replace('calendar-integration.html', '');
-    const token = btoa(user.github_username + ':' + Date.now());
-    
-    // Сохраняем токен для "бэкенда"
-    localStorage.setItem('ical_token_' + token, user.github_username);
-    
-    return baseUrl + 'ical.ics?token=' + token;
+    // Для полноценной работы нужен бэкенд, который будет отдавать .ics файл
+    // Временно показываем инструкцию по импорту через файл
+    return 'Для подписки на календарь используйте экспорт .ics файла и импорт в календарь. Полноценная iCal-подписка будет доступна в следующей версии.';
 }
 
 // Копирование iCal-ссылки
 function copyIcalUrl() {
     const url = generateIcalUrl();
     navigator.clipboard.writeText(url).then(() => {
-        showToast('success', 'Ссылка скопирована! Вставьте её в Google Календарь');
+        showToast('success', 'Ссылка скопирована!');
     }).catch(() => {
         showToast('info', 'Скопируйте ссылку вручную: ' + url);
     });
@@ -84,6 +79,11 @@ function escapeIcs(text) {
 
 // Экспорт задач в файл
 function downloadIcsFile(tasks, filename) {
+    if (!tasks || tasks.length === 0) {
+        showToast('info', 'Нет задач с дедлайнами для экспорта');
+        return;
+    }
+    
     const ics = generateIcsFile(tasks, filename);
     const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
     const link = document.createElement('a');
@@ -97,14 +97,56 @@ function downloadIcsFile(tasks, filename) {
     showToast('success', 'Файл ' + filename + '.ics скачан. Импортируйте его в календарь');
 }
 
-// Экспорт всех задач
+// Прямое добавление в Google Календарь
+function addToGoogleCalendar(task) {
+    const title = encodeURIComponent(task.title);
+    const description = encodeURIComponent(task.description || '');
+    const date = task.due_date || new Date().toISOString().split('T')[0];
+    
+    const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&details=${description}&dates=${date}/${date}`;
+    window.open(url, '_blank');
+}
+
+// Экспорт всех задач в Google Календарь (по одному)
+async function exportAllToGoogleCalendar() {
+    const tasks = await loadCSV('data/tasks.csv');
+    const tasksWithDueDate = tasks.filter(t => t.due_date);
+    
+    if (tasksWithDueDate.length === 0) {
+        showToast('info', 'Нет задач с дедлайнами');
+        return;
+    }
+    
+    // Открываем первую задачу, пользователь может добавить остальные вручную
+    addToGoogleCalendar(tasksWithDueDate[0]);
+    showToast('info', `Открыта задача "${tasksWithDueDate[0].title}". После добавления вернитесь и нажмите ещё раз для следующей задачи.`);
+}
+
+// Экспорт моих задач в Google Календарь
+async function exportMyToGoogleCalendar() {
+    const user = auth.getCurrentUser();
+    if (!user) return;
+    
+    const tasks = await loadCSV('data/tasks.csv');
+    const myTasks = tasks.filter(t => t.assigned_to === user.github_username && t.due_date);
+    
+    if (myTasks.length === 0) {
+        showToast('info', 'Нет ваших задач с дедлайнами');
+        return;
+    }
+    
+    addToGoogleCalendar(myTasks[0]);
+    showToast('info', `Открыта задача "${myTasks[0].title}". После добавления вернитесь и нажмите ещё раз для следующей.`);
+}
+
+// Экспорт всех задач (файл)
 async function exportAllTasks() {
     const tasks = await loadCSV('data/tasks.csv');
     const tasksWithDueDate = tasks.filter(t => t.due_date);
     downloadIcsFile(tasksWithDueDate, 'crm_all_tasks');
 }
 
-// Экспорт моих задач
+// Экспорт моих задач (файл)
 async function exportMyTasks() {
     const user = auth.getCurrentUser();
     if (!user) return;
@@ -114,7 +156,7 @@ async function exportMyTasks() {
     downloadIcsFile(myTasks, 'crm_my_tasks');
 }
 
-// Экспорт задач на текущий месяц
+// Экспорт задач на текущий месяц (файл)
 async function exportCurrentMonth() {
     const tasks = await loadCSV('data/tasks.csv');
     const now = new Date();
@@ -164,6 +206,7 @@ async function loadTasksForExport() {
             '</div>' +
             '<div class="calendar-item-actions">' +
                 '<button onclick="exportSingleTask(' + task.id + ')"><i class="fas fa-download"></i></button>' +
+                '<button onclick="addSingleTaskToGoogle(' + task.id + ')"><i class="fab fa-google"></i></button>' +
             '</div>' +
         '</div>';
     }
@@ -171,7 +214,7 @@ async function loadTasksForExport() {
     container.innerHTML = html;
 }
 
-// Экспорт одной задачи
+// Экспорт одной задачи (файл)
 async function exportSingleTask(taskId) {
     const tasks = await loadCSV('data/tasks.csv');
     const task = tasks.find(t => parseInt(t.id) === taskId);
@@ -180,7 +223,19 @@ async function exportSingleTask(taskId) {
     }
 }
 
-// Тестовое событие для Google Календаря
+// Добавить одну задачу в Google Календарь
+async function addSingleTaskToGoogle(taskId) {
+    const tasks = await loadCSV('data/tasks.csv');
+    const task = tasks.find(t => parseInt(t.id) === taskId);
+    if (task && task.due_date) {
+        addToGoogleCalendar(task);
+        showToast('success', 'Открыт Google Календарь для задачи "' + task.title + '"');
+    } else {
+        showToast('info', 'У задачи нет дедлайна');
+    }
+}
+
+// Тестовое событие (файл)
 async function testGoogleCalendar() {
     const user = auth.getCurrentUser();
     if (!user) return;
@@ -196,6 +251,18 @@ async function testGoogleCalendar() {
     
     downloadIcsFile(testEvent, 'crm_test_event');
     showToast('success', 'Тестовое событие создано. Импортируйте .ics файл в календарь');
+}
+
+// Тестовое событие (прямая ссылка в Google)
+function testGoogleCalendarDirect() {
+    const title = encodeURIComponent('Тестовое событие CRM');
+    const description = encodeURIComponent('Проверка интеграции с календарём. Если вы видите это событие — интеграция работает!');
+    const today = new Date();
+    const dateStr = today.toISOString().split('T')[0];
+    
+    const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&details=${description}&dates=${dateStr}/${dateStr}`;
+    window.open(url, '_blank');
+    showToast('success', 'Google Календарь открыт. Нажмите "Сохранить" для добавления события');
 }
 
 // Сохранение настроек уведомлений
@@ -270,12 +337,17 @@ async function init() {
     if (window.theme) window.theme.initTheme();
 }
 
+// Экспорт функций для HTML
 window.copyIcalUrl = copyIcalUrl;
 window.exportAllTasks = exportAllTasks;
 window.exportMyTasks = exportMyTasks;
 window.exportCurrentMonth = exportCurrentMonth;
+window.exportAllToGoogleCalendar = exportAllToGoogleCalendar;
+window.exportMyToGoogleCalendar = exportMyToGoogleCalendar;
 window.exportSingleTask = exportSingleTask;
+window.addSingleTaskToGoogle = addSingleTaskToGoogle;
 window.testGoogleCalendar = testGoogleCalendar;
+window.testGoogleCalendarDirect = testGoogleCalendarDirect;
 window.saveNotificationSettings = saveNotificationSettings;
 
 document.addEventListener('DOMContentLoaded', init);
