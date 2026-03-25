@@ -3,6 +3,8 @@
 let allTasks = [];
 let allUsers = [];
 let currentUser = null;
+console.log('=== manager.js загружен ===');
+console.log('window.auth:', window.auth);
 
 // Загрузка данных
 async function loadData() {
