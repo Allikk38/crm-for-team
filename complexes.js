@@ -1,39 +1,49 @@
 // complexes.js - управление объектами недвижимости
 
-let complexes = [];
-let allUsers = [];
-let tasks = [];
-let currentUser = null;
+var complexes = [];
+var allUsers = [];
+var tasks = [];
+var currentUser = null;
 
 // Загрузка данных
 async function loadComplexesData() {
+    console.log('loadComplexesData started');
+    
     try {
-        complexes = await loadCSV('data/complexes.csv');
-        complexes = complexes.map(function(complex) {
-            return {
-                id: parseInt(complex.id),
-                title: complex.title || '',
-                address: complex.address || '',
-                developer: complex.developer || '',
-                price_from: complex.price_from || '0',
-                price_to: complex.price_to || '0',
-                status: complex.status || 'active',
-                assigned_to: complex.assigned_to || '',
-                coordinates: complex.coordinates || '',
-                description: complex.description || '',
-                documents: complex.documents || '[]',
-                created_at: complex.created_at || '',
-                updated_at: complex.updated_at || ''
-            };
-        });
+        var tasksData = await loadCSV('data/tasks.csv');
+        tasks = tasksData || [];
+        
+        var complexesData = await loadCSV('data/complexes.csv');
+        console.log('Complexes loaded:', complexesData ? complexesData.length : 0);
+        
+        complexes = [];
+        if (complexesData && complexesData.length > 0) {
+            for (var i = 0; i < complexesData.length; i++) {
+                var c = complexesData[i];
+                complexes.push({
+                    id: parseInt(c.id),
+                    title: c.title || '',
+                    address: c.address || '',
+                    developer: c.developer || '',
+                    price_from: c.price_from || '0',
+                    price_to: c.price_to || '0',
+                    status: c.status || 'active',
+                    assigned_to: c.assigned_to || '',
+                    coordinates: c.coordinates || '',
+                    description: c.description || '',
+                    documents: c.documents || '[]',
+                    created_at: c.created_at || '',
+                    updated_at: c.updated_at || ''
+                });
+            }
+        }
         
         allUsers = await loadCSV('data/users.csv');
-        tasks = await loadCSV('data/tasks.csv');
-        
-        console.log('Загружено объектов:', complexes.length);
+        console.log('Users loaded:', allUsers ? allUsers.length : 0);
         
         renderComplexes();
         updateFilters();
+        
     } catch (error) {
         console.error('Ошибка загрузки данных:', error);
         var grid = document.getElementById('complexesGrid');
@@ -48,18 +58,26 @@ function renderComplexes() {
     var grid = document.getElementById('complexesGrid');
     if (!grid) return;
     
-    var searchText = document.getElementById('searchInput')?.value.toLowerCase() || '';
-    var statusFilter = document.getElementById('statusFilter')?.value || 'all';
-    var agentFilter = document.getElementById('agentFilter')?.value || 'all';
+    var searchInput = document.getElementById('searchInput');
+    var searchText = searchInput ? searchInput.value.toLowerCase() : '';
+    var statusFilter = document.getElementById('statusFilter');
+    var statusValue = statusFilter ? statusFilter.value : 'all';
+    var agentFilter = document.getElementById('agentFilter');
+    var agentValue = agentFilter ? agentFilter.value : 'all';
     
-    var filtered = complexes.filter(function(complex) {
+    var filtered = [];
+    for (var i = 0; i < complexes.length; i++) {
+        var complex = complexes[i];
         var matchSearch = searchText === '' || 
-            complex.title.toLowerCase().includes(searchText) || 
-            complex.address.toLowerCase().includes(searchText);
-        var matchStatus = statusFilter === 'all' || complex.status === statusFilter;
-        var matchAgent = agentFilter === 'all' || complex.assigned_to === agentFilter;
-        return matchSearch && matchStatus && matchAgent;
-    });
+            complex.title.toLowerCase().indexOf(searchText) !== -1 || 
+            complex.address.toLowerCase().indexOf(searchText) !== -1;
+        var matchStatus = statusValue === 'all' || complex.status === statusValue;
+        var matchAgent = agentValue === 'all' || complex.assigned_to === agentValue;
+        
+        if (matchSearch && matchStatus && matchAgent) {
+            filtered.push(complex);
+        }
+    }
     
     if (filtered.length === 0) {
         grid.innerHTML = '<div class="empty-state"><i class="fas fa-building"></i><p>Нет объектов</p><p style="font-size: 0.8rem;">Добавьте первый объект</p></div>';
@@ -83,15 +101,29 @@ function renderComplexes() {
             statusText = 'Архив';
         }
         
-        var agent = allUsers.find(function(u) { return u.github_username === complex.assigned_to; });
+        var agent = null;
+        for (var u = 0; u < allUsers.length; u++) {
+            if (allUsers[u].github_username === complex.assigned_to) {
+                agent = allUsers[u];
+                break;
+            }
+        }
         var agentName = agent ? agent.name : 'Не назначен';
         
         var priceFrom = parseInt(complex.price_from).toLocaleString();
         var priceTo = parseInt(complex.price_to).toLocaleString();
         
-        var complexTasks = tasks.filter(function(t) { return t.complex_id && parseInt(t.complex_id) === complex.id; });
+        var complexTasks = [];
+        for (var t = 0; t < tasks.length; t++) {
+            if (tasks[t].complex_id && parseInt(tasks[t].complex_id) === complex.id) {
+                complexTasks.push(tasks[t]);
+            }
+        }
         var tasksCount = complexTasks.length;
-        var tasksDone = complexTasks.filter(function(t) { return t.status === 'done'; }).length;
+        var tasksDone = 0;
+        for (var d = 0; d < complexTasks.length; d++) {
+            if (complexTasks[d].status === 'done') tasksDone++;
+        }
         
         html += '<div class="complex-card" onclick="openComplexModal(' + complex.id + ')">' +
             '<div class="complex-card-header">' +
@@ -102,27 +134,21 @@ function renderComplexes() {
                 '<div class="complex-info-row"><i class="fas fa-location-dot"></i> ' + escapeHtml(complex.address) + '</div>' +
                 '<div class="complex-info-row"><i class="fas fa-industry"></i> ' + escapeHtml(complex.developer) + '</div>' +
                 '<div class="complex-info-row"><i class="fas fa-user"></i> ' + escapeHtml(agentName) + '</div>' +
-                '<div class="complex-price">💰 ' + priceFrom + ' - ' + priceTo + ' ₽</div>' +
+                '<div class="complex-price"><i class="fas fa-ruble-sign"></i> ' + priceFrom + ' - ' + priceTo + '</div>' +
                 '<div class="complex-info-row" style="margin-top: 12px;"><i class="fas fa-tasks"></i> Задач: ' + tasksCount + ' (' + tasksDone + ' выполнено)</div>' +
             '</div>' +
             '<div class="complex-card-footer">' +
                 '<button class="complex-btn" onclick="event.stopPropagation(); openComplexTasks(' + complex.id + ')"><i class="fas fa-list"></i> Задачи</button>' +
-                '<button class="complex-btn" onclick="event.stopPropagation(); openMapForComplex(' + complex.id + ')"><i class="fas fa-map"></i> Карта</button>' +
-                '<button class="complex-btn" data-role="admin,manager" onclick="event.stopPropagation(); editComplex(' + complex.id + ')"><i class="fas fa-edit"></i> Ред.</button>' +
-            '</div>' +
-        '</div>';
+                '<button class="complex-btn" onclick="event.stopPropagation(); openMapForComplex(' + complex.id + ')"><i class="fas fa-map"></i> Карта</button>';
+        
+        if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager')) {
+            html += '<button class="complex-btn" onclick="event.stopPropagation(); editComplex(' + complex.id + ')"><i class="fas fa-edit"></i> Ред.</button>';
+        }
+        
+        html += '</div></div>';
     }
     
     grid.innerHTML = html;
-    
-    // Скрываем кнопки редактирования для не-админов
-    var currentUserRole = currentUser ? currentUser.role : null;
-    if (currentUserRole !== 'admin' && currentUserRole !== 'manager') {
-        var editBtns = grid.querySelectorAll('[data-role="admin,manager"]');
-        for (var b = 0; b < editBtns.length; b++) {
-            editBtns[b].style.display = 'none';
-        }
-    }
 }
 
 // Обновление фильтров
@@ -130,27 +156,40 @@ function updateFilters() {
     var agentSelect = document.getElementById('agentFilter');
     if (!agentSelect) return;
     
-    var agents = allUsers.filter(function(u) { return u.role === 'agent' || u.role === 'manager' || u.role === 'admin'; });
-    
     agentSelect.innerHTML = '<option value="all">Все агенты</option>';
-    for (var i = 0; i < agents.length; i++) {
-        var option = document.createElement('option');
-        option.value = agents[i].github_username;
-        option.textContent = agents[i].name;
-        agentSelect.appendChild(option);
+    for (var i = 0; i < allUsers.length; i++) {
+        var user = allUsers[i];
+        if (user.role === 'agent' || user.role === 'manager' || user.role === 'admin') {
+            var option = document.createElement('option');
+            option.value = user.github_username;
+            option.textContent = user.name;
+            agentSelect.appendChild(option);
+        }
     }
 }
 
 // Открыть карточку объекта
 async function openComplexModal(complexId) {
-    var complex = complexes.find(function(c) { return c.id === complexId; });
+    var complex = null;
+    for (var i = 0; i < complexes.length; i++) {
+        if (complexes[i].id === complexId) {
+            complex = complexes[i];
+            break;
+        }
+    }
     if (!complex) return;
     
     var modal = document.getElementById('complexModal');
     var modalBody = document.getElementById('complexModalBody');
     var editBtn = document.getElementById('editComplexBtn');
     
-    var agent = allUsers.find(function(u) { return u.github_username === complex.assigned_to; });
+    var agent = null;
+    for (var u = 0; u < allUsers.length; u++) {
+        if (allUsers[u].github_username === complex.assigned_to) {
+            agent = allUsers[u];
+            break;
+        }
+    }
     var agentName = agent ? agent.name : 'Не назначен';
     
     var statusText = '';
@@ -158,7 +197,13 @@ async function openComplexModal(complexId) {
     else if (complex.status === 'in_progress') statusText = 'В работе';
     else statusText = 'Архив';
     
-    var complexTasks = tasks.filter(function(t) { return t.complex_id && parseInt(t.complex_id) === complex.id; });
+    var complexTasks = [];
+    for (var t = 0; t < tasks.length; t++) {
+        if (tasks[t].complex_id && parseInt(tasks[t].complex_id) === complex.id) {
+            complexTasks.push(tasks[t]);
+        }
+    }
+    
     var tasksHtml = '';
     for (var i = 0; i < complexTasks.length; i++) {
         var task = complexTasks[i];
@@ -168,42 +213,43 @@ async function openComplexModal(complexId) {
         '</div>';
     }
     
-    modalBody.innerHTML = '<div class="complex-detail-row">' +
-        '<div class="complex-detail-label">Название:</div>' +
-        '<div class="complex-detail-value">' + escapeHtml(complex.title) + '</div>' +
-    '</div>' +
-    '<div class="complex-detail-row">' +
-        '<div class="complex-detail-label">Адрес:</div>' +
-        '<div class="complex-detail-value">' + escapeHtml(complex.address) + '</div>' +
-    '</div>' +
-    '<div class="complex-detail-row">' +
-        '<div class="complex-detail-label">Застройщик:</div>' +
-        '<div class="complex-detail-value">' + escapeHtml(complex.developer) + '</div>' +
-    '</div>' +
-    '<div class="complex-detail-row">' +
-        '<div class="complex-detail-label">Цена:</div>' +
-        '<div class="complex-detail-value">' + parseInt(complex.price_from).toLocaleString() + ' - ' + parseInt(complex.price_to).toLocaleString() + ' ₽</div>' +
-    '</div>' +
-    '<div class="complex-detail-row">' +
-        '<div class="complex-detail-label">Статус:</div>' +
-        '<div class="complex-detail-value">' + statusText + '</div>' +
-    '</div>' +
-    '<div class="complex-detail-row">' +
-        '<div class="complex-detail-label">Ответственный:</div>' +
-        '<div class="complex-detail-value">' + escapeHtml(agentName) + '</div>' +
-    '</div>' +
-    (complex.coordinates ? '<div class="complex-detail-row">' +
-        '<div class="complex-detail-label">Координаты:</div>' +
-        '<div class="complex-detail-value">' + escapeHtml(complex.coordinates) + '</div>' +
-    '</div>' : '') +
-    '<div class="complex-detail-row">' +
-        '<div class="complex-detail-label">Описание:</div>' +
-        '<div class="complex-detail-value">' + (complex.description || '—') + '</div>' +
-    '</div>' +
-    '<div class="complex-detail-row">' +
-        '<div class="complex-detail-label">Связанные задачи:</div>' +
-        '<div class="complex-detail-value tasks-list">' + (tasksHtml || '<p>Нет задач</p>') + '</div>' +
-    '</div>';
+    modalBody.innerHTML = 
+        '<div class="complex-detail-row">' +
+            '<div class="complex-detail-label">Название:</div>' +
+            '<div class="complex-detail-value">' + escapeHtml(complex.title) + '</div>' +
+        '</div>' +
+        '<div class="complex-detail-row">' +
+            '<div class="complex-detail-label">Адрес:</div>' +
+            '<div class="complex-detail-value">' + escapeHtml(complex.address) + '</div>' +
+        '</div>' +
+        '<div class="complex-detail-row">' +
+            '<div class="complex-detail-label">Застройщик:</div>' +
+            '<div class="complex-detail-value">' + escapeHtml(complex.developer) + '</div>' +
+        '</div>' +
+        '<div class="complex-detail-row">' +
+            '<div class="complex-detail-label">Цена:</div>' +
+            '<div class="complex-detail-value">' + parseInt(complex.price_from).toLocaleString() + ' - ' + parseInt(complex.price_to).toLocaleString() + ' ₽</div>' +
+        '</div>' +
+        '<div class="complex-detail-row">' +
+            '<div class="complex-detail-label">Статус:</div>' +
+            '<div class="complex-detail-value">' + statusText + '</div>' +
+        '</div>' +
+        '<div class="complex-detail-row">' +
+            '<div class="complex-detail-label">Ответственный:</div>' +
+            '<div class="complex-detail-value">' + escapeHtml(agentName) + '</div>' +
+        '</div>' +
+        (complex.coordinates ? '<div class="complex-detail-row">' +
+            '<div class="complex-detail-label">Координаты:</div>' +
+            '<div class="complex-detail-value">' + escapeHtml(complex.coordinates) + '</div>' +
+        '</div>' : '') +
+        '<div class="complex-detail-row">' +
+            '<div class="complex-detail-label">Описание:</div>' +
+            '<div class="complex-detail-value">' + (complex.description || '—') + '</div>' +
+        '</div>' +
+        '<div class="complex-detail-row">' +
+            '<div class="complex-detail-label">Связанные задачи:</div>' +
+            '<div class="complex-detail-value tasks-list">' + (tasksHtml || '<p>Нет задач</p>') + '</div>' +
+        '</div>';
     
     modal.classList.add('active');
     
@@ -212,13 +258,26 @@ async function openComplexModal(complexId) {
         editComplex(complexId);
     };
     
-    var currentUserRole = currentUser ? currentUser.role : null;
-    editBtn.style.display = (currentUserRole === 'admin' || currentUserRole === 'manager') ? 'block' : 'none';
+    if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager')) {
+        editBtn.style.display = 'block';
+    } else {
+        editBtn.style.display = 'none';
+    }
 }
 
-// Редактирование объекта
+function getPriorityText(priority) {
+    var priorities = { high: 'Высокий', medium: 'Средний', low: 'Низкий' };
+    return priorities[priority] || priority;
+}
+
 function editComplex(complexId) {
-    var complex = complexes.find(function(c) { return c.id === complexId; });
+    var complex = null;
+    for (var i = 0; i < complexes.length; i++) {
+        if (complexes[i].id === complexId) {
+            complex = complexes[i];
+            break;
+        }
+    }
     if (!complex) return;
     
     document.getElementById('complexFormTitle').innerHTML = '<i class="fas fa-edit"></i> Редактировать объект';
@@ -236,7 +295,6 @@ function editComplex(complexId) {
     document.getElementById('complexFormModal').classList.add('active');
 }
 
-// Создание нового объекта
 function openAddComplexModal() {
     document.getElementById('complexFormTitle').innerHTML = '<i class="fas fa-plus"></i> Новый объект';
     document.getElementById('complexId').value = '';
@@ -253,7 +311,6 @@ function openAddComplexModal() {
     document.getElementById('complexFormModal').classList.add('active');
 }
 
-// Сохранение объекта
 async function saveComplex() {
     var id = document.getElementById('complexId').value;
     var complexData = {
@@ -278,14 +335,23 @@ async function saveComplex() {
     }
     
     if (id) {
-        var index = complexes.findIndex(function(c) { return c.id === parseInt(id); });
+        var index = -1;
+        for (var i = 0; i < complexes.length; i++) {
+            if (complexes[i].id === parseInt(id)) {
+                index = i;
+                break;
+            }
+        }
         if (index !== -1) {
             complexData.id = parseInt(id);
             complexData.created_at = complexes[index].created_at;
             complexes[index] = complexData;
         }
     } else {
-        var newId = complexes.length > 0 ? Math.max.apply(null, complexes.map(function(c) { return c.id; })) + 1 : 1;
+        var newId = 1;
+        for (var i = 0; i < complexes.length; i++) {
+            if (complexes[i].id >= newId) newId = complexes[i].id + 1;
+        }
         complexData.id = newId;
         complexes.push(complexData);
     }
@@ -301,7 +367,6 @@ async function saveComplex() {
     }
 }
 
-// Сохранение в GitHub
 async function saveComplexesToGitHub() {
     var currentUserAuth = auth.getCurrentUser();
     if (!currentUserAuth || !auth.hasPermission('edit')) {
@@ -309,23 +374,25 @@ async function saveComplexesToGitHub() {
         return false;
     }
     
-    var complexesToSave = complexes.map(function(complex) {
-        return {
-            id: complex.id,
-            title: complex.title,
-            address: complex.address,
-            developer: complex.developer,
-            price_from: complex.price_from,
-            price_to: complex.price_to,
-            status: complex.status,
-            assigned_to: complex.assigned_to,
-            coordinates: complex.coordinates,
-            description: complex.description,
-            documents: complex.documents,
-            created_at: complex.created_at,
-            updated_at: complex.updated_at
-        };
-    });
+    var complexesToSave = [];
+    for (var i = 0; i < complexes.length; i++) {
+        var c = complexes[i];
+        complexesToSave.push({
+            id: c.id,
+            title: c.title,
+            address: c.address,
+            developer: c.developer,
+            price_from: c.price_from,
+            price_to: c.price_to,
+            status: c.status,
+            assigned_to: c.assigned_to,
+            coordinates: c.coordinates,
+            description: c.description,
+            documents: c.documents,
+            created_at: c.created_at,
+            updated_at: c.updated_at
+        });
+    }
     
     return await window.utils.saveCSVToGitHub(
         'data/complexes.csv',
@@ -334,25 +401,24 @@ async function saveComplexesToGitHub() {
     );
 }
 
-// Показать задачи объекта
 function openComplexTasks(complexId) {
     window.location.href = 'tasks.html?complex=' + complexId;
 }
 
-// Открыть карту (из realty-search)
 function openMapForComplex(complexId) {
-    var complex = complexes.find(function(c) { return c.id === complexId; });
+    var complex = null;
+    for (var i = 0; i < complexes.length; i++) {
+        if (complexes[i].id === complexId) {
+            complex = complexes[i];
+            break;
+        }
+    }
     if (complex && complex.coordinates) {
         var coords = complex.coordinates.split(',');
         window.open('https://maps.google.com/?q=' + coords[0] + ',' + coords[1], '_blank');
     } else {
         alert('Координаты не заданы');
     }
-}
-
-function getPriorityText(priority) {
-    var priorities = { high: 'Высокий', medium: 'Средний', low: 'Низкий' };
-    return priorities[priority] || priority;
 }
 
 function escapeHtml(text) {
@@ -383,8 +449,11 @@ function closeComplexFormModal() {
 
 // Инициализация
 async function init() {
+    console.log('complexes.js init started');
+    
     await auth.initAuth();
     currentUser = auth.getCurrentUser();
+    console.log('Current user:', currentUser);
     
     if (currentUser) {
         var userNameSpan = document.getElementById('userName');
@@ -414,12 +483,22 @@ async function init() {
     }
     
     await loadComplexesData();
-    window.theme.initTheme();
     
-    document.getElementById('addComplexBtn')?.addEventListener('click', openAddComplexModal);
-    document.getElementById('searchInput')?.addEventListener('input', renderComplexes);
-    document.getElementById('statusFilter')?.addEventListener('change', renderComplexes);
-    document.getElementById('agentFilter')?.addEventListener('change', renderComplexes);
+    if (window.theme) window.theme.initTheme();
+    
+    var addBtn = document.getElementById('addComplexBtn');
+    if (addBtn) addBtn.addEventListener('click', openAddComplexModal);
+    
+    var searchInput = document.getElementById('searchInput');
+    if (searchInput) searchInput.addEventListener('input', renderComplexes);
+    
+    var statusFilter = document.getElementById('statusFilter');
+    if (statusFilter) statusFilter.addEventListener('change', renderComplexes);
+    
+    var agentFilter = document.getElementById('agentFilter');
+    if (agentFilter) agentFilter.addEventListener('change', renderComplexes);
+    
+    console.log('complexes.js init completed');
 }
 
 document.addEventListener('DOMContentLoaded', init);
