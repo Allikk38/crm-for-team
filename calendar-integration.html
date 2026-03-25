@@ -10,14 +10,15 @@
     РОЛЬ: Настройка интеграции с внешними календарями (Google, Apple, Outlook)
     СВЯЗИ:
       - CSS: base.css, theme.css, components.css, modal.css, responsive.css
-      - JS: core.js, auth.js, theme.js, calendar-integration.js
+      - JS: core.js, auth.js, theme.js, layout.js, calendar-integration.js
       - Данные: data/user_settings.csv (хранение настроек интеграции)
     МЕХАНИКА:
-      1. Генерация iCal-ссылки для подписки на задачи CRM
-      2. Инструкция по добавлению в Google Календарь, Apple Календарь, Outlook
-      3. Экспорт отдельных задач в календарь
-      4. Синхронизация дедлайнов с внешним календарём
-      5. Настройки уведомлений о дедлайнах
+      1. Боковая панель с навигацией (можно сворачивать)
+      2. Кликабельный профиль в правом верхнем углу
+      3. Генерация iCal-ссылки для подписки на задачи CRM
+      4. Инструкция по добавлению в Google Календарь, Apple Календарь, Outlook
+      5. Экспорт отдельных задач в календарь
+      6. Настройки уведомлений о дедлайнах
     ============================================
     -->
     
@@ -315,274 +316,350 @@
     </style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <div class="header-top">
-                <h1><i class="fas fa-calendar-alt"></i> Интеграция с календарём</h1>
-                <div class="user-info">
-                    <i class="fas fa-user-circle"></i>
-                    <span id="userName">Загрузка...</span>
-                </div>
-            </div>
-            <div class="nav-buttons">
-                <a href="index.html" class="nav-btn"><i class="fas fa-home"></i> Дашборд</a>
-                <a href="tasks.html" class="nav-btn"><i class="fas fa-tasks"></i> Доска задач</a>
-                <a href="complexes.html" class="nav-btn"><i class="fas fa-building"></i> Объекты</a>
-                <a href="calendar.html" class="nav-btn"><i class="fas fa-calendar-alt"></i> Календарь</a>
-                <a href="manager.html" class="nav-btn" data-role="admin,manager"><i class="fas fa-chart-simple"></i> Панель менеджера</a>
-                <a href="profile.html" class="nav-btn"><i class="fas fa-user-circle"></i> Профиль</a>
-            </div>
-        </header>
-        
-        <div class="integration-container">
-            <!-- Google Календарь -->
-            <div class="integration-card">
-                <div class="integration-header">
-                    <div class="integration-icon">
-                        <i class="fab fa-google"></i>
-                    </div>
-                    <div class="integration-title">
-                        <h2>Google Календарь</h2>
-                        <p>Подпишитесь на календарь задач CRM</p>
-                    </div>
-                    <div class="integration-status" id="googleStatus">
-                        <i class="fas fa-check-circle"></i> Готов к подключению
-                    </div>
-                </div>
-                
-                <div class="ical-url-box">
-                    <div style="margin-bottom: 8px; font-size: 0.8rem;">
-                        <i class="fas fa-link"></i> Ваша персональная iCal-ссылка:
-                    </div>
-                    <div class="ical-url" id="icalUrl">https://crm-team.vercel.app/ical/...</div>
-                    <button class="copy-btn" onclick="copyIcalUrl()">
-                        <i class="fas fa-copy"></i> Скопировать ссылку
-                    </button>
-                </div>
-                
-                <div class="instruction-steps">
-                    <div class="step">
-                        <div class="step-number">1</div>
-                        <div class="step-content">
-                            <h4>Скопируйте ссылку выше</h4>
-                            <p>Нажмите кнопку "Скопировать ссылку"</p>
-                        </div>
-                    </div>
-                    <div class="step">
-                        <div class="step-number">2</div>
-                        <div class="step-content">
-                            <h4>Откройте Google Календарь</h4>
-                            <p>Перейдите на <a href="https://calendar.google.com" target="_blank">calendar.google.com</a> и войдите в свой аккаунт</p>
-                        </div>
-                    </div>
-                    <div class="step">
-                        <div class="step-number">3</div>
-                        <div class="step-content">
-                            <h4>Добавьте календарь по ссылке</h4>
-                            <p>В левом меню нажмите <strong>+</strong> → <strong>По URL</strong> → вставьте скопированную ссылку</p>
-                            <div class="step-image">
-                                <i class="fas fa-plus-circle"></i> + → По URL → вставить ссылку → Добавить календарь
-                            </div>
-                        </div>
-                    </div>
-                    <div class="step">
-                        <div class="step-number">4</div>
-                        <div class="step-content">
-                            <h4>Настройте уведомления (опционально)</h4>
-                            <p>В настройках календаря можно включить напоминания о задачах</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="test-notification">
-                    <i class="fas fa-bell"></i> 
-                    <strong>Тестовое уведомление:</strong>
-                    <button class="copy-btn" onclick="testGoogleCalendar()" style="margin-left: 12px;">
-                        <i class="fas fa-envelope"></i> Отправить тестовое событие
-                    </button>
-                </div>
+    <div class="app-layout">
+        <!-- Боковая панель навигации -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-logo">
+                <i class="fas fa-chart-line"></i>
+                <span>CRM Team</span>
             </div>
             
-            <!-- Apple Календарь -->
-            <div class="integration-card">
-                <div class="integration-header">
-                    <div class="integration-icon">
-                        <i class="fab fa-apple"></i>
-                    </div>
-                    <div class="integration-title">
-                        <h2>Apple Календарь (iCloud)</h2>
-                        <p>Синхронизируйте задачи на iPhone, iPad, Mac</p>
-                    </div>
-                </div>
-                
-                <div class="instruction-steps">
-                    <div class="step">
-                        <div class="step-number">1</div>
-                        <div class="step-content">
-                            <h4>Скопируйте iCal-ссылку</h4>
-                            <p>Используйте ту же ссылку, что и для Google Календаря</p>
-                        </div>
-                    </div>
-                    <div class="step">
-                        <div class="step-number">2</div>
-                        <div class="step-content">
-                            <h4>На Mac: Откройте Календарь</h4>
-                            <p>Файл → Новая подписка на календарь → вставьте ссылку</p>
-                        </div>
-                    </div>
-                    <div class="step">
-                        <div class="step-number">3</div>
-                        <div class="step-content">
-                            <h4>На iPhone/iPad: Настройки → Календарь → Аккаунты → Добавить → Подписной календарь</h4>
-                            <div class="step-image">
-                                Настройки → Календарь → Аккаунты → Добавить → Подписной календарь → вставить ссылку
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <nav class="sidebar-nav">
+                <a href="index.html" class="nav-item">
+                    <i class="fas fa-home"></i>
+                    <span>Дашборд</span>
+                </a>
+                <a href="tasks.html" class="nav-item">
+                    <i class="fas fa-tasks"></i>
+                    <span>Доска задач</span>
+                </a>
+                <a href="complexes.html" class="nav-item">
+                    <i class="fas fa-building"></i>
+                    <span>Объекты</span>
+                </a>
+                <a href="calendar.html" class="nav-item">
+                    <i class="fas fa-calendar-alt"></i>
+                    <span>Календарь</span>
+                </a>
+                <a href="calendar-integration.html" class="nav-item active">
+                    <i class="fas fa-plug"></i>
+                    <span>Подключить календарь</span>
+                </a>
+                <a href="manager.html" class="nav-item" data-role="admin,manager">
+                    <i class="fas fa-chart-simple"></i>
+                    <span>Панель менеджера</span>
+                </a>
+            </nav>
             
-            <!-- Outlook / Microsoft 365 -->
-            <div class="integration-card">
-                <div class="integration-header">
-                    <div class="integration-icon">
-                        <i class="fab fa-microsoft"></i>
-                    </div>
-                    <div class="integration-title">
-                        <h2>Outlook / Microsoft 365</h2>
-                        <p>Синхронизация с Outlook, Hotmail, Exchange</p>
-                    </div>
-                </div>
-                
-                <div class="instruction-steps">
-                    <div class="step">
-                        <div class="step-number">1</div>
-                        <div class="step-content">
-                            <h4>Скопируйте iCal-ссылку</h4>
-                            <p>Используйте ту же ссылку</p>
-                        </div>
-                    </div>
-                    <div class="step">
-                        <div class="step-number">2</div>
-                        <div class="step-content">
-                            <h4>Откройте Outlook в браузере</h4>
-                            <p>Перейдите в Календарь → Добавить календарь → Подписаться из Интернета</p>
-                        </div>
-                    </div>
-                    <div class="step">
-                        <div class="step-number">3</div>
-                        <div class="step-content">
-                            <h4>Вставьте ссылку и назовите календарь</h4>
-                            <p>Например: "CRM Задачи"</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Экспорт отдельных задач -->
-            <div class="integration-card">
-                <div class="integration-header">
-                    <div class="integration-icon">
-                        <i class="fas fa-download"></i>
-                    </div>
-                    <div class="integration-title">
-                        <h2>Экспорт задач</h2>
-                        <p>Добавьте конкретную задачу в свой календарь</p>
-                    </div>
-                </div>
-                
-                <div class="export-buttons">
-                    <button class="export-btn" onclick="exportAllTasks()">
-                        <i class="fas fa-download"></i> Скачать все задачи (.ics)
-                    </button>
-                    <button class="export-btn" onclick="exportMyTasks()">
-                        <i class="fas fa-user"></i> Мои задачи (.ics)
-                    </button>
-                    <button class="export-btn" onclick="exportCurrentMonth()">
-                        <i class="fas fa-calendar-alt"></i> Текущий месяц (.ics)
-                    </button>
-                </div>
-                <div class="export-buttons" style="margin-top: 12px;">
-                    <button class="export-btn" onclick="exportAllToGoogleCalendar()">
-                        <i class="fab fa-google"></i> Добавить в Google Календарь (все)
-                    </button>
-                    <button class="export-btn" onclick="exportMyToGoogleCalendar()">
-                        <i class="fab fa-google"></i> Мои задачи в Google
-                    </button>
-                </div>
-                
-                <div class="calendar-list" id="recentTasksExport">
-                    <div style="text-align: center; color: var(--text-muted); padding: 20px;">
-                        <i class="fas fa-spinner fa-pulse"></i> Загрузка задач...
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Настройки уведомлений -->
-            <div class="integration-card">
-                <div class="integration-header">
-                    <div class="integration-icon">
-                        <i class="fas fa-bell"></i>
-                    </div>
-                    <div class="integration-title">
-                        <h2>Настройки уведомлений</h2>
-                        <p>Настройте напоминания о дедлайнах</p>
-                    </div>
-                </div>
-                
-                <div class="calendar-list">
-                    <div class="calendar-item">
-                        <div class="calendar-item-info">
-                            <i class="fas fa-clock"></i>
-                            <span>Напоминать за 1 день до дедлайна</span>
-                        </div>
-                        <label class="toggle-switch-small">
-                            <input type="checkbox" id="remind1day" checked>
-                            <span class="toggle-slider-small"></span>
-                        </label>
-                    </div>
-                    <div class="calendar-item">
-                        <div class="calendar-item-info">
-                            <i class="fas fa-clock"></i>
-                            <span>Напоминать за 3 дня до дедлайна</span>
-                        </div>
-                        <label class="toggle-switch-small">
-                            <input type="checkbox" id="remind3days">
-                            <span class="toggle-slider-small"></span>
-                        </label>
-                    </div>
-                    <div class="calendar-item">
-                        <div class="calendar-item-info">
-                            <i class="fas fa-clock"></i>
-                            <span>Напоминать в день дедлайна</span>
-                        </div>
-                        <label class="toggle-switch-small">
-                            <input type="checkbox" id="remindToday" checked>
-                            <span class="toggle-slider-small"></span>
-                        </label>
-                    </div>
-                    <div class="calendar-item">
-                        <div class="calendar-item-info">
-                            <i class="fas fa-envelope"></i>
-                            <span>Email-уведомления о дедлайнах</span>
-                        </div>
-                        <label class="toggle-switch-small">
-                            <input type="checkbox" id="emailReminders">
-                            <span class="toggle-slider-small"></span>
-                        </label>
-                    </div>
-                </div>
-                
-                <button class="copy-btn" onclick="saveNotificationSettings()" style="width: 100%; margin-top: 20px;">
-                    <i class="fas fa-save"></i> Сохранить настройки
+            <div class="sidebar-footer">
+                <button class="collapse-btn" onclick="window.sidebar?.toggleSidebar()">
+                    <i class="fas fa-chevron-left"></i>
+                    <span>Свернуть</span>
                 </button>
             </div>
-        </div>
+        </aside>
+        
+        <!-- Основной контент -->
+        <main class="main-content">
+            <div class="top-bar">
+                <div class="user-profile" onclick="window.sidebar?.goToProfile()">
+                    <div class="user-info">
+                        <div class="user-name" id="userName">Загрузка...</div>
+                        <div class="user-role" id="userRole">—</div>
+                    </div>
+                    <div class="user-avatar" id="userAvatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="integration-container">
+                <!-- Google Календарь -->
+                <div class="integration-card">
+                    <div class="integration-header">
+                        <div class="integration-icon">
+                            <i class="fab fa-google"></i>
+                        </div>
+                        <div class="integration-title">
+                            <h2>Google Календарь</h2>
+                            <p>Подпишитесь на календарь задач CRM</p>
+                        </div>
+                        <div class="integration-status" id="googleStatus">
+                            <i class="fas fa-check-circle"></i> Готов к подключению
+                        </div>
+                    </div>
+                    
+                    <div class="ical-url-box">
+                        <div style="margin-bottom: 8px; font-size: 0.8rem;">
+                            <i class="fas fa-link"></i> Ваша персональная iCal-ссылка:
+                        </div>
+                        <div class="ical-url" id="icalUrl">https://crm-team.vercel.app/ical/...</div>
+                        <button class="copy-btn" onclick="copyIcalUrl()">
+                            <i class="fas fa-copy"></i> Скопировать ссылку
+                        </button>
+                    </div>
+                    
+                    <div class="instruction-steps">
+                        <div class="step">
+                            <div class="step-number">1</div>
+                            <div class="step-content">
+                                <h4>Скопируйте ссылку выше</h4>
+                                <p>Нажмите кнопку "Скопировать ссылку"</p>
+                            </div>
+                        </div>
+                        <div class="step">
+                            <div class="step-number">2</div>
+                            <div class="step-content">
+                                <h4>Откройте Google Календарь</h4>
+                                <p>Перейдите на <a href="https://calendar.google.com" target="_blank">calendar.google.com</a> и войдите в свой аккаунт</p>
+                            </div>
+                        </div>
+                        <div class="step">
+                            <div class="step-number">3</div>
+                            <div class="step-content">
+                                <h4>Добавьте календарь по ссылке</h4>
+                                <p>В левом меню нажмите <strong>+</strong> → <strong>По URL</strong> → вставьте скопированную ссылку</p>
+                                <div class="step-image">
+                                    <i class="fas fa-plus-circle"></i> + → По URL → вставить ссылку → Добавить календарь
+                                </div>
+                            </div>
+                        </div>
+                        <div class="step">
+                            <div class="step-number">4</div>
+                            <div class="step-content">
+                                <h4>Настройте уведомления (опционально)</h4>
+                                <p>В настройках календаря можно включить напоминания о задачах</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="test-notification">
+                        <i class="fas fa-bell"></i> 
+                        <strong>Тестовое уведомление:</strong>
+                        <button class="copy-btn" onclick="testGoogleCalendar()" style="margin-left: 12px;">
+                            <i class="fas fa-envelope"></i> Отправить тестовое событие
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Apple Календарь -->
+                <div class="integration-card">
+                    <div class="integration-header">
+                        <div class="integration-icon">
+                            <i class="fab fa-apple"></i>
+                        </div>
+                        <div class="integration-title">
+                            <h2>Apple Календарь (iCloud)</h2>
+                            <p>Синхронизируйте задачи на iPhone, iPad, Mac</p>
+                        </div>
+                    </div>
+                    
+                    <div class="instruction-steps">
+                        <div class="step">
+                            <div class="step-number">1</div>
+                            <div class="step-content">
+                                <h4>Скопируйте iCal-ссылку</h4>
+                                <p>Используйте ту же ссылку, что и для Google Календаря</p>
+                            </div>
+                        </div>
+                        <div class="step">
+                            <div class="step-number">2</div>
+                            <div class="step-content">
+                                <h4>На Mac: Откройте Календарь</h4>
+                                <p>Файл → Новая подписка на календарь → вставьте ссылку</p>
+                            </div>
+                        </div>
+                        <div class="step">
+                            <div class="step-number">3</div>
+                            <div class="step-content">
+                                <h4>На iPhone/iPad: Настройки → Календарь → Аккаунты → Добавить → Подписной календарь</h4>
+                                <div class="step-image">
+                                    Настройки → Календарь → Аккаунты → Добавить → Подписной календарь → вставить ссылку
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Outlook / Microsoft 365 -->
+                <div class="integration-card">
+                    <div class="integration-header">
+                        <div class="integration-icon">
+                            <i class="fab fa-microsoft"></i>
+                        </div>
+                        <div class="integration-title">
+                            <h2>Outlook / Microsoft 365</h2>
+                            <p>Синхронизация с Outlook, Hotmail, Exchange</p>
+                        </div>
+                    </div>
+                    
+                    <div class="instruction-steps">
+                        <div class="step">
+                            <div class="step-number">1</div>
+                            <div class="step-content">
+                                <h4>Скопируйте iCal-ссылку</h4>
+                                <p>Используйте ту же ссылку</p>
+                            </div>
+                        </div>
+                        <div class="step">
+                            <div class="step-number">2</div>
+                            <div class="step-content">
+                                <h4>Откройте Outlook в браузере</h4>
+                                <p>Перейдите в Календарь → Добавить календарь → Подписаться из Интернета</p>
+                            </div>
+                        </div>
+                        <div class="step">
+                            <div class="step-number">3</div>
+                            <div class="step-content">
+                                <h4>Вставьте ссылку и назовите календарь</h4>
+                                <p>Например: "CRM Задачи"</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Экспорт отдельных задач -->
+                <div class="integration-card">
+                    <div class="integration-header">
+                        <div class="integration-icon">
+                            <i class="fas fa-download"></i>
+                        </div>
+                        <div class="integration-title">
+                            <h2>Экспорт задач</h2>
+                            <p>Добавьте конкретную задачу в свой календарь</p>
+                        </div>
+                    </div>
+                    
+                    <div class="export-buttons">
+                        <button class="export-btn" onclick="exportAllTasks()">
+                            <i class="fas fa-download"></i> Скачать все задачи (.ics)
+                        </button>
+                        <button class="export-btn" onclick="exportMyTasks()">
+                            <i class="fas fa-user"></i> Мои задачи (.ics)
+                        </button>
+                        <button class="export-btn" onclick="exportCurrentMonth()">
+                            <i class="fas fa-calendar-alt"></i> Текущий месяц (.ics)
+                        </button>
+                    </div>
+                    <div class="export-buttons" style="margin-top: 12px;">
+                        <button class="export-btn" onclick="exportAllToGoogleCalendar()">
+                            <i class="fab fa-google"></i> Добавить в Google Календарь (все)
+                        </button>
+                        <button class="export-btn" onclick="exportMyToGoogleCalendar()">
+                            <i class="fab fa-google"></i> Мои задачи в Google
+                        </button>
+                    </div>
+                    
+                    <div class="calendar-list" id="recentTasksExport">
+                        <div style="text-align: center; color: var(--text-muted); padding: 20px;">
+                            <i class="fas fa-spinner fa-pulse"></i> Загрузка задач...
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Настройки уведомлений -->
+                <div class="integration-card">
+                    <div class="integration-header">
+                        <div class="integration-icon">
+                            <i class="fas fa-bell"></i>
+                        </div>
+                        <div class="integration-title">
+                            <h2>Настройки уведомлений</h2>
+                            <p>Настройте напоминания о дедлайнах</p>
+                        </div>
+                    </div>
+                    
+                    <div class="calendar-list">
+                        <div class="calendar-item">
+                            <div class="calendar-item-info">
+                                <i class="fas fa-clock"></i>
+                                <span>Напоминать за 1 день до дедлайна</span>
+                            </div>
+                            <label class="toggle-switch-small">
+                                <input type="checkbox" id="remind1day" checked>
+                                <span class="toggle-slider-small"></span>
+                            </label>
+                        </div>
+                        <div class="calendar-item">
+                            <div class="calendar-item-info">
+                                <i class="fas fa-clock"></i>
+                                <span>Напоминать за 3 дня до дедлайна</span>
+                            </div>
+                            <label class="toggle-switch-small">
+                                <input type="checkbox" id="remind3days">
+                                <span class="toggle-slider-small"></span>
+                            </label>
+                        </div>
+                        <div class="calendar-item">
+                            <div class="calendar-item-info">
+                                <i class="fas fa-clock"></i>
+                                <span>Напоминать в день дедлайна</span>
+                            </div>
+                            <label class="toggle-switch-small">
+                                <input type="checkbox" id="remindToday" checked>
+                                <span class="toggle-slider-small"></span>
+                            </label>
+                        </div>
+                        <div class="calendar-item">
+                            <div class="calendar-item-info">
+                                <i class="fas fa-envelope"></i>
+                                <span>Email-уведомления о дедлайнах</span>
+                            </div>
+                            <label class="toggle-switch-small">
+                                <input type="checkbox" id="emailReminders">
+                                <span class="toggle-slider-small"></span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <button class="copy-btn" onclick="saveNotificationSettings()" style="width: 100%; margin-top: 20px;">
+                        <i class="fas fa-save"></i> Сохранить настройки
+                    </button>
+                </div>
+            </div>
+        </main>
     </div>
     
     <script src="core.js"></script>
     <script src="auth.js"></script>
     <script src="theme.js"></script>
+    <script src="layout.js"></script>
     <script src="calendar-integration.js"></script>
+    
+    <script>
+        // Обновление информации о пользователе
+        function updateUserProfile() {
+            var user = auth.getCurrentUser();
+            if (!user) return;
+            
+            var userNameSpan = document.getElementById('userName');
+            var userRoleSpan = document.getElementById('userRole');
+            var userAvatar = document.getElementById('userAvatar');
+            
+            if (userNameSpan) {
+                userNameSpan.textContent = user.name;
+            }
+            
+            if (userRoleSpan) {
+                var roleLabel = '';
+                if (user.role === 'admin') roleLabel = 'Администратор';
+                else if (user.role === 'manager') roleLabel = 'Менеджер';
+                else if (user.role === 'agent') roleLabel = 'Агент';
+                else roleLabel = 'Наблюдатель';
+                userRoleSpan.textContent = roleLabel;
+            }
+            
+            if (userAvatar) {
+                var initials = user.name.split(' ').map(function(n) { return n[0]; }).join('').toUpperCase();
+                userAvatar.innerHTML = initials || '<i class="fas fa-user"></i>';
+            }
+        }
+        
+        setTimeout(updateUserProfile, 500);
+        
+        if (window.sidebar) {
+            window.sidebar.initSidebar();
+        }
+    </script>
 </body>
 </html>
