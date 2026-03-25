@@ -2,145 +2,209 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    
+    <!-- 
+    ============================================
+    ФАЙЛ: auth.html
+    РОЛЬ: Страница входа в систему
+    СВЯЗИ:
+      - CSS: base.css, theme.css, components.css, responsive.css
+      - JS: core.js, auth.js (новая логика), theme.js
+      - Данные: data/users.csv (проверка имени и пин-кода)
+    МЕХАНИКА:
+      1. Два способа входа:
+         a) Быстрый вход: выбор имени + ввод 4-значного пин-кода
+         b) Вход по ссылке: ввод email → отправка magic link (заглушка, требует бэкенд)
+      2. При успешном входе сохраняется сессия в localStorage
+      3. Поддержка "Запомнить меня" (увеличенное время сессии)
+      4. Для администратора: возможность сброса пин-кода (заглушка)
+    ============================================
+    -->
+    
+    <script>
+        (function() {
+            try {
+                const savedTheme = localStorage.getItem('crm_theme');
+                if (savedTheme === 'light') {
+                    if (document.documentElement) document.documentElement.classList.add('theme-light');
+                    if (document.body) document.body.classList.add('theme-light');
+                } else if (savedTheme === 'dark') {
+                    if (document.documentElement) document.documentElement.classList.add('theme-dark');
+                    if (document.body) document.body.classList.add('theme-dark');
+                }
+            } catch(e) {}
+        })();
+    </script>
+    
     <title>Вход в CRM</title>
+    
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/responsive.css">
+    
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: 'Inter', sans-serif;
-            background: radial-gradient(ellipse at 20% 30%, #0a0a1a, #050510);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
-        
         .login-container {
             max-width: 480px;
-            width: 100%;
-            background: rgba(15, 15, 35, 0.7);
+            margin: 80px auto 40px;
+        }
+        
+        .login-card {
+            background: var(--card-bg);
             backdrop-filter: blur(12px);
             border-radius: 32px;
-            padding: 48px 40px;
-            border: 1px solid rgba(108, 108, 255, 0.3);
+            border: 1px solid var(--card-border);
+            padding: 40px;
             text-align: center;
-            animation: fadeInUp 0.6s ease-out;
         }
         
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-        
-        .logo {
+        .login-logo {
             font-size: 3rem;
-            margin-bottom: 24px;
-            color: #6c6cff;
+            margin-bottom: 20px;
+            color: var(--accent);
         }
         
-        h1 {
+        .login-title {
             font-size: 1.8rem;
-            margin-bottom: 12px;
-            background: linear-gradient(135deg, #fff, #b0b0ff);
+            font-weight: 700;
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, var(--text-primary), var(--accent));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
         
-        .subtitle {
-            color: rgba(255, 255, 255, 0.6);
+        .login-subtitle {
+            color: var(--text-muted);
             margin-bottom: 32px;
             font-size: 0.9rem;
         }
         
-        .input-group {
+        .login-tabs {
+            display: flex;
+            gap: 12px;
             margin-bottom: 24px;
+            border-bottom: 1px solid var(--card-border);
+            padding-bottom: 12px;
+        }
+        
+        .login-tab {
+            flex: 1;
+            padding: 8px;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+            border-radius: 40px;
+        }
+        
+        .login-tab.active {
+            color: var(--accent);
+            background: rgba(108, 108, 255, 0.15);
+        }
+        
+        .login-tab:hover {
+            color: var(--accent);
+        }
+        
+        .login-panel {
+            display: none;
+        }
+        
+        .login-panel.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .input-group {
+            margin-bottom: 20px;
             text-align: left;
         }
         
         .input-group label {
             display: block;
             margin-bottom: 8px;
-            color: rgba(255, 255, 255, 0.7);
             font-size: 0.85rem;
+            color: var(--text-secondary);
         }
         
+        .input-group select,
         .input-group input {
             width: 100%;
-            padding: 14px 18px;
-            background: rgba(0, 0, 0, 0.4);
-            border: 1px solid rgba(108, 108, 255, 0.3);
+            padding: 14px 16px;
+            background: var(--input-bg);
+            border: 1px solid var(--card-border);
             border-radius: 16px;
-            color: white;
+            color: var(--text-primary);
             font-size: 1rem;
-            font-family: 'Inter', monospace;
             transition: all 0.2s;
         }
         
+        .input-group select:focus,
         .input-group input:focus {
             outline: none;
-            border-color: #6c6cff;
-            background: rgba(108, 108, 255, 0.1);
+            border-color: var(--accent);
         }
         
-        .input-group input::placeholder {
-            color: rgba(255, 255, 255, 0.3);
+        .pin-input {
+            letter-spacing: 4px;
+            font-size: 1.2rem;
+            text-align: center;
+        }
+        
+        .remember-me {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 24px;
+        }
+        
+        .remember-me input {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
         }
         
         .login-btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
             width: 100%;
-            background: linear-gradient(135deg, #6c6cff, #4c4cff);
-            color: white;
-            padding: 14px 24px;
-            border-radius: 40px;
+            padding: 14px;
+            background: linear-gradient(135deg, var(--accent), var(--accent-hover));
             border: none;
+            border-radius: 40px;
+            color: white;
             font-weight: 600;
             font-size: 1rem;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: all 0.3s;
         }
         
         .login-btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 8px 24px rgba(108, 108, 255, 0.4);
+            box-shadow: 0 4px 12px rgba(108, 108, 255, 0.4);
         }
         
         .login-btn:disabled {
             opacity: 0.6;
-            cursor: not-allowed;
             transform: none;
-        }
-        
-        .info-text {
-            margin-top: 24px;
-            font-size: 0.75rem;
-            color: rgba(255, 255, 255, 0.4);
+            cursor: not-allowed;
         }
         
         .error-message {
-            background: rgba(255, 80, 80, 0.2);
-            border: 1px solid rgba(255, 80, 80, 0.3);
-            border-radius: 16px;
+            background: rgba(255, 107, 107, 0.2);
+            border: 1px solid rgba(255, 107, 107, 0.3);
+            border-radius: 12px;
             padding: 12px;
             margin-top: 16px;
-            color: #ff8080;
+            color: #ff6b6b;
             font-size: 0.85rem;
             display: none;
         }
@@ -148,7 +212,7 @@
         .loading {
             display: none;
             margin-top: 16px;
-            color: rgba(255, 255, 255, 0.6);
+            color: var(--text-muted);
         }
         
         .loading i {
@@ -160,202 +224,256 @@
             to { transform: rotate(360deg); }
         }
         
-        .github-hint {
+        .info-text {
+            margin-top: 24px;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+        
+        .magic-link-info {
             background: rgba(108, 108, 255, 0.1);
             border-radius: 12px;
             padding: 12px;
-            margin-top: 20px;
+            margin-top: 16px;
             font-size: 0.75rem;
-            color: rgba(255, 255, 255, 0.5);
             text-align: left;
         }
         
-        .github-hint i {
-            margin-right: 6px;
-            color: #6c6cff;
+        @media (max-width: 768px) {
+            .login-container {
+                margin: 40px auto;
+                padding: 0 16px;
+            }
+            
+            .login-card {
+                padding: 24px;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="login-container">
-        <div class="logo">
-            <i class="fas fa-chart-line"></i>
-        </div>
-        <h1>CRM для команды</h1>
-        <div class="subtitle">Управление проектами и задачами</div>
-        
-        <div class="input-group">
-            <label><i class="fab fa-github"></i> GitHub username</label>
-            <input type="text" id="githubUsername" placeholder="например: allikk38" autocomplete="off">
-        </div>
-        
-        <button id="loginBtn" class="login-btn">
-            <i class="fas fa-sign-in-alt"></i> Войти
-        </button>
-        
-        <div id="errorMessage" class="error-message"></div>
-        <div id="loading" class="loading">
-            <i class="fas fa-spinner fa-pulse"></i> Проверяем пользователя...
-        </div>
-        
-        <div class="github-hint">
-            <i class="fas fa-info-circle"></i> Введите ваш GitHub username. При первом входе вы будете автоматически зарегистрированы с ролью <strong>agent</strong>. Администратор сможет изменить роль позже.
-        </div>
-        
-        <div class="info-text">
-            <i class="fas fa-shield-alt"></i> Безопасный вход через проверку GitHub профиля
+    <div class="container">
+        <div class="login-container">
+            <div class="login-card">
+                <div class="login-logo">
+                    <i class="fas fa-chart-line"></i>
+                </div>
+                <div class="login-title">CRM для команды</div>
+                <div class="login-subtitle">Управление проектами и задачами</div>
+                
+                <div class="login-tabs">
+                    <button class="login-tab active" data-tab="quick">🔑 Быстрый вход</button>
+                    <button class="login-tab" data-tab="magic">📧 Вход по ссылке</button>
+                </div>
+                
+                <!-- Панель быстрого входа -->
+                <div id="quickPanel" class="login-panel active">
+                    <div class="input-group">
+                        <label><i class="fas fa-user"></i> Сотрудник</label>
+                        <select id="userSelect">
+                            <option value="">Загрузка...</option>
+                        </select>
+                    </div>
+                    
+                    <div class="input-group">
+                        <label><i class="fas fa-lock"></i> Пин-код (4 цифры)</label>
+                        <input type="password" id="pinCode" class="pin-input" maxlength="4" placeholder="••••" inputmode="numeric">
+                    </div>
+                    
+                    <div class="remember-me">
+                        <input type="checkbox" id="rememberMe">
+                        <label for="rememberMe">Запомнить меня (30 дней)</label>
+                    </div>
+                    
+                    <button id="quickLoginBtn" class="login-btn">➡️ Войти</button>
+                    
+                    <div class="magic-link-info">
+                        <i class="fas fa-info-circle"></i> 
+                        <strong>Не знаете пин-код?</strong> Спросите у руководителя. 
+                        Первый вход — используйте временный код: <strong>1234</strong> (будет заменён при первом входе)
+                    </div>
+                </div>
+                
+                <!-- Панель входа по ссылке -->
+                <div id="magicPanel" class="login-panel">
+                    <div class="input-group">
+                        <label><i class="fas fa-envelope"></i> Корпоративная почта</label>
+                        <input type="email" id="magicEmail" placeholder="ivan@company.ru">
+                    </div>
+                    
+                    <button id="magicLinkBtn" class="login-btn">📩 Отправить ссылку для входа</button>
+                    
+                    <div class="magic-link-info">
+                        <i class="fas fa-envelope"></i> 
+                        Мы отправим ссылку на вашу почту. Перейдите по ней для автоматического входа.
+                        <br><br>
+                        <i class="fas fa-clock"></i> Ссылка действительна 30 минут.
+                    </div>
+                </div>
+                
+                <div id="errorMessage" class="error-message"></div>
+                <div id="loading" class="loading">
+                    <i class="fas fa-spinner fa-pulse"></i> Проверка...
+                </div>
+                
+                <div class="info-text">
+                    <i class="fas fa-shield-alt"></i> Безопасный вход. Все данные защищены.
+                </div>
+            </div>
         </div>
     </div>
     
     <script src="core.js"></script>
+    <script src="theme.js"></script>
+    <script src="auth.js"></script>
     <script>
-        const loginBtn = document.getElementById('loginBtn');
-        const usernameInput = document.getElementById('githubUsername');
-        const errorDiv = document.getElementById('errorMessage');
-        const loadingDiv = document.getElementById('loading');
+        // Дополнительная логика для страницы входа
+        let usersList = [];
         
-        // Проверка существующей сессии
-        const session = localStorage.getItem('crm_session');
-        if (session) {
+        async function loadUsersForSelect() {
             try {
-                const user = JSON.parse(session);
-                if (user && user.github_username) {
-                    window.location.href = 'index.html';
+                usersList = await loadCSV('data/users.csv');
+                const select = document.getElementById('userSelect');
+                if (select && usersList && usersList.length > 0) {
+                    select.innerHTML = '<option value="">Выберите сотрудника</option>';
+                    for (let i = 0; i < usersList.length; i++) {
+                        const user = usersList[i];
+                        const option = document.createElement('option');
+                        option.value = user.github_username;
+                        option.textContent = user.name + ' (' + (user.role === 'admin' ? 'Администратор' : user.role === 'manager' ? 'Менеджер' : 'Агент') + ')';
+                        select.appendChild(option);
+                    }
                 }
-            } catch(e) {}
+            } catch (error) {
+                console.error('Ошибка загрузки пользователей:', error);
+            }
         }
         
-        async function verifyAndLogin() {
-            const username = usernameInput.value.trim().toLowerCase();
+        // Быстрый вход
+        async function quickLogin() {
+            const userSelect = document.getElementById('userSelect');
+            const pinInput = document.getElementById('pinCode');
+            const rememberMe = document.getElementById('rememberMe');
+            const errorDiv = document.getElementById('errorMessage');
+            const loadingDiv = document.getElementById('loading');
+            
+            const username = userSelect.value;
+            const pin = pinInput.value;
             
             if (!username) {
-                showError('Введите GitHub username');
+                showError('Выберите сотрудника');
                 return;
             }
             
-            // Показываем загрузку
-            loginBtn.disabled = true;
-            loadingDiv.style.display = 'block';
+            if (!pin || pin.length !== 4) {
+                showError('Введите 4-значный пин-код');
+                return;
+            }
+            
             errorDiv.style.display = 'none';
+            loadingDiv.style.display = 'block';
             
             try {
-                // Проверяем существование пользователя на GitHub
-                const githubResponse = await fetch(`https://api.github.com/users/${username}`);
+                const result = await window.auth.loginWithPin(username, pin);
                 
-                if (!githubResponse.ok) {
-                    if (githubResponse.status === 404) {
-                        showError(`Пользователь "${username}" не найден на GitHub. Проверьте правильность написания.`);
-                    } else {
-                        showError('Ошибка при проверке GitHub. Попробуйте позже.');
-                    }
-                    return;
-                }
-                
-                const githubData = await githubResponse.json();
-                
-                // Пользователь существует — загружаем или создаём в users.csv
-                const loginResult = await registerOrLoginUser(username, githubData.name || username);
-                
-                if (loginResult.success) {
-                    // Сохраняем сессию
-                    localStorage.setItem('crm_session', JSON.stringify(loginResult.user));
-                    // Перенаправляем на дашборд
+                if (result.success) {
+                    const sessionDuration = rememberMe.checked ? 30 : 1;
+                    window.auth.saveSession(result.user, sessionDuration);
                     window.location.href = 'index.html';
                 } else {
-                    showError(loginResult.error || 'Ошибка при входе');
+                    showError(result.error || 'Неверный пин-код. Попробуйте ещё раз.');
+                    pinInput.value = '';
+                    pinInput.focus();
                 }
-                
             } catch (error) {
-                console.error('Login error:', error);
-                showError('Ошибка соединения. Проверьте интернет и попробуйте снова.');
+                showError('Ошибка подключения. Попробуйте позже.');
             } finally {
-                loginBtn.disabled = false;
                 loadingDiv.style.display = 'none';
             }
         }
         
-        async function registerOrLoginUser(username, fullName) {
+        // Magic link вход
+        async function sendMagicLink() {
+            const email = document.getElementById('magicEmail').value;
+            const errorDiv = document.getElementById('errorMessage');
+            const loadingDiv = document.getElementById('loading');
+            
+            if (!email || !email.includes('@')) {
+                showError('Введите корректный email');
+                return;
+            }
+            
+            errorDiv.style.display = 'none';
+            loadingDiv.style.display = 'block';
+            
             try {
-                // Загружаем текущих пользователей
-                let users = await loadCSV('data/users.csv');
+                const result = await window.auth.sendMagicLink(email);
                 
-                // Ищем существующего
-                let existingUser = users.find(u => u.github_username === username);
-                
-                if (existingUser) {
-                    // Пользователь уже есть
-                    return {
-                        success: true,
-                        user: {
-                            github_username: existingUser.github_username,
-                            name: existingUser.name,
-                            role: existingUser.role,
-                            email: existingUser.email || ''
-                        }
-                    };
+                if (result.success) {
+                    showSuccess('Ссылка для входа отправлена на ' + email);
+                    document.getElementById('magicEmail').value = '';
                 } else {
-                    // Создаём нового пользователя с ролью agent
-                    const newUser = {
-                        github_username: username,
-                        name: fullName,
-                        role: 'agent',
-                        email: '',
-                        created_at: new Date().toISOString().split('T')[0]
-                    };
-                    
-                    // Добавляем в массив
-                    users.push(newUser);
-                    
-                    // Сохраняем в GitHub (запрашиваем токен у администратора)
-                    const saved = await saveCSVToGitHub('data/users.csv', users, `Добавлен новый пользователь: ${username}`);
-                    
-                    if (saved) {
-                        return {
-                            success: true,
-                            user: {
-                                github_username: newUser.github_username,
-                                name: newUser.name,
-                                role: newUser.role,
-                                email: ''
-                            }
-                        };
-                    } else {
-                        // Если не удалось сохранить, но пользователь GitHub валидный — пускаем с временной сессией
-                        // (администратор потом добавит вручную)
-                        return {
-                            success: true,
-                            user: {
-                                github_username: username,
-                                name: fullName,
-                                role: 'agent',
-                                email: '',
-                                temp: true
-                            }
-                        };
-                    }
+                    showError(result.error || 'Пользователь с таким email не найден');
                 }
             } catch (error) {
-                console.error('Register error:', error);
-                return {
-                    success: false,
-                    error: 'Ошибка при регистрации пользователя'
-                };
+                showError('Ошибка отправки. Попробуйте позже.');
+            } finally {
+                loadingDiv.style.display = 'none';
             }
         }
         
         function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
             errorDiv.textContent = message;
             errorDiv.style.display = 'block';
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 5000);
         }
         
-        // Обработчики событий
-        loginBtn.addEventListener('click', verifyAndLogin);
-        usernameInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') verifyAndLogin();
+        function showSuccess(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.style.background = 'rgba(76, 175, 80, 0.2)';
+            errorDiv.style.borderColor = 'rgba(76, 175, 80, 0.3)';
+            errorDiv.style.color = '#4caf50';
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+                errorDiv.style.background = '';
+                errorDiv.style.borderColor = '';
+                errorDiv.style.color = '';
+            }, 5000);
+        }
+        
+        // Переключение вкладок
+        document.querySelectorAll('.login-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.login-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                
+                const panelId = tab.dataset.tab + 'Panel';
+                document.querySelectorAll('.login-panel').forEach(p => p.classList.remove('active'));
+                document.getElementById(panelId).classList.add('active');
+            });
         });
         
-        // Фокус на поле ввода
-        usernameInput.focus();
+        // Обработчики
+        document.getElementById('quickLoginBtn').addEventListener('click', quickLogin);
+        document.getElementById('magicLinkBtn').addEventListener('click', sendMagicLink);
+        
+        // Enter в поле пин-кода
+        document.getElementById('pinCode').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') quickLogin();
+        });
+        
+        // Загрузка списка пользователей
+        loadUsersForSelect();
+        
+        // Проверка сессии
+        if (window.auth && window.auth.checkSession()) {
+            window.location.href = 'index.html';
+        }
     </script>
 </body>
 </html>
