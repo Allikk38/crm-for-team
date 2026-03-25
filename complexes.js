@@ -1,4 +1,20 @@
-// complexes.js - управление объектами недвижимости
+/**
+ * ============================================
+ * ФАЙЛ: complexes.js (ИСПРАВЛЕННАЯ ВЕРСИЯ)
+ * РОЛЬ: Управление объектами недвижимости с поддержкой ролевой модели
+ * СВЯЗИ:
+ *   - core.js: loadCSV(), utils.saveCSVToGitHub()
+ *   - auth.js: auth.getCurrentUser(), auth.filterComplexesByPermissions()
+ *   - Данные: data/complexes.csv, data/tasks.csv, data/users.csv
+ * МЕХАНИКА:
+ *   1. Загрузка объектов, задач, пользователей
+ *   2. Фильтрация объектов по ролям (админ/менеджер видят всё, агент — свои)
+ *   3. CRUD операции с объектами (с учётом прав)
+ *   4. Поиск, фильтрация, сортировка
+ *   5. Привязка задач к объектам
+ *   6. Галерея фотографий
+ * ============================================
+ */
 
 var complexesList = [];
 var allUsersList = [];
@@ -9,6 +25,46 @@ var sortDirection = 'asc';
 var showMyObjectsOnly = false;
 
 console.log('complexes.js loaded');
+
+// Фильтрация объектов по правам пользователя
+function filterComplexesByRole(complexes) {
+    if (!currentUserData) return [];
+    
+    // Админ и менеджер видят всё
+    if (currentUserData.role === 'admin' || currentUserData.role === 'manager') {
+        return complexes;
+    }
+    
+    // Агент видит свои объекты + публичные
+    if (currentUserData.role === 'agent') {
+        return complexes.filter(function(complex) {
+            return complex.assigned_to === currentUserData.github_username || complex.is_public === 'true';
+        });
+    }
+    
+    // Наблюдатель видит только публичные
+    return complexes.filter(function(complex) {
+        return complex.is_public === 'true';
+    });
+}
+
+// Проверка, может ли пользователь редактировать объект
+function canEditComplex(complex) {
+    if (!currentUserData) return false;
+    
+    // Админ может всё
+    if (currentUserData.role === 'admin') return true;
+    
+    // Менеджер может редактировать всё
+    if (currentUserData.role === 'manager') return true;
+    
+    // Агент может редактировать только свои объекты
+    if (currentUserData.role === 'agent') {
+        return complex.assigned_to === currentUserData.github_username;
+    }
+    
+    return false;
+}
 
 // Загрузка данных
 async function loadComplexesData() {
@@ -39,6 +95,7 @@ async function loadComplexesData() {
                     description: c.description || '',
                     documents: c.documents || '[]',
                     photos: c.photos || '[]',
+                    is_public: c.is_public || 'true',
                     created_at: c.created_at || '',
                     updated_at: c.updated_at || ''
                 });
@@ -92,8 +149,13 @@ function renderComplexes() {
     
     console.log('renderComplexes called, complexes count:', complexesList.length);
     
-    if (!complexesList || complexesList.length === 0) {
-        grid.innerHTML = '<div class="empty-state"><i class="fas fa-building"></i><p>Нет объектов</p><p style="font-size: 0.8rem;">Добавьте первый объект</p></div>';
+    // Применяем фильтрацию по ролям
+    var roleFiltered = filterComplexesByRole(complexesList);
+    
+    if (!roleFiltered || roleFiltered.length === 0) {
+        grid.innerHTML = '<div class="empty-state"><i class="fas fa-building"></i><p>Нет доступных объектов</p><p style="font-size: 0.8rem;">' + 
+            (currentUserData && currentUserData.role === 'agent' ? 'Вам доступны только ваши объекты' : 'Добавьте первый объект') + 
+            '</p></div>';
         return;
     }
     
@@ -105,8 +167,8 @@ function renderComplexes() {
     var agentValue = agentFilter ? agentFilter.value : 'all';
     
     var filtered = [];
-    for (var i = 0; i < complexesList.length; i++) {
-        var complex = complexesList[i];
+    for (var i = 0; i < roleFiltered.length; i++) {
+        var complex = roleFiltered[i];
         
         var matchSearch = searchText === '' || 
             complex.title.toLowerCase().indexOf(searchText) !== -1 || 
@@ -153,7 +215,7 @@ function renderComplexes() {
     console.log('Filtered complexes:', filtered.length);
     
     if (filtered.length === 0) {
-        grid.innerHTML = '<div class="empty-state"><i class="fas fa-building"></i><p>Нет объектов</p><p style="font-size: 0.8rem;">Добавьте первый объект</p></div>';
+        grid.innerHTML = '<div class="empty-state"><i class="fas fa-building"></i><p>Нет объектов по выбранным фильтрам</p></div>';
         return;
     }
     
@@ -200,6 +262,8 @@ function renderComplexes() {
             photosHtml = '<div class="complex-stat"><i class="fas fa-camera"></i> ' + photos.length + ' фото</div>';
         }
         
+        var canEdit = canEditComplex(complex);
+        
         html += '<div class="complex-card" onclick="openComplexModal(' + complex.id + ')">' +
             '<div class="complex-card-header">' +
                 '<div class="complex-card-image">' +
@@ -234,7 +298,7 @@ function renderComplexes() {
                 '<button class="complex-btn" onclick="event.stopPropagation(); openMapForComplex(' + complex.id + ')"><i class="fas fa-map"></i> Карта</button>' +
                 '<button class="complex-btn" onclick="event.stopPropagation(); duplicateComplex(' + complex.id + ')"><i class="fas fa-copy"></i> Копировать</button>';
         
-        if (currentUserData && (currentUserData.role === 'admin' || currentUserData.role === 'manager')) {
+        if (canEdit) {
             html += '<button class="complex-btn" onclick="event.stopPropagation(); editComplex(' + complex.id + ')"><i class="fas fa-edit"></i> Ред.</button>';
         }
         
@@ -262,6 +326,12 @@ function renderComplexes() {
         } else {
             myObjectsBtn.classList.remove('active');
         }
+    }
+    
+    // Показываем/скрываем кнопку добавления объекта
+    var addComplexBtn = document.getElementById('addComplexBtn');
+    if (addComplexBtn) {
+        addComplexBtn.style.display = (currentUserData && (currentUserData.role === 'admin' || currentUserData.role === 'manager')) ? 'inline-flex' : 'none';
     }
 }
 
@@ -295,6 +365,21 @@ function updateFilters() {
             }
         }
     }
+    
+    // Заполняем выпадающий список для формы
+    var assigneeSelect = document.getElementById('complexAssignee');
+    if (assigneeSelect) {
+        assigneeSelect.innerHTML = '<option value="">Ответственный агент</option>';
+        for (var i = 0; i < allUsersList.length; i++) {
+            var user = allUsersList[i];
+            if (user.role === 'agent' || user.role === 'manager' || user.role === 'admin') {
+                var option = document.createElement('option');
+                option.value = user.github_username;
+                option.textContent = user.name;
+                assigneeSelect.appendChild(option);
+            }
+        }
+    }
 }
 
 // Быстрое создание задачи для объекта
@@ -323,6 +408,11 @@ async function duplicateComplex(complexId) {
     }
     if (!original) return;
     
+    if (!canEditComplex(original)) {
+        showToast('error', 'У вас нет прав на копирование этого объекта');
+        return;
+    }
+    
     var newTitle = original.title + ' (копия)';
     var newId = 1;
     for (var i = 0; i < complexesList.length; i++) {
@@ -342,6 +432,7 @@ async function duplicateComplex(complexId) {
         description: original.description,
         documents: '[]',
         photos: original.photos,
+        is_public: original.is_public,
         created_at: new Date().toISOString().split('T')[0],
         updated_at: new Date().toISOString().split('T')[0]
     };
@@ -368,6 +459,13 @@ async function openComplexModal(complexId) {
         }
     }
     if (!complex) return;
+    
+    // Проверка доступа к объекту
+    var filteredComplexes = filterComplexesByRole([complex]);
+    if (filteredComplexes.length === 0) {
+        alert('У вас нет доступа к этому объекту');
+        return;
+    }
     
     var modal = document.getElementById('complexModal');
     var modalBody = document.getElementById('complexModalBody');
@@ -416,10 +514,12 @@ async function openComplexModal(complexId) {
         photosHtml += '</div></div></div>';
     }
     
+    var publicBadge = complex.is_public === 'true' ? '<span class="public-badge"><i class="fas fa-globe"></i> Публичный</span>' : '<span class="private-badge"><i class="fas fa-lock"></i> Приватный</span>';
+    
     modalBody.innerHTML = 
         '<div class="complex-detail-row">' +
             '<div class="complex-detail-label">Название:</div>' +
-            '<div class="complex-detail-value">' + escapeHtml(complex.title) + '</div>' +
+            '<div class="complex-detail-value">' + escapeHtml(complex.title) + ' ' + publicBadge + '</div>' +
         '</div>' +
         '<div class="complex-detail-row">' +
             '<div class="complex-detail-label">Адрес:</div>' +
@@ -457,16 +557,13 @@ async function openComplexModal(complexId) {
     
     modal.classList.add('active');
     
+    var canEdit = canEditComplex(complex);
     editBtn.onclick = function() { 
         closeComplexModal();
         editComplex(complexId);
     };
     
-    if (currentUserData && (currentUserData.role === 'admin' || currentUserData.role === 'manager')) {
-        editBtn.style.display = 'block';
-    } else {
-        editBtn.style.display = 'none';
-    }
+    editBtn.style.display = canEdit ? 'block' : 'none';
 }
 
 function getPriorityText(priority) {
@@ -484,6 +581,11 @@ function editComplex(complexId) {
     }
     if (!complex) return;
     
+    if (!canEditComplex(complex)) {
+        showToast('error', 'У вас нет прав на редактирование этого объекта');
+        return;
+    }
+    
     document.getElementById('complexFormTitle').innerHTML = '<i class="fas fa-edit"></i> Редактировать объект';
     document.getElementById('complexId').value = complex.id;
     document.getElementById('complexTitle').value = complex.title;
@@ -495,11 +597,18 @@ function editComplex(complexId) {
     document.getElementById('complexAssignee').value = complex.assigned_to;
     document.getElementById('complexCoordinates').value = complex.coordinates;
     document.getElementById('complexDescription').value = complex.description;
+    var publicCheckbox = document.getElementById('complexPublic');
+    if (publicCheckbox) publicCheckbox.checked = complex.is_public === 'true';
     
     document.getElementById('complexFormModal').classList.add('active');
 }
 
 function openAddComplexModal() {
+    if (!currentUserData || (currentUserData.role !== 'admin' && currentUserData.role !== 'manager')) {
+        showToast('error', 'У вас нет прав на создание объектов');
+        return;
+    }
+    
     document.getElementById('complexFormTitle').innerHTML = '<i class="fas fa-plus"></i> Новый объект';
     document.getElementById('complexId').value = '';
     document.getElementById('complexTitle').value = '';
@@ -511,12 +620,15 @@ function openAddComplexModal() {
     document.getElementById('complexAssignee').value = '';
     document.getElementById('complexCoordinates').value = '';
     document.getElementById('complexDescription').value = '';
+    var publicCheckbox = document.getElementById('complexPublic');
+    if (publicCheckbox) publicCheckbox.checked = true;
     
     document.getElementById('complexFormModal').classList.add('active');
 }
 
 async function saveComplex() {
     var id = document.getElementById('complexId').value;
+    var publicCheckbox = document.getElementById('complexPublic');
     var complexData = {
         id: id ? parseInt(id) : null,
         title: document.getElementById('complexTitle').value,
@@ -528,6 +640,7 @@ async function saveComplex() {
         assigned_to: document.getElementById('complexAssignee').value,
         coordinates: document.getElementById('complexCoordinates').value,
         description: document.getElementById('complexDescription').value,
+        is_public: publicCheckbox ? (publicCheckbox.checked ? 'true' : 'false') : 'true',
         documents: '[]',
         photos: '[]',
         created_at: new Date().toISOString().split('T')[0],
@@ -548,6 +661,10 @@ async function saveComplex() {
             }
         }
         if (index !== -1) {
+            if (!canEditComplex(complexesList[index])) {
+                showToast('error', 'У вас нет прав на редактирование этого объекта');
+                return;
+            }
             complexData.id = parseInt(id);
             complexData.created_at = complexesList[index].created_at;
             complexData.photos = complexesList[index].photos;
@@ -569,13 +686,13 @@ async function saveComplex() {
         renderComplexes();
         showToast('success', id ? 'Объект обновлён' : 'Объект создан');
     } else {
+        if (!id) complexesList.pop();
         alert('Ошибка сохранения');
     }
 }
 
 async function saveComplexesToGitHub() {
-    var currentUserAuth = auth.getCurrentUser();
-    if (!currentUserAuth || !auth.hasPermission('edit')) {
+    if (!currentUserData || (currentUserData.role !== 'admin' && currentUserData.role !== 'manager')) {
         alert('У вас нет прав на редактирование');
         return false;
     }
@@ -596,6 +713,7 @@ async function saveComplexesToGitHub() {
             description: c.description,
             documents: c.documents,
             photos: c.photos,
+            is_public: c.is_public || 'true',
             created_at: c.created_at,
             updated_at: c.updated_at
         });
@@ -604,7 +722,7 @@ async function saveComplexesToGitHub() {
     return await window.utils.saveCSVToGitHub(
         'data/complexes.csv',
         complexesToSave,
-        'Update complexes by ' + currentUserAuth.name
+        'Update complexes by ' + currentUserData.name
     );
 }
 
@@ -638,7 +756,7 @@ function escapeHtml(text) {
 function showToast(type, message) {
     var toast = document.createElement('div');
     toast.className = 'toast toast-' + type;
-    toast.innerHTML = '<i class="fas ' + (type === 'success' ? 'fa-check-circle' : 'fa-info-circle') + '"></i><span>' + escapeHtml(message) + '</span>';
+    toast.innerHTML = '<i class="fas ' + (type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle') + '"></i><span>' + escapeHtml(message) + '</span>';
     document.body.appendChild(toast);
     setTimeout(function() {
         toast.style.animation = 'slideOut 0.3s ease';
@@ -662,21 +780,34 @@ async function init() {
     currentUserData = auth.getCurrentUser();
     console.log('Current user:', currentUserData);
     
-    if (currentUserData) {
-        var userNameSpan = document.getElementById('userName');
-        if (userNameSpan) {
-            var roleLabel = '';
-            if (currentUserData.role === 'admin') roleLabel = 'Администратор';
-            else if (currentUserData.role === 'manager') roleLabel = 'Менеджер';
-            else if (currentUserData.role === 'agent') roleLabel = 'Агент';
-            else roleLabel = 'Наблюдатель';
-            userNameSpan.innerHTML = '<i class="fab fa-github"></i> ' + escapeHtml(currentUserData.name) + ' (' + roleLabel + ')';
-        }
+    if (!currentUserData) {
+        window.location.href = 'auth.html';
+        return;
+    }
+    
+    // Обновляем профиль в шапке
+    var userNameSpan = document.getElementById('userName');
+    var userRoleSpan = document.getElementById('userRole');
+    var userAvatar = document.getElementById('userAvatar');
+    
+    if (userNameSpan) userNameSpan.textContent = currentUserData.name;
+    if (userRoleSpan) {
+        var roleLabel = '';
+        if (currentUserData.role === 'admin') roleLabel = 'Администратор';
+        else if (currentUserData.role === 'manager') roleLabel = 'Менеджер';
+        else if (currentUserData.role === 'agent') roleLabel = 'Агент';
+        else roleLabel = 'Наблюдатель';
+        userRoleSpan.textContent = roleLabel;
+    }
+    if (userAvatar) {
+        var initials = currentUserData.name.split(' ').map(function(n) { return n[0]; }).join('').toUpperCase();
+        userAvatar.innerHTML = initials || '<i class="fas fa-user"></i>';
     }
     
     await loadComplexesData();
     
     if (window.theme) window.theme.initTheme();
+    if (window.sidebar) window.sidebar.initSidebar();
     
     // Кнопки
     var addBtn = document.getElementById('addComplexBtn');
@@ -693,6 +824,11 @@ async function init() {
     var quickSaveBtn = document.getElementById('quickSaveBtn');
     if (quickSaveBtn) {
         quickSaveBtn.addEventListener('click', async function() {
+            if (currentUserData.role !== 'admin' && currentUserData.role !== 'manager') {
+                showToast('error', 'У вас нет прав на создание объектов');
+                return;
+            }
+            
             var newComplex = {
                 title: document.getElementById('quickTitle').value,
                 address: document.getElementById('quickAddress').value,
@@ -703,6 +839,7 @@ async function init() {
                 status: 'active',
                 coordinates: '',
                 description: '',
+                is_public: 'true',
                 documents: '[]',
                 photos: '[]'
             };
