@@ -35,6 +35,99 @@
     <link rel="stylesheet" href="css/calendar.css">
     <link rel="stylesheet" href="css/modal.css">
     <link rel="stylesheet" href="css/responsive.css">
+    
+    <style>
+        /* Дополнительные стили для комментариев */
+        .comments-section {
+            margin-top: 20px;
+            padding-top: 16px;
+            border-top: 1px solid var(--card-border);
+        }
+        
+        .comments-header {
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .comments-list {
+            max-height: 300px;
+            overflow-y: auto;
+            margin-bottom: 16px;
+        }
+        
+        .comment-item {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 16px;
+            padding: 12px;
+            margin-bottom: 12px;
+        }
+        
+        .comment-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 0.8rem;
+        }
+        
+        .comment-date {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+        
+        .comment-text {
+            font-size: 0.85rem;
+            line-height: 1.4;
+        }
+        
+        .comment-text .mention {
+            color: var(--accent);
+            font-weight: 500;
+            background: rgba(108, 108, 255, 0.15);
+            padding: 0 4px;
+            border-radius: 4px;
+        }
+        
+        .comment-empty {
+            text-align: center;
+            color: var(--text-muted);
+            padding: 20px;
+        }
+        
+        .add-comment textarea {
+            width: 100%;
+            padding: 10px;
+            background: var(--input-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            color: var(--text-primary);
+            font-family: inherit;
+            resize: vertical;
+        }
+        
+        .notification-btn-wrapper {
+            position: relative;
+        }
+        
+        #notificationBadge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background: #ff6b6b;
+            color: white;
+            border-radius: 50%;
+            width: 18px;
+            height: 18px;
+            font-size: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -52,6 +145,12 @@
                 <a href="calendar.html" class="nav-btn"><i class="fas fa-calendar-alt"></i> Календарь</a>
                 <a href="manager.html" class="nav-btn" data-role="admin,manager"><i class="fas fa-chart-simple"></i> Панель менеджера</a>
                 <a href="profile.html" class="nav-btn"><i class="fas fa-user-circle"></i> Профиль</a>
+                <div class="notification-btn-wrapper">
+                    <a href="notifications.html" class="nav-btn" id="notificationBtn">
+                        <i class="fas fa-bell"></i>
+                    </a>
+                    <span id="notificationBadge" style="display: none;"></span>
+                </div>
                 <button id="addTaskBtn" class="nav-btn" data-role="admin,manager,agent"><i class="fas fa-plus"></i> Новая задача</button>
             </div>
         </header>
@@ -86,7 +185,7 @@
         </div>
     </div>
     
-    <!-- Модальное окно -->
+    <!-- Модальное окно задачи с комментариями -->
     <div id="taskModal" class="modal">
         <div class="modal-content">
             <h3 id="modalTitle"><i class="fas fa-tasks"></i> Создать задачу</h3>
@@ -110,6 +209,21 @@
                 <option value="in_progress"><i class="fas fa-spinner"></i> В работе</option>
                 <option value="done"><i class="fas fa-check-circle"></i> Готово</option>
             </select>
+            
+            <!-- Блок комментариев -->
+            <div class="comments-section">
+                <div class="comments-header">
+                    <i class="fas fa-comments"></i> Комментарии (<span id="commentsCount">0</span>)
+                </div>
+                <div id="commentsList" class="comments-list">
+                    <div class="comment-empty">Нет комментариев</div>
+                </div>
+                <div class="add-comment">
+                    <textarea id="newComment" placeholder="Написать комментарий... (используйте @username для упоминания)" rows="2"></textarea>
+                    <button class="primary" onclick="addComment()" style="margin-top: 8px; width: 100%;"><i class="fas fa-paper-plane"></i> Отправить</button>
+                </div>
+            </div>
+            
             <div class="modal-buttons">
                 <button onclick="closeModal()"><i class="fas fa-times"></i> Отмена</button>
                 <button class="primary" onclick="saveTask()"><i class="fas fa-save"></i> Сохранить</button>
@@ -120,6 +234,42 @@
     <script src="core.js"></script>
     <script src="auth.js"></script>
     <script src="theme.js"></script>
+    <script src="notifications.js"></script>
     <script src="tasks.js"></script>
+    
+    <script>
+        // Обновление счётчика уведомлений
+        function updateNotificationBadge() {
+            var notifications = JSON.parse(localStorage.getItem('crm_notifications_center') || '[]');
+            var unread = 0;
+            for (var i = 0; i < notifications.length; i++) {
+                if (!notifications[i].read) unread++;
+            }
+            var badge = document.getElementById('notificationBadge');
+            if (badge) {
+                if (unread > 0) {
+                    badge.textContent = unread > 99 ? '99+' : unread;
+                    badge.style.display = 'flex';
+                } else {
+                    badge.style.display = 'none';
+                }
+            }
+        }
+        
+        // Запрос разрешения на уведомления при загрузке
+        if (window.notifications && window.notifications.requestPermission) {
+            window.notifications.requestPermission();
+        }
+        
+        // Обновляем бейдж при загрузке
+        updateNotificationBadge();
+        
+        // Слушаем изменения в localStorage (для уведомлений из других вкладок)
+        window.addEventListener('storage', function(e) {
+            if (e.key === 'crm_notifications_center') {
+                updateNotificationBadge();
+            }
+        });
+    </script>
 </body>
 </html>
