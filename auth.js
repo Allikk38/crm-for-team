@@ -1,13 +1,13 @@
 /**
  * ============================================
- * ФАЙЛ: auth.js
+ * ФАЙЛ: auth.js (ИСПРАВЛЕННАЯ ВЕРСИЯ)
  * РОЛЬ: Управление авторизацией и сессиями
  * СВЯЗИ:
  *   - core.js: loadCSV(), utils.saveCSVToGitHub()
- *   - Данные: data/users.csv (хранение пользователей и пин-кодов)
+ *   - Данные: data/users.csv
  * МЕХАНИКА:
  *   1. Проверка входа по имени + пин-коду
- *   2. Отправка magic link (заглушка, требует бэкенд)
+ *   2. Управление пользователями (админ)
  *   3. Управление сессией в localStorage
  *   4. Ролевая модель (admin, manager, agent, viewer)
  *   5. Сброс пин-кода при первом входе
@@ -19,10 +19,22 @@ let currentUser = null;
 
 // Роли и их права
 const ROLES = {
-    admin: ['view', 'edit', 'delete', 'manage_users'],
-    manager: ['view', 'edit'],
-    agent: ['view', 'edit_own'],
-    viewer: ['view']
+    admin: {
+        name: 'Администратор',
+        permissions: ['view_all', 'edit_all', 'delete_all', 'manage_users', 'view_manager_panel']
+    },
+    manager: {
+        name: 'Менеджер',
+        permissions: ['view_all_tasks', 'view_all_complexes', 'edit_assigned', 'view_manager_panel']
+    },
+    agent: {
+        name: 'Агент',
+        permissions: ['view_own_tasks', 'view_public_tasks', 'edit_own_tasks', 'view_own_complexes']
+    },
+    viewer: {
+        name: 'Наблюдатель',
+        permissions: ['view_public_tasks', 'view_public_complexes']
+    }
 };
 
 // Загрузка пользователей
@@ -51,6 +63,71 @@ async function saveUsers(users) {
     );
 }
 
+// Создание нового пользователя (только для admin)
+async function createUser(username, name, role, email) {
+    const current = getCurrentUser();
+    if (!current || !hasPermission('manage_users')) {
+        return { success: false, error: 'Недостаточно прав' };
+    }
+    
+    if (!username || !name || !role) {
+        return { success: false, error: 'Заполните все обязательные поля' };
+    }
+    
+    const users = await loadUsers();
+    
+    // Проверяем уникальность username
+    if (users.find(u => u.github_username === username)) {
+        return { success: false, error: 'Пользователь с таким логином уже существует' };
+    }
+    
+    // Генерируем временный пин-код
+    const tempPin = Math.floor(1000 + Math.random() * 9000).toString();
+    
+    const newUser = {
+        github_username: username,
+        name: name,
+        role: role,
+        email: email || '',
+        pin: tempPin,
+        created_at: new Date().toISOString().split('T')[0]
+    };
+    
+    users.push(newUser);
+    const saved = await saveUsers(users);
+    
+    if (saved) {
+        return { 
+            success: true, 
+            user: newUser,
+            tempPin: tempPin
+        };
+    }
+    
+    return { success: false, error: 'Ошибка сохранения' };
+}
+
+// Получить всех пользователей (с фильтром по роли)
+async function getUsers() {
+    const users = await loadUsers();
+    const current = getCurrentUser();
+    
+    if (!current) return [];
+    
+    // Админ видит всех
+    if (current.role === 'admin') {
+        return users;
+    }
+    
+    // Менеджер видит всех агентов и себя
+    if (current.role === 'manager') {
+        return users.filter(u => u.role === 'agent' || u.github_username === current.github_username);
+    }
+    
+    // Агент видит только себя
+    return users.filter(u => u.github_username === current.github_username);
+}
+
 // Вход по имени и пин-коду
 async function loginWithPin(username, pin) {
     const users = await loadUsers();
@@ -60,15 +137,16 @@ async function loginWithPin(username, pin) {
         return { success: false, error: 'Пользователь не найден' };
     }
     
-    // Проверка пин-кода
-    const storedPin = user.pin || '1234'; // временный код по умолчанию
+    // Проверка пин-кода (сравниваем как строки)
+    const storedPin = String(user.pin || '1234');
+    const inputPin = String(pin);
     
-    if (pin !== storedPin) {
+    if (inputPin !== storedPin) {
         return { success: false, error: 'Неверный пин-код' };
     }
     
-    // Если это первый вход (пин-код по умолчанию), требуем сменить
-    if (pin === '1234' && (!user.pin || user.pin === '1234')) {
+    // Если это первый вход (временный пин-код), требуем сменить
+    if (storedPin === '1234' && (!user.pin_changed || user.pin_changed !== 'true')) {
         return { 
             success: false, 
             error: 'Это ваш первый вход. Пожалуйста, смените пин-код',
@@ -108,13 +186,14 @@ async function changePin(username, oldPin, newPin) {
     }
     
     const user = users[userIndex];
-    const storedPin = user.pin || '1234';
+    const storedPin = String(user.pin || '1234');
     
-    if (oldPin !== storedPin) {
+    if (String(oldPin) !== storedPin) {
         return { success: false, error: 'Неверный текущий пин-код' };
     }
     
     users[userIndex].pin = newPin;
+    users[userIndex].pin_changed = 'true';
     const saved = await saveUsers(users);
     
     if (saved) {
@@ -122,6 +201,33 @@ async function changePin(username, oldPin, newPin) {
     } else {
         return { success: false, error: 'Ошибка сохранения' };
     }
+}
+
+// Сброс пин-кода (только для админа)
+async function resetPin(username) {
+    const current = getCurrentUser();
+    if (!current || !hasPermission('manage_users')) {
+        return { success: false, error: 'Недостаточно прав' };
+    }
+    
+    const users = await loadUsers();
+    const userIndex = users.findIndex(u => u.github_username === username);
+    
+    if (userIndex === -1) {
+        return { success: false, error: 'Пользователь не найден' };
+    }
+    
+    const newPin = Math.floor(1000 + Math.random() * 9000).toString();
+    users[userIndex].pin = newPin;
+    delete users[userIndex].pin_changed;
+    
+    const saved = await saveUsers(users);
+    
+    if (saved) {
+        return { success: true, newPin: newPin };
+    }
+    
+    return { success: false, error: 'Ошибка сохранения' };
 }
 
 // Отправка magic link (заглушка — требует бэкенд)
@@ -133,21 +239,16 @@ async function sendMagicLink(email) {
         return { success: false, error: 'Пользователь с таким email не найден' };
     }
     
-    // Генерируем уникальный токен
     const token = btoa(user.github_username + ':' + Date.now());
     const link = window.location.origin + '/crm-for-team/callback.html?token=' + token;
     
-    // В реальной реализации здесь был бы вызов API для отправки email
     console.log('Magic link:', link);
-    
-    // Показываем ссылку в консоли (для демо)
     alert('Для демонстрации: ссылка для входа\n' + link);
     
-    // Сохраняем токен в localStorage для проверки
     localStorage.setItem('magic_token_' + token, user.github_username);
     setTimeout(() => {
         localStorage.removeItem('magic_token_' + token);
-    }, 30 * 60 * 1000); // 30 минут
+    }, 30 * 60 * 1000);
     
     return { success: true };
 }
@@ -220,13 +321,58 @@ function hasPermission(permission) {
     const user = getCurrentUser();
     if (!user) return false;
     const userRole = user.role;
-    return ROLES[userRole] && ROLES[userRole].includes(permission);
+    const rolePermissions = ROLES[userRole];
+    return rolePermissions && rolePermissions.permissions.includes(permission);
 }
 
 // Проверка роли
 function hasRole(role) {
     const user = getCurrentUser();
     return user && user.role === role;
+}
+
+// Фильтрация задач по правам пользователя
+function filterTasksByPermissions(tasks) {
+    const user = getCurrentUser();
+    if (!user) return [];
+    
+    // Админ и менеджер видят всё
+    if (user.role === 'admin' || user.role === 'manager') {
+        return tasks;
+    }
+    
+    // Агент: свои задачи + публичные
+    if (user.role === 'agent') {
+        return tasks.filter(task => {
+            return task.assigned_to === user.github_username || 
+                   task.is_private !== 'true';
+        });
+    }
+    
+    // Наблюдатель: только публичные
+    return tasks.filter(task => task.is_private !== 'true');
+}
+
+// Фильтрация объектов по правам пользователя
+function filterComplexesByPermissions(complexes) {
+    const user = getCurrentUser();
+    if (!user) return [];
+    
+    // Админ и менеджер видят всё
+    if (user.role === 'admin' || user.role === 'manager') {
+        return complexes;
+    }
+    
+    // Агент: свои объекты + публичные
+    if (user.role === 'agent') {
+        return complexes.filter(complex => {
+            return complex.assignee === user.github_username || 
+                   complex.is_public === 'true';
+        });
+    }
+    
+    // Наблюдатель: только публичные
+    return complexes.filter(complex => complex.is_public === 'true');
 }
 
 // Обновление интерфейса (вызывается после входа)
@@ -253,17 +399,16 @@ function updateUserInterface() {
         el.style.display = hasAccess ? '' : 'none';
     });
     
-    // Добавляем кнопку выхода, если её нет
-    if (!document.getElementById('logoutBtn')) {
-        const navButtons = document.querySelector('.nav-buttons');
-        if (navButtons) {
-            const logoutBtn = document.createElement('button');
-            logoutBtn.id = 'logoutBtn';
-            logoutBtn.className = 'nav-btn';
-            logoutBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i> Выйти';
-            logoutBtn.onclick = logout;
-            navButtons.appendChild(logoutBtn);
-        }
+    // Показываем кнопку "Панель менеджера" только для admin и manager
+    const managerBtn = document.querySelector('a[href="manager.html"]');
+    if (managerBtn) {
+        managerBtn.style.display = (user.role === 'admin' || user.role === 'manager') ? '' : 'none';
+    }
+    
+    // Показываем кнопку "Управление пользователями" только для admin
+    const adminBtn = document.querySelector('a[href="admin.html"]');
+    if (adminBtn) {
+        adminBtn.style.display = user.role === 'admin' ? '' : 'none';
     }
 }
 
@@ -284,7 +429,7 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-// Инициализация авторизации (проверка сессии при загрузке)
+// Инициализация авторизации
 async function initAuth() {
     const user = checkSession();
     if (user) {
@@ -294,8 +439,9 @@ async function initAuth() {
     }
     
     // Если нет сессии и мы не на странице входа — перенаправляем
-    if (!window.location.pathname.includes('auth.html') && 
-        !window.location.pathname.includes('callback.html')) {
+    const isAuthPage = window.location.pathname.includes('auth.html') || 
+                       window.location.pathname.includes('callback.html');
+    if (!isAuthPage) {
         window.location.href = 'auth.html';
     }
     
@@ -307,6 +453,9 @@ window.auth = {
     initAuth,
     loginWithPin,
     changePin,
+    resetPin,
+    createUser,
+    getUsers,
     sendMagicLink,
     verifyMagicToken,
     saveSession,
@@ -315,5 +464,7 @@ window.auth = {
     getCurrentUser,
     hasPermission,
     hasRole,
+    filterTasksByPermissions,
+    filterComplexesByPermissions,
     updateUserInterface
 };
