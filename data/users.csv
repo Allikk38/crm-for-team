@@ -1,4 +1,6 @@
-github_username,name,role,email,access_code,created_at
-ivanov,Иван Иванов,admin,ivan@example.com,1234,2026-03-25
-petrov,Пётр Петров,manager,petr@example.com,5678,2026-03-25
-sidorova,Анна Сидорова,agent,anna@example.com,9012,2026-03-25
+github_username,name,role,email,pin,created_at
+Danilyan,Данильян Александр,admin,a.danilyan@goroda.company,5678,2026-03-25
+petrov,Пётр Петров,manager,petr@company.ru,2345,2026-03-25
+sidorova,Анна Сидорова,agent,anna@company.ru,0000,2026-03-25
+kozlov,Елена Козлова,agent,elena@company.ru,1111,2026-03-25
+volkov,Дмитрий Волков,agent,dmitry@company.ru,2222,2026-03-25
