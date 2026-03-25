@@ -12,6 +12,7 @@
  *   3. Адаптация для мобильных устройств
  *   4. Обработка клика по профилю (переход в профиль)
  *   5. Подсветка активного пункта меню
+ *   6. Кнопка выхода из системы в нижней части панели
  * ============================================
  */
 
@@ -32,6 +33,9 @@ function initSidebar() {
     
     // Добавляем обработчики для мобильного меню
     initMobileMenu();
+    
+    // Добавляем кнопку выхода, если её нет
+    addLogoutButton();
 }
 
 // Сворачивание/разворачивание панели
@@ -89,6 +93,25 @@ function initMobileMenu() {
     });
 }
 
+// Добавление кнопки выхода в боковую панель
+function addLogoutButton() {
+    const sidebarFooter = document.querySelector('.sidebar-footer');
+    if (!sidebarFooter) return;
+    
+    // Проверяем, есть ли уже кнопка выхода
+    if (sidebarFooter.querySelector('.logout-btn')) return;
+    
+    const logoutBtn = document.createElement('button');
+    logoutBtn.className = 'logout-btn';
+    logoutBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i> <span>Выйти</span>';
+    logoutBtn.onclick = (e) => {
+        e.stopPropagation();
+        logout();
+    };
+    
+    sidebarFooter.appendChild(logoutBtn);
+}
+
 // Переход в профиль
 function goToProfile() {
     window.location.href = 'profile.html';
@@ -96,11 +119,14 @@ function goToProfile() {
 
 // Выход из системы
 function logout() {
-    if (window.auth) {
-        window.auth.logout();
-    } else {
-        localStorage.removeItem('crm_session');
-        window.location.href = 'auth.html';
+    if (confirm('Вы уверены, что хотите выйти из системы?')) {
+        if (window.auth && window.auth.logout) {
+            window.auth.logout();
+        } else {
+            localStorage.removeItem('crm_session');
+            localStorage.removeItem('crm_remember_me');
+            window.location.href = 'auth.html';
+        }
     }
 }
 
