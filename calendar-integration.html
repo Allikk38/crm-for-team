@@ -493,13 +493,21 @@
                 
                 <div class="export-buttons">
                     <button class="export-btn" onclick="exportAllTasks()">
-                        <i class="fas fa-calendar-week"></i> Экспорт всех задач
+                        <i class="fas fa-download"></i> Скачать все задачи (.ics)
                     </button>
                     <button class="export-btn" onclick="exportMyTasks()">
-                        <i class="fas fa-user"></i> Только мои задачи
+                        <i class="fas fa-user"></i> Мои задачи (.ics)
                     </button>
                     <button class="export-btn" onclick="exportCurrentMonth()">
-                        <i class="fas fa-calendar-alt"></i> Текущий месяц
+                        <i class="fas fa-calendar-alt"></i> Текущий месяц (.ics)
+                    </button>
+                </div>
+                <div class="export-buttons" style="margin-top: 12px;">
+                    <button class="export-btn" onclick="exportAllToGoogleCalendar()">
+                        <i class="fab fa-google"></i> Добавить в Google Календарь (все)
+                    </button>
+                    <button class="export-btn" onclick="exportMyToGoogleCalendar()">
+                        <i class="fab fa-google"></i> Мои задачи в Google
                     </button>
                 </div>
                 
