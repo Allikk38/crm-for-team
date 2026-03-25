@@ -4,6 +4,9 @@ var complexesList = [];
 var allUsersList = [];
 var allTasksList = [];
 var currentUserData = null;
+var currentSort = 'name';
+var sortDirection = 'asc';
+var showMyObjectsOnly = false;
 
 console.log('complexes.js loaded');
 
@@ -35,6 +38,7 @@ async function loadComplexesData() {
                     coordinates: c.coordinates || '',
                     description: c.description || '',
                     documents: c.documents || '[]',
+                    photos: c.photos || '[]',
                     created_at: c.created_at || '',
                     updated_at: c.updated_at || ''
                 });
@@ -55,6 +59,27 @@ async function loadComplexesData() {
             grid.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Ошибка загрузки данных: ' + error.message + '</p></div>';
         }
     }
+}
+
+// Получение задач объекта
+function getComplexTasks(complexId) {
+    var result = [];
+    for (var t = 0; t < allTasksList.length; t++) {
+        if (allTasksList[t].complex_id && parseInt(allTasksList[t].complex_id) === complexId) {
+            result.push(allTasksList[t]);
+        }
+    }
+    return result;
+}
+
+// Получение фото объекта
+function getComplexPhotos(complex) {
+    try {
+        if (complex.photos && complex.photos !== '[]') {
+            return JSON.parse(complex.photos);
+        }
+    } catch(e) {}
+    return [];
 }
 
 // Рендер списка объектов
@@ -82,16 +107,48 @@ function renderComplexes() {
     var filtered = [];
     for (var i = 0; i < complexesList.length; i++) {
         var complex = complexesList[i];
+        
         var matchSearch = searchText === '' || 
             complex.title.toLowerCase().indexOf(searchText) !== -1 || 
             complex.address.toLowerCase().indexOf(searchText) !== -1;
         var matchStatus = statusValue === 'all' || complex.status === statusValue;
         var matchAgent = agentValue === 'all' || complex.assigned_to === agentValue;
+        var matchMyObjects = !showMyObjectsOnly || (currentUserData && complex.assigned_to === currentUserData.github_username);
         
-        if (matchSearch && matchStatus && matchAgent) {
+        if (matchSearch && matchStatus && matchAgent && matchMyObjects) {
             filtered.push(complex);
         }
     }
+    
+    // Сортировка
+    filtered.sort(function(a, b) {
+        var valA, valB;
+        switch(currentSort) {
+            case 'name':
+                valA = a.title.toLowerCase();
+                valB = b.title.toLowerCase();
+                break;
+            case 'price':
+                valA = parseInt(a.price_from);
+                valB = parseInt(b.price_from);
+                break;
+            case 'date':
+                valA = a.created_at || '';
+                valB = b.created_at || '';
+                break;
+            case 'tasks':
+                valA = getComplexTasks(a.id).length;
+                valB = getComplexTasks(b.id).length;
+                break;
+            default:
+                valA = a.title;
+                valB = b.title;
+        }
+        
+        if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+        if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
+    });
     
     console.log('Filtered complexes:', filtered.length);
     
@@ -129,33 +186,53 @@ function renderComplexes() {
         var priceFrom = parseInt(complex.price_from).toLocaleString();
         var priceTo = parseInt(complex.price_to).toLocaleString();
         
-        var complexTasks = [];
-        for (var t = 0; t < allTasksList.length; t++) {
-            if (allTasksList[t].complex_id && parseInt(allTasksList[t].complex_id) === complex.id) {
-                complexTasks.push(allTasksList[t]);
-            }
-        }
+        var complexTasks = getComplexTasks(complex.id);
         var tasksCount = complexTasks.length;
         var tasksDone = 0;
         for (var d = 0; d < complexTasks.length; d++) {
             if (complexTasks[d].status === 'done') tasksDone++;
         }
+        var tasksPercent = tasksCount > 0 ? Math.round((tasksDone / tasksCount) * 100) : 0;
+        
+        var photos = getComplexPhotos(complex);
+        var photosHtml = '';
+        if (photos.length > 0) {
+            photosHtml = '<div class="complex-stat"><i class="fas fa-camera"></i> ' + photos.length + ' фото</div>';
+        }
         
         html += '<div class="complex-card" onclick="openComplexModal(' + complex.id + ')">' +
             '<div class="complex-card-header">' +
-                '<h3>' + escapeHtml(complex.title) + '</h3>' +
-                '<span class="complex-status ' + statusClass + '">' + statusText + '</span>' +
+                '<div class="complex-card-image">' +
+                    (photos.length > 0 ? '<img src="' + escapeHtml(photos[0].url) + '" onerror="this.style.display=\'none\';this.parentElement.innerHTML=\'<i class=\\\'fas fa-building\\\'></i>\'">' : '<i class="fas fa-building"></i>') +
+                '</div>' +
+                '<div class="complex-card-info">' +
+                    '<h3>' + escapeHtml(complex.title) + '</h3>' +
+                    '<div class="complex-address"><i class="fas fa-location-dot"></i> ' + escapeHtml(complex.address) + '</div>' +
+                    '<span class="complex-status ' + statusClass + '">' + statusText + '</span>' +
+                '</div>' +
             '</div>' +
             '<div class="complex-card-body">' +
-                '<div class="complex-info-row"><i class="fas fa-location-dot"></i> ' + escapeHtml(complex.address) + '</div>' +
-                '<div class="complex-info-row"><i class="fas fa-industry"></i> ' + escapeHtml(complex.developer) + '</div>' +
-                '<div class="complex-info-row"><i class="fas fa-user"></i> ' + escapeHtml(agentName) + '</div>' +
-                '<div class="complex-price"><i class="fas fa-ruble-sign"></i> ' + priceFrom + ' - ' + priceTo + '</div>' +
-                '<div class="complex-info-row" style="margin-top: 12px;"><i class="fas fa-tasks"></i> Задач: ' + tasksCount + ' (' + tasksDone + ' выполнено)</div>' +
+                '<div class="complex-stats">' +
+                    '<div class="complex-stat"><i class="fas fa-industry"></i> ' + escapeHtml(complex.developer || '—') + '</div>' +
+                    '<div class="complex-stat"><i class="fas fa-ruble-sign"></i> ' + priceFrom + ' - ' + priceTo + '</div>' +
+                    '<div class="complex-stat"><i class="fas fa-user"></i> ' + escapeHtml(agentName) + '</div>' +
+                    photosHtml +
+                '</div>' +
+                '<div class="complex-progress">' +
+                    '<div style="display: flex; justify-content: space-between; font-size: 0.7rem;">' +
+                        '<span><i class="fas fa-tasks"></i> Задач: ' + tasksCount + '</span>' +
+                        '<span>' + tasksDone + ' выполнено (' + tasksPercent + '%)</span>' +
+                    '</div>' +
+                    '<div class="progress-bar-small">' +
+                        '<div class="progress-fill-small" style="width: ' + tasksPercent + '%;"></div>' +
+                    '</div>' +
+                '</div>' +
             '</div>' +
             '<div class="complex-card-footer">' +
-                '<button class="complex-btn" onclick="event.stopPropagation(); openComplexTasks(' + complex.id + ')"><i class="fas fa-list"></i> Задачи</button>' +
-                '<button class="complex-btn" onclick="event.stopPropagation(); openMapForComplex(' + complex.id + ')"><i class="fas fa-map"></i> Карта</button>';
+                '<button class="complex-btn" onclick="event.stopPropagation(); createTaskForComplex(' + complex.id + ')"><i class="fas fa-plus"></i> Задача</button>' +
+                '<button class="complex-btn" onclick="event.stopPropagation(); copyComplexLink(' + complex.id + ')"><i class="fas fa-link"></i> Ссылка</button>' +
+                '<button class="complex-btn" onclick="event.stopPropagation(); openMapForComplex(' + complex.id + ')"><i class="fas fa-map"></i> Карта</button>' +
+                '<button class="complex-btn" onclick="event.stopPropagation(); duplicateComplex(' + complex.id + ')"><i class="fas fa-copy"></i> Копировать</button>';
         
         if (currentUserData && (currentUserData.role === 'admin' || currentUserData.role === 'manager')) {
             html += '<button class="complex-btn" onclick="event.stopPropagation(); editComplex(' + complex.id + ')"><i class="fas fa-edit"></i> Ред.</button>';
@@ -165,6 +242,27 @@ function renderComplexes() {
     }
     
     grid.innerHTML = html;
+    
+    // Обновляем активное состояние кнопки сортировки
+    var sortBtns = document.querySelectorAll('.sort-btn');
+    for (var s = 0; s < sortBtns.length; s++) {
+        var btn = sortBtns[s];
+        if (btn.getAttribute('data-sort') === currentSort) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    }
+    
+    // Обновляем кнопку "Мои объекты"
+    var myObjectsBtn = document.getElementById('myObjectsToggle');
+    if (myObjectsBtn) {
+        if (showMyObjectsOnly) {
+            myObjectsBtn.classList.add('active');
+        } else {
+            myObjectsBtn.classList.remove('active');
+        }
+    }
 }
 
 // Обновление фильтров
@@ -181,6 +279,82 @@ function updateFilters() {
             option.textContent = user.name;
             agentSelect.appendChild(option);
         }
+    }
+    
+    // Заполняем выпадающий список для быстрого ввода
+    var quickAssignee = document.getElementById('quickAssignee');
+    if (quickAssignee) {
+        quickAssignee.innerHTML = '<option value="">Ответственный агент</option>';
+        for (var i = 0; i < allUsersList.length; i++) {
+            var user = allUsersList[i];
+            if (user.role === 'agent' || user.role === 'manager' || user.role === 'admin') {
+                var option = document.createElement('option');
+                option.value = user.github_username;
+                option.textContent = user.name;
+                quickAssignee.appendChild(option);
+            }
+        }
+    }
+}
+
+// Быстрое создание задачи для объекта
+function createTaskForComplex(complexId) {
+    window.location.href = 'tasks.html?complex=' + complexId;
+}
+
+// Копирование ссылки на объект
+function copyComplexLink(complexId) {
+    var url = window.location.origin + window.location.pathname.replace('complexes.html', '') + 'complexes.html?complex=' + complexId;
+    navigator.clipboard.writeText(url).then(function() {
+        showToast('success', 'Ссылка на объект скопирована');
+    }).catch(function() {
+        showToast('info', 'Нажмите Ctrl+C чтобы скопировать: ' + url);
+    });
+}
+
+// Дублирование объекта
+async function duplicateComplex(complexId) {
+    var original = null;
+    for (var i = 0; i < complexesList.length; i++) {
+        if (complexesList[i].id === complexId) {
+            original = complexesList[i];
+            break;
+        }
+    }
+    if (!original) return;
+    
+    var newTitle = original.title + ' (копия)';
+    var newId = 1;
+    for (var i = 0; i < complexesList.length; i++) {
+        if (complexesList[i].id >= newId) newId = complexesList[i].id + 1;
+    }
+    
+    var newComplex = {
+        id: newId,
+        title: newTitle,
+        address: original.address,
+        developer: original.developer,
+        price_from: original.price_from,
+        price_to: original.price_to,
+        status: 'active',
+        assigned_to: original.assigned_to,
+        coordinates: original.coordinates,
+        description: original.description,
+        documents: '[]',
+        photos: original.photos,
+        created_at: new Date().toISOString().split('T')[0],
+        updated_at: new Date().toISOString().split('T')[0]
+    };
+    
+    complexesList.push(newComplex);
+    var saved = await saveComplexesToGitHub();
+    
+    if (saved) {
+        renderComplexes();
+        showToast('success', 'Объект скопирован');
+    } else {
+        complexesList.pop();
+        alert('Ошибка копирования');
     }
 }
 
@@ -213,12 +387,7 @@ async function openComplexModal(complexId) {
     else if (complex.status === 'in_progress') statusText = 'В работе';
     else statusText = 'Архив';
     
-    var complexTasks = [];
-    for (var t = 0; t < allTasksList.length; t++) {
-        if (allTasksList[t].complex_id && parseInt(allTasksList[t].complex_id) === complex.id) {
-            complexTasks.push(allTasksList[t]);
-        }
-    }
+    var complexTasks = getComplexTasks(complex.id);
     
     var tasksHtml = '';
     for (var i = 0; i < complexTasks.length; i++) {
@@ -227,6 +396,24 @@ async function openComplexModal(complexId) {
             '<span>' + escapeHtml(task.title) + '</span>' +
             '<span class="task-priority priority-' + task.priority + '">' + getPriorityText(task.priority) + '</span>' +
         '</div>';
+    }
+    
+    var photos = getComplexPhotos(complex);
+    var photosHtml = '';
+    if (photos.length > 0) {
+        photosHtml = '<div class="complex-detail-row">' +
+            '<div class="complex-detail-label">Фотографии:</div>' +
+            '<div class="complex-detail-value">' +
+                '<div class="photo-gallery">';
+        for (var p = 0; p < Math.min(photos.length, 6); p++) {
+            photosHtml += '<div class="photo-item" onclick="window.open(\'' + escapeHtml(photos[p].url) + '\', \'_blank\')">' +
+                '<img src="' + escapeHtml(photos[p].url) + '" onerror="this.style.display=\'none\';this.parentElement.innerHTML=\'<i class=\\\'fas fa-image\\\'></i>\'">' +
+            '</div>';
+        }
+        if (photos.length > 6) {
+            photosHtml += '<div class="photo-item" onclick="alert(\'Всего фото: ' + photos.length + '\')"><i class="fas fa-ellipsis-h"></i></div>';
+        }
+        photosHtml += '</div></div></div>';
     }
     
     modalBody.innerHTML = 
@@ -240,7 +427,7 @@ async function openComplexModal(complexId) {
         '</div>' +
         '<div class="complex-detail-row">' +
             '<div class="complex-detail-label">Застройщик:</div>' +
-            '<div class="complex-detail-value">' + escapeHtml(complex.developer) + '</div>' +
+            '<div class="complex-detail-value">' + escapeHtml(complex.developer || '—') + '</div>' +
         '</div>' +
         '<div class="complex-detail-row">' +
             '<div class="complex-detail-label">Цена:</div>' +
@@ -262,6 +449,7 @@ async function openComplexModal(complexId) {
             '<div class="complex-detail-label">Описание:</div>' +
             '<div class="complex-detail-value">' + (complex.description || '—') + '</div>' +
         '</div>' +
+        photosHtml +
         '<div class="complex-detail-row">' +
             '<div class="complex-detail-label">Связанные задачи:</div>' +
             '<div class="complex-detail-value tasks-list">' + (tasksHtml || '<p>Нет задач</p>') + '</div>' +
@@ -341,6 +529,7 @@ async function saveComplex() {
         coordinates: document.getElementById('complexCoordinates').value,
         description: document.getElementById('complexDescription').value,
         documents: '[]',
+        photos: '[]',
         created_at: new Date().toISOString().split('T')[0],
         updated_at: new Date().toISOString().split('T')[0]
     };
@@ -361,6 +550,7 @@ async function saveComplex() {
         if (index !== -1) {
             complexData.id = parseInt(id);
             complexData.created_at = complexesList[index].created_at;
+            complexData.photos = complexesList[index].photos;
             complexesList[index] = complexData;
         }
     } else {
@@ -405,6 +595,7 @@ async function saveComplexesToGitHub() {
             coordinates: c.coordinates,
             description: c.description,
             documents: c.documents,
+            photos: c.photos,
             created_at: c.created_at,
             updated_at: c.updated_at
         });
@@ -483,28 +674,71 @@ async function init() {
         }
     }
     
-    // Заполняем выпадающий список агентов в форме
-    var users = await loadCSV('data/users.csv');
-    var assigneeSelect = document.getElementById('complexAssignee');
-    if (assigneeSelect) {
-        assigneeSelect.innerHTML = '<option value="">Не назначен</option>';
-        for (var i = 0; i < users.length; i++) {
-            if (users[i].role === 'agent' || users[i].role === 'manager' || users[i].role === 'admin') {
-                var option = document.createElement('option');
-                option.value = users[i].github_username;
-                option.textContent = users[i].name + ' (' + users[i].role + ')';
-                assigneeSelect.appendChild(option);
-            }
-        }
-    }
-    
     await loadComplexesData();
     
     if (window.theme) window.theme.initTheme();
     
+    // Кнопки
     var addBtn = document.getElementById('addComplexBtn');
     if (addBtn) addBtn.addEventListener('click', openAddComplexModal);
     
+    var quickAddBtn = document.getElementById('quickAddBtn');
+    var quickAddPanel = document.getElementById('quickAddPanel');
+    if (quickAddBtn && quickAddPanel) {
+        quickAddBtn.addEventListener('click', function() {
+            quickAddPanel.classList.toggle('active');
+        });
+    }
+    
+    var quickSaveBtn = document.getElementById('quickSaveBtn');
+    if (quickSaveBtn) {
+        quickSaveBtn.addEventListener('click', async function() {
+            var newComplex = {
+                title: document.getElementById('quickTitle').value,
+                address: document.getElementById('quickAddress').value,
+                assigned_to: document.getElementById('quickAssignee').value,
+                price_from: document.getElementById('quickPriceFrom').value || '0',
+                price_to: document.getElementById('quickPriceTo').value || '0',
+                developer: '',
+                status: 'active',
+                coordinates: '',
+                description: '',
+                documents: '[]',
+                photos: '[]'
+            };
+            
+            if (!newComplex.title || !newComplex.address) {
+                alert('Заполните название и адрес');
+                return;
+            }
+            
+            var newId = 1;
+            for (var i = 0; i < complexesList.length; i++) {
+                if (complexesList[i].id >= newId) newId = complexesList[i].id + 1;
+            }
+            newComplex.id = newId;
+            newComplex.created_at = new Date().toISOString().split('T')[0];
+            newComplex.updated_at = new Date().toISOString().split('T')[0];
+            
+            complexesList.push(newComplex);
+            var saved = await saveComplexesToGitHub();
+            
+            if (saved) {
+                document.getElementById('quickTitle').value = '';
+                document.getElementById('quickAddress').value = '';
+                document.getElementById('quickPriceFrom').value = '';
+                document.getElementById('quickPriceTo').value = '';
+                quickAddPanel.classList.remove('active');
+                renderComplexes();
+                showToast('success', 'Объект создан');
+            } else {
+                complexesList.pop();
+                alert('Ошибка сохранения');
+            }
+        });
+    }
+    
+    // Поиск и фильтры
     var searchInput = document.getElementById('searchInput');
     if (searchInput) searchInput.addEventListener('input', renderComplexes);
     
@@ -513,6 +747,31 @@ async function init() {
     
     var agentFilter = document.getElementById('agentFilter');
     if (agentFilter) agentFilter.addEventListener('change', renderComplexes);
+    
+    // Мои объекты
+    var myObjectsBtn = document.getElementById('myObjectsToggle');
+    if (myObjectsBtn) {
+        myObjectsBtn.addEventListener('click', function() {
+            showMyObjectsOnly = !showMyObjectsOnly;
+            renderComplexes();
+        });
+    }
+    
+    // Сортировка
+    var sortBtns = document.querySelectorAll('.sort-btn');
+    for (var i = 0; i < sortBtns.length; i++) {
+        var btn = sortBtns[i];
+        btn.addEventListener('click', function() {
+            var sort = this.getAttribute('data-sort');
+            if (currentSort === sort) {
+                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort = sort;
+                sortDirection = 'asc';
+            }
+            renderComplexes();
+        });
+    }
     
     console.log('complexes.js init completed');
 }
