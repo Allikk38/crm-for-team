@@ -3,6 +3,6 @@ id,title,description,assigned_to,created_by,status,priority,created_at,updated_a
 2,Настроить GitHub Pages,Подключить репозиторий к GitHub Pages,petrov,ivanov,done,medium,2026-03-24,2026-03-25,2026-03-26,5
 4,Написать документацию,Создать README и инструкцию для команды,sidorova,ivanov,done,medium,2026-03-24,2026-03-24,2026-03-28,
 5,Тест,,allikk38,allikk38,done,medium,2026-03-24,2026-03-24,2026-03-06,
-6,Тест,,allikk38,allikk38,in_progress,high,2026-03-24,2026-03-24,2026-03-26,
+6,Тест,,allikk38,allikk38,done,high,2026-03-24,2026-03-25,2026-03-26,
 7,Тест,,allikk38,allikk38,done,low,2026-03-24,2026-03-25,2026-03-12,
 8,Тест,,allikk38,allikk38,in_progress,medium,2026-03-25,2026-03-25,2026-03-06,4
