@@ -18,6 +18,7 @@
       3. Отображение карточек объектов с фильтрацией и сортировкой
       4. Модальные окна для создания/редактирования объектов
       5. Прогресс-бар выполнения задач по объекту
+      6. Поддержка приватных/публичных объектов
     ============================================
     -->
     
@@ -199,6 +200,26 @@
         .status-active { background: rgba(76, 175, 80, 0.2); color: #4caf50; }
         .status-in_progress { background: rgba(255, 193, 68, 0.2); color: #ffc107; }
         .status-archived { background: rgba(158, 158, 158, 0.2); color: #9e9e9e; }
+        
+        .private-badge {
+            display: inline-block;
+            background: rgba(255, 107, 107, 0.2);
+            color: #ff6b6b;
+            font-size: 0.6rem;
+            padding: 2px 6px;
+            border-radius: 12px;
+            margin-left: 8px;
+        }
+        
+        .public-badge {
+            display: inline-block;
+            background: rgba(76, 175, 80, 0.2);
+            color: #4caf50;
+            font-size: 0.6rem;
+            padding: 2px 6px;
+            border-radius: 12px;
+            margin-left: 8px;
+        }
         
         .complex-card-body {
             padding: 16px 20px;
@@ -469,6 +490,26 @@
             transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(108, 108, 255, 0.4);
         }
+        
+        .public-checkbox-wrapper {
+            margin: 12px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .public-checkbox-wrapper label {
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .help-text {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
     </style>
 </head>
 <body>
@@ -505,12 +546,20 @@
                     <i class="fas fa-chart-simple"></i>
                     <span>Панель менеджера</span>
                 </a>
+                <a href="admin.html" class="nav-item" data-role="admin">
+                    <i class="fas fa-users-cog"></i>
+                    <span>Управление</span>
+                </a>
             </nav>
             
             <div class="sidebar-footer">
                 <button class="collapse-btn" onclick="window.sidebar?.toggleSidebar()">
                     <i class="fas fa-chevron-left"></i>
                     <span>Свернуть</span>
+                </button>
+                <button class="logout-btn" onclick="window.sidebar?.logout()">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>Выйти</span>
                 </button>
             </div>
         </aside>
@@ -616,6 +665,18 @@
             </select>
             <input type="text" id="complexCoordinates" placeholder="Координаты (lat,lng) - опционально">
             <textarea id="complexDescription" placeholder="Описание объекта" rows="4"></textarea>
+            
+            <!-- Чекбокс публичности -->
+            <div class="public-checkbox-wrapper">
+                <label>
+                    <input type="checkbox" id="complexPublic" checked>
+                    <i class="fas fa-globe"></i> Публичный объект (виден всем)
+                </label>
+                <div class="help-text">
+                    Приватные объекты видны только назначенному агенту и менеджерам
+                </div>
+            </div>
+            
             <div class="modal-buttons">
                 <button onclick="closeComplexFormModal()">Отмена</button>
                 <button class="primary" onclick="saveComplex()">Сохранить</button>
