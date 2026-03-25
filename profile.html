@@ -10,16 +10,16 @@
     РОЛЬ: Личный кабинет пользователя
     СВЯЗИ:
       - CSS: base.css, theme.css, components.css, dashboard.css, modal.css, responsive.css
-      - JS: core.js, auth.js, theme.js, profile.js
+      - JS: core.js, auth.js, theme.js, layout.js, profile.js
       - Данные: data/users.csv, data/tasks.csv
     МЕХАНИКА:
-      1. Отображает профиль текущего пользователя (аватар, имя, роль, email, дата регистрации)
-      2. Показывает личную статистику (завершённые задачи, активные, просроченные, среднее время)
-      3. Отображает график личной активности за последние 7 дней
-      4. Позволяет изменить настройки интерфейса (тема, уведомления, компактный режим)
-      5. Даёт возможность изменить email и пароль (через GitHub)
-      6. Показывает историю последних действий (завершённые задачи)
-      7. Администратор видит дополнительную информацию о своей роли
+      1. Боковая панель с навигацией (можно сворачивать)
+      2. Кликабельный профиль в правом верхнем углу
+      3. Отображение профиля текущего пользователя
+      4. Личная статистика (завершённые задачи, активные, просроченные, среднее время)
+      5. График личной активности
+      6. Настройки интерфейса (тема, уведомления, компактный режим)
+      7. История последних действий
     ============================================
     -->
     
@@ -304,147 +304,185 @@
     </style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <div class="header-top">
-                <h1><i class="fas fa-user-circle"></i> Личный кабинет</h1>
-                <div class="user-info">
-                    <i class="fas fa-user-circle"></i>
-                    <span id="userName">Загрузка...</span>
-                </div>
-            </div>
-            <div class="nav-buttons">
-                <a href="index.html" class="nav-btn"><i class="fas fa-home"></i> Дашборд</a>
-                <a href="tasks.html" class="nav-btn"><i class="fas fa-tasks"></i> Доска задач</a>
-                <a href="complexes.html" class="nav-btn"><i class="fas fa-building"></i> Объекты</a>
-                <a href="calendar.html" class="nav-btn"><i class="fas fa-calendar-alt"></i> Календарь</a>
-                <a href="calendar-integration.html" class="nav-btn"><i class="fas fa-plug"></i> Подключить календарь</a>
-                <a href="manager.html" class="nav-btn" data-role="admin,manager"><i class="fas fa-chart-simple"></i> Панель менеджера</a>
-                <a href="profile.html" class="nav-btn"><i class="fas fa-user-circle"></i> Профиль</a>
-            </div>
-        </header>
-        
-        <div class="profile-container">
-            <!-- Левая колонка - профиль -->
-            <div class="profile-sidebar">
-                <div class="profile-avatar" id="profileAvatar">
-                    <i class="fas fa-user"></i>
-                </div>
-                <div class="profile-name" id="profileName">Загрузка...</div>
-                <div class="profile-role" id="profileRole">—</div>
-                
-                <div class="profile-info-item">
-                    <i class="fas fa-envelope"></i>
-                    <span id="profileEmail">—</span>
-                </div>
-                <div class="profile-info-item">
-                    <i class="fab fa-github"></i>
-                    <span id="profileGithub">—</span>
-                </div>
-                <div class="profile-info-item">
-                    <i class="fas fa-calendar-alt"></i>
-                    <span id="profileJoined">—</span>
-                </div>
-                
-                <div class="profile-stats">
-                    <div class="profile-stat">
-                        <div class="profile-stat-value" id="statCompleted">0</div>
-                        <div class="profile-stat-label">Завершено</div>
-                    </div>
-                    <div class="profile-stat">
-                        <div class="profile-stat-value" id="statActive">0</div>
-                        <div class="profile-stat-label">Активных</div>
-                    </div>
-                    <div class="profile-stat">
-                        <div class="profile-stat-value" id="statOverdue">0</div>
-                        <div class="profile-stat-label">Просрочено</div>
-                    </div>
-                    <div class="profile-stat">
-                        <div class="profile-stat-value" id="statAvgTime">0</div>
-                        <div class="profile-stat-label">Ср. время (дни)</div>
-                    </div>
-                </div>
-                
-                <button class="edit-btn" id="editProfileBtn" style="margin-top: 20px; width: 100%;">
-                    <i class="fas fa-edit"></i> Редактировать профиль
-                </button>
+    <div class="app-layout">
+        <!-- Боковая панель навигации -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-logo">
+                <i class="fas fa-chart-line"></i>
+                <span>CRM Team</span>
             </div>
             
-            <!-- Правая колонка - настройки и активность -->
-            <div class="profile-main">
-                <!-- Личная статистика -->
-                <div class="profile-section">
-                    <div class="profile-section-title">
-                        <i class="fas fa-chart-line"></i> Моя активность
+            <nav class="sidebar-nav">
+                <a href="index.html" class="nav-item">
+                    <i class="fas fa-home"></i>
+                    <span>Дашборд</span>
+                </a>
+                <a href="tasks.html" class="nav-item">
+                    <i class="fas fa-tasks"></i>
+                    <span>Доска задач</span>
+                </a>
+                <a href="complexes.html" class="nav-item">
+                    <i class="fas fa-building"></i>
+                    <span>Объекты</span>
+                </a>
+                <a href="calendar.html" class="nav-item">
+                    <i class="fas fa-calendar-alt"></i>
+                    <span>Календарь</span>
+                </a>
+                <a href="calendar-integration.html" class="nav-item">
+                    <i class="fas fa-plug"></i>
+                    <span>Подключить календарь</span>
+                </a>
+                <a href="manager.html" class="nav-item" data-role="admin,manager">
+                    <i class="fas fa-chart-simple"></i>
+                    <span>Панель менеджера</span>
+                </a>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <button class="collapse-btn" onclick="window.sidebar?.toggleSidebar()">
+                    <i class="fas fa-chevron-left"></i>
+                    <span>Свернуть</span>
+                </button>
+            </div>
+        </aside>
+        
+        <!-- Основной контент -->
+        <main class="main-content">
+            <div class="top-bar">
+                <div class="user-profile" onclick="window.sidebar?.goToProfile()">
+                    <div class="user-info">
+                        <div class="user-name" id="userName">Загрузка...</div>
+                        <div class="user-role" id="userRole">—</div>
                     </div>
-                    <div class="activity-chart-small">
-                        <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted);">
-                            <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Вс</span>
-                        </div>
-                        <div class="chart-bars-profile" id="personalChart"></div>
-                    </div>
-                </div>
-                
-                <!-- Настройки интерфейса -->
-                <div class="profile-section">
-                    <div class="profile-section-title">
-                        <i class="fas fa-sliders-h"></i> Настройки интерфейса
-                    </div>
-                    <div class="settings-group">
-                        <div class="setting-item">
-                            <div class="setting-label">
-                                <i class="fas fa-bell"></i>
-                                <span>Уведомления в браузере</span>
-                            </div>
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="notificationsToggle">
-                                <span class="toggle-slider"></span>
-                            </label>
-                        </div>
-                        <div class="setting-item">
-                            <div class="setting-label">
-                                <i class="fas fa-check-double"></i>
-                                <span>Подтверждение действий</span>
-                            </div>
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="confirmActionsToggle">
-                                <span class="toggle-slider"></span>
-                            </label>
-                        </div>
-                        <div class="setting-item">
-                            <div class="setting-label">
-                                <i class="fas fa-compress"></i>
-                                <span>Компактный режим</span>
-                            </div>
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="compactModeToggle">
-                                <span class="toggle-slider"></span>
-                            </label>
-                        </div>
-                        <div class="setting-item">
-                            <div class="setting-label">
-                                <i class="fas fa-sync-alt"></i>
-                                <span>Автосохранение</span>
-                            </div>
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="autoSaveToggle">
-                                <span class="toggle-slider"></span>
-                            </label>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- История действий -->
-                <div class="profile-section">
-                    <div class="profile-section-title">
-                        <i class="fas fa-history"></i> Последние завершённые задачи
-                    </div>
-                    <div id="recentTasks" class="recent-tasks-list">
-                        <div style="text-align: center; color: var(--text-muted); padding: 20px;">Загрузка...</div>
+                    <div class="user-avatar" id="userAvatar">
+                        <i class="fas fa-user"></i>
                     </div>
                 </div>
             </div>
-        </div>
+            
+            <div class="profile-container">
+                <!-- Левая колонка - профиль -->
+                <div class="profile-sidebar">
+                    <div class="profile-avatar" id="profileAvatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <div class="profile-name" id="profileName">Загрузка...</div>
+                    <div class="profile-role" id="profileRole">—</div>
+                    
+                    <div class="profile-info-item">
+                        <i class="fas fa-envelope"></i>
+                        <span id="profileEmail">—</span>
+                    </div>
+                    <div class="profile-info-item">
+                        <i class="fab fa-github"></i>
+                        <span id="profileGithub">—</span>
+                    </div>
+                    <div class="profile-info-item">
+                        <i class="fas fa-calendar-alt"></i>
+                        <span id="profileJoined">—</span>
+                    </div>
+                    
+                    <div class="profile-stats">
+                        <div class="profile-stat">
+                            <div class="profile-stat-value" id="statCompleted">0</div>
+                            <div class="profile-stat-label">Завершено</div>
+                        </div>
+                        <div class="profile-stat">
+                            <div class="profile-stat-value" id="statActive">0</div>
+                            <div class="profile-stat-label">Активных</div>
+                        </div>
+                        <div class="profile-stat">
+                            <div class="profile-stat-value" id="statOverdue">0</div>
+                            <div class="profile-stat-label">Просрочено</div>
+                        </div>
+                        <div class="profile-stat">
+                            <div class="profile-stat-value" id="statAvgTime">0</div>
+                            <div class="profile-stat-label">Ср. время (дни)</div>
+                        </div>
+                    </div>
+                    
+                    <button class="edit-btn" id="editProfileBtn" style="margin-top: 20px; width: 100%;">
+                        <i class="fas fa-edit"></i> Редактировать профиль
+                    </button>
+                </div>
+                
+                <!-- Правая колонка - настройки и активность -->
+                <div class="profile-main">
+                    <!-- Личная статистика -->
+                    <div class="profile-section">
+                        <div class="profile-section-title">
+                            <i class="fas fa-chart-line"></i> Моя активность
+                        </div>
+                        <div class="activity-chart-small">
+                            <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted);">
+                                <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Вс</span>
+                            </div>
+                            <div class="chart-bars-profile" id="personalChart"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Настройки интерфейса -->
+                    <div class="profile-section">
+                        <div class="profile-section-title">
+                            <i class="fas fa-sliders-h"></i> Настройки интерфейса
+                        </div>
+                        <div class="settings-group">
+                            <div class="setting-item">
+                                <div class="setting-label">
+                                    <i class="fas fa-bell"></i>
+                                    <span>Уведомления в браузере</span>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="notificationsToggle">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <div class="setting-item">
+                                <div class="setting-label">
+                                    <i class="fas fa-check-double"></i>
+                                    <span>Подтверждение действий</span>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="confirmActionsToggle">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <div class="setting-item">
+                                <div class="setting-label">
+                                    <i class="fas fa-compress"></i>
+                                    <span>Компактный режим</span>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="compactModeToggle">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <div class="setting-item">
+                                <div class="setting-label">
+                                    <i class="fas fa-sync-alt"></i>
+                                    <span>Автосохранение</span>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="autoSaveToggle">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- История действий -->
+                    <div class="profile-section">
+                        <div class="profile-section-title">
+                            <i class="fas fa-history"></i> Последние завершённые задачи
+                        </div>
+                        <div id="recentTasks" class="recent-tasks-list">
+                            <div style="text-align: center; color: var(--text-muted); padding: 20px;">Загрузка...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
     </div>
     
     <!-- Модальное окно редактирования профиля -->
@@ -463,6 +501,43 @@
     <script src="core.js"></script>
     <script src="auth.js"></script>
     <script src="theme.js"></script>
+    <script src="layout.js"></script>
     <script src="profile.js"></script>
+    
+    <script>
+        // Обновление информации о пользователе в top-bar
+        function updateTopBarProfile() {
+            var user = auth.getCurrentUser();
+            if (!user) return;
+            
+            var userNameSpan = document.getElementById('userName');
+            var userRoleSpan = document.getElementById('userRole');
+            var userAvatar = document.getElementById('userAvatar');
+            
+            if (userNameSpan) {
+                userNameSpan.textContent = user.name;
+            }
+            
+            if (userRoleSpan) {
+                var roleLabel = '';
+                if (user.role === 'admin') roleLabel = 'Администратор';
+                else if (user.role === 'manager') roleLabel = 'Менеджер';
+                else if (user.role === 'agent') roleLabel = 'Агент';
+                else roleLabel = 'Наблюдатель';
+                userRoleSpan.textContent = roleLabel;
+            }
+            
+            if (userAvatar) {
+                var initials = user.name.split(' ').map(function(n) { return n[0]; }).join('').toUpperCase();
+                userAvatar.innerHTML = initials || '<i class="fas fa-user"></i>';
+            }
+        }
+        
+        setTimeout(updateTopBarProfile, 500);
+        
+        if (window.sidebar) {
+            window.sidebar.initSidebar();
+        }
+    </script>
 </body>
 </html>
