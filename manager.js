@@ -3,12 +3,18 @@
 let allTasks = [];
 let allUsers = [];
 let currentUser = null;
+
 console.log('=== manager.js загружен ===');
 console.log('window.auth:', window.auth);
 
 // Загрузка данных
 async function loadData() {
+    console.log('loadData() вызвана');
+    console.log('Начинаем загрузку tasks.csv...');
+    
     allTasks = await loadCSV('data/tasks.csv');
+    console.log('allTasks raw:', allTasks);
+    
     allTasks = allTasks.map(function(task) {
         return {
             ...task,
@@ -16,8 +22,10 @@ async function loadData() {
             due_date: task.due_date || ''
         };
     });
+    console.log('allTasks обработано:', allTasks.length);
     
     allUsers = await loadCSV('data/users.csv');
+    console.log('allUsers загружено:', allUsers.length);
     
     return allUsers.filter(function(u) { return u.role === 'agent'; });
 }
@@ -43,6 +51,8 @@ function calculateKPI() {
         if (!t.updated_at) return false;
         return t.updated_at >= weekAgoStr;
     });
+    
+    console.log('KPI рассчитан:', { total, overdue: overdue.length, closedWeek: closedThisWeek.length, inProgress: inProgressCount });
     
     return {
         total: total,
@@ -85,13 +95,17 @@ function calculateAgentLoad() {
     }
     
     result.sort(function(a, b) { return b.activeTasks - a.activeTasks; });
+    console.log('Agent load рассчитан:', result);
     return result;
 }
 
 // Отображение нагрузки по агентам
 function renderAgentLoad(agentLoad) {
     var container = document.getElementById('agentList');
-    if (!container) return;
+    if (!container) {
+        console.error('agentList не найден');
+        return;
+    }
     
     if (agentLoad.length === 0) {
         container.innerHTML = '<p style="opacity: 0.6; text-align: center;">Нет агентов в системе</p>';
@@ -125,6 +139,7 @@ function renderAgentLoad(agentLoad) {
     }
     
     container.innerHTML = html;
+    console.log('Agent load отображён');
 }
 
 // Отображение просроченных задач
@@ -211,10 +226,17 @@ function renderActivityChart() {
 
 // Обновление KPI
 function updateKPI(kpi) {
-    document.getElementById('totalTasks').textContent = kpi.total;
-    document.getElementById('overdueTasks').textContent = kpi.overdue;
-    document.getElementById('closedWeek').textContent = kpi.closedWeek;
-    document.getElementById('inProgress').textContent = kpi.inProgress;
+    var totalEl = document.getElementById('totalTasks');
+    var overdueEl = document.getElementById('overdueTasks');
+    var closedEl = document.getElementById('closedWeek');
+    var progressEl = document.getElementById('inProgress');
+    
+    if (totalEl) totalEl.textContent = kpi.total;
+    if (overdueEl) overdueEl.textContent = kpi.overdue;
+    if (closedEl) closedEl.textContent = kpi.closedWeek;
+    if (progressEl) progressEl.textContent = kpi.inProgress;
+    
+    console.log('KPI обновлён:', kpi);
 }
 
 // Переход к задаче на доске
@@ -224,8 +246,17 @@ function goToTask(taskId) {
 
 // Инициализация
 async function init() {
+    console.log('init() вызвана');
+    
+    if (!window.auth) {
+        console.error('window.auth не определён! Проверь подключение auth.js');
+        return;
+    }
+    
+    console.log('Вызываем auth.initAuth()...');
     await auth.initAuth();
     currentUser = auth.getCurrentUser();
+    console.log('currentUser после initAuth:', currentUser);
     
     // Обновляем интерфейс (показываем имя пользователя)
     if (currentUser) {
@@ -237,7 +268,12 @@ async function init() {
             else if (currentUser.role === 'agent') roleLabel = 'Агент';
             else roleLabel = 'Наблюдатель';
             userNameSpan.innerHTML = '<i class="fab fa-github"></i> ' + currentUser.name + ' (' + roleLabel + ')';
+            console.log('Имя пользователя обновлено:', currentUser.name);
+        } else {
+            console.error('userName элемент не найден');
         }
+    } else {
+        console.error('currentUser = null, пользователь не авторизован');
     }
     
     // Проверка прав доступа
@@ -253,7 +289,9 @@ async function init() {
         return;
     }
     
+    console.log('Загружаем данные...');
     await loadData();
+    console.log('Данные загружены. allTasks:', allTasks.length, 'allUsers:', allUsers.length);
     
     var kpi = calculateKPI();
     updateKPI(kpi);
@@ -263,6 +301,8 @@ async function init() {
     
     renderOverdueTasks(kpi.overdueList);
     renderActivityChart();
+    
+    console.log('init() завершена');
 }
 
 function escapeHtml(text) {
