@@ -1,15 +1,84 @@
-// tasks.js - логика доски задач
+/**
+ * ============================================
+ * ФАЙЛ: tasks.js
+ * РОЛЬ: Логика доски задач (Kanban)
+ * СВЯЗИ:
+ *   - core.js: loadCSV(), utils.saveCSVToGitHub()
+ *   - auth.js: auth.initAuth(), auth.getCurrentUser(), auth.hasPermission()
+ *   - theme.js: window.theme.initTheme()
+ *   - notifications.js: window.notifications.send(), window.notifications.addToCenter()
+ *   - Данные: data/tasks.csv, data/users.csv, data/complexes.csv, data/comments.csv
+ * МЕХАНИКА:
+ *   1. Загрузка задач, пользователей, объектов, комментариев
+ *   2. Отображение Kanban-доски с тремя статусами
+ *   3. Drag-and-drop для изменения статуса и приоритета
+ *   4. CRUD операции с задачами
+ *   5. Система комментариев с @упоминаниями
+ *   6. Push-уведомления при назначении задачи, дедлайне, упоминании
+ *   7. Сохранение всех изменений в GitHub
+ * ============================================
+ */
 
-let tasks = [];
-let users = [];
-let complexes = [];
-let draggedTask = null;
+var tasks = [];
+var users = [];
+var complexes = [];
+var comments = [];
+var draggedTask = null;
 
-// Загрузка объектов для выпадающего списка
+// ========== ЗАГРУЗКА ДАННЫХ ==========
+
+async function loadComments() {
+    try {
+        var commentsData = await loadCSV('data/comments.csv');
+        comments = [];
+        if (commentsData && commentsData.length > 0) {
+            for (var i = 0; i < commentsData.length; i++) {
+                var c = commentsData[i];
+                comments.push({
+                    id: parseInt(c.id),
+                    task_id: parseInt(c.task_id),
+                    author: c.author,
+                    text: c.text,
+                    mentions: c.mentions ? c.mentions.split(';') : [],
+                    created_at: c.created_at
+                });
+            }
+        }
+    } catch (e) {
+        comments = [];
+    }
+}
+
+async function saveCommentsToGitHub() {
+    var currentUser = auth.getCurrentUser();
+    if (!currentUser || !auth.hasPermission('edit')) {
+        return false;
+    }
+    
+    var commentsToSave = [];
+    for (var i = 0; i < comments.length; i++) {
+        var c = comments[i];
+        commentsToSave.push({
+            id: c.id,
+            task_id: c.task_id,
+            author: c.author,
+            text: c.text,
+            mentions: c.mentions.join(';'),
+            created_at: c.created_at
+        });
+    }
+    
+    return await window.utils.saveCSVToGitHub(
+        'data/comments.csv',
+        commentsToSave,
+        'Update comments by ' + currentUser.name
+    );
+}
+
 async function loadComplexesForSelect() {
     try {
         complexes = await loadCSV('data/complexes.csv');
-        const complexSelect = document.getElementById('taskComplex');
+        var complexSelect = document.getElementById('taskComplex');
         if (complexSelect) {
             complexSelect.innerHTML = '<option value="">Привязать к объекту</option>';
             for (var i = 0; i < complexes.length; i++) {
@@ -25,7 +94,6 @@ async function loadComplexesForSelect() {
     }
 }
 
-// Загрузка задач
 async function loadTasks() {
     var tasksData = await loadCSV('data/tasks.csv');
     tasks = [];
@@ -45,10 +113,15 @@ async function loadTasks() {
             complex_id: task.complex_id || ''
         });
     }
+    
+    // Проверяем дедлайны для уведомлений
+    if (window.notifications && window.notifications.checkDeadlines) {
+        window.notifications.checkDeadlines(tasks);
+    }
+    
     renderKanban();
 }
 
-// Загрузка пользователей для выпадающего списка
 async function loadUsersForSelect() {
     users = await loadCSV('data/users.csv');
     var assigneeSelect = document.getElementById('taskAssignee');
@@ -64,7 +137,8 @@ async function loadUsersForSelect() {
     }
 }
 
-// Рендер Kanban-доски
+// ========== RENDER KANBAN ==========
+
 function renderKanban() {
     var todoContainer = document.getElementById('todoTasks');
     var progressContainer = document.getElementById('progressTasks');
@@ -99,7 +173,6 @@ function renderKanban() {
     document.getElementById('doneCount').textContent = doneCount;
 }
 
-// Создание карточки задачи
 function createTaskCard(task) {
     var card = document.createElement('div');
     card.className = 'task-card';
@@ -122,7 +195,6 @@ function createTaskCard(task) {
     }
     var assigneeName = assignee ? assignee.name : 'Не назначен';
     
-    // Находим объект, если привязан
     var complexName = '';
     if (task.complex_id) {
         for (var c = 0; c < complexes.length; c++) {
@@ -161,7 +233,8 @@ function createTaskCard(task) {
     return card;
 }
 
-// Обработка drag-and-drop
+// ========== DRAG AND DROP ==========
+
 function handleDragStart(e) {
     draggedTask = e.target.closest('.task-card');
     if (draggedTask) {
@@ -177,7 +250,6 @@ function handleDragEnd(e) {
     }
 }
 
-// Настройка drop-зон
 function setupDropZones() {
     var columns = document.querySelectorAll('.tasks-container');
     for (var i = 0; i < columns.length; i++) {
@@ -198,7 +270,6 @@ function setupDropZones() {
     }
 }
 
-// Обновление статуса задачи
 async function updateTaskStatus(taskId, newStatus) {
     var task = null;
     for (var i = 0; i < tasks.length; i++) {
@@ -208,27 +279,51 @@ async function updateTaskStatus(taskId, newStatus) {
         }
     }
     if (task && task.status !== newStatus) {
+        var oldStatus = task.status;
         task.status = newStatus;
         task.updated_at = new Date().toISOString().split('T')[0];
         await saveTasksToGitHub();
         renderKanban();
+        
+        // Уведомление о смене статуса (только если статус изменился)
+        if (window.notifications && task.assigned_to && task.assigned_to !== auth.getCurrentUser().github_username) {
+            window.notifications.send(
+                'Статус задачи изменён',
+                'Задача "' + task.title + '" перешла из "' + getStatusText(oldStatus) + '" в "' + getStatusText(newStatus) + '"',
+                'task_status_' + task.id,
+                'tasks.html?task=' + task.id
+            );
+            window.notifications.addToCenter(
+                'status_change',
+                'Изменение статуса',
+                'Задача "' + task.title + '" теперь в статусе "' + getStatusText(newStatus) + '"',
+                task.id
+            );
+        }
     }
 }
 
-// Создание новой задачи
+function getStatusText(status) {
+    var statuses = { todo: 'To Do', in_progress: 'В работе', done: 'Готово' };
+    return statuses[status] || status;
+}
+
+// ========== CRUD ЗАДАЧ ==========
+
 async function createTask(taskData) {
     var maxId = 0;
     for (var i = 0; i < tasks.length; i++) {
         if (tasks[i].id > maxId) maxId = tasks[i].id;
     }
     var newId = maxId + 1;
+    var currentUser = auth.getCurrentUser();
     
     var newTask = {
         id: newId,
         title: taskData.title,
         description: taskData.description,
         assigned_to: taskData.assigned_to,
-        created_by: auth.getCurrentUser() ? auth.getCurrentUser().github_username : 'system',
+        created_by: currentUser ? currentUser.github_username : 'system',
         status: taskData.status,
         priority: taskData.priority,
         created_at: new Date().toISOString().split('T')[0],
@@ -240,9 +335,35 @@ async function createTask(taskData) {
     tasks.push(newTask);
     await saveTasksToGitHub();
     renderKanban();
+    showToast('success', 'Задача создана');
+    
+    // Уведомление назначенному исполнителю
+    if (taskData.assigned_to && taskData.assigned_to !== (currentUser ? currentUser.github_username : '')) {
+        var assignedUserName = '';
+        for (var u = 0; u < users.length; u++) {
+            if (users[u].github_username === taskData.assigned_to) {
+                assignedUserName = users[u].name;
+                break;
+            }
+        }
+        
+        if (window.notifications) {
+            window.notifications.send(
+                'Новая задача',
+                'Вам назначена задача: ' + taskData.title,
+                'task_' + newId,
+                'tasks.html?task=' + newId
+            );
+            window.notifications.addToCenter(
+                'task_assigned',
+                'Новая задача',
+                'Вам назначена задача: ' + taskData.title,
+                newId
+            );
+        }
+    }
 }
 
-// Редактирование задачи
 async function updateTask(taskId, taskData) {
     var taskIndex = -1;
     for (var i = 0; i < tasks.length; i++) {
@@ -252,6 +373,7 @@ async function updateTask(taskId, taskData) {
         }
     }
     if (taskIndex !== -1) {
+        var oldAssignee = tasks[taskIndex].assigned_to;
         tasks[taskIndex] = {
             ...tasks[taskIndex],
             title: taskData.title,
@@ -265,10 +387,28 @@ async function updateTask(taskId, taskData) {
         };
         await saveTasksToGitHub();
         renderKanban();
+        showToast('success', 'Задача обновлена');
+        
+        // Уведомление при смене исполнителя
+        if (taskData.assigned_to && taskData.assigned_to !== oldAssignee && taskData.assigned_to !== auth.getCurrentUser().github_username) {
+            if (window.notifications) {
+                window.notifications.send(
+                    'Задача переназначена',
+                    'Вам назначена задача: ' + taskData.title,
+                    'task_' + taskId,
+                    'tasks.html?task=' + taskId
+                );
+                window.notifications.addToCenter(
+                    'task_assigned',
+                    'Задача переназначена',
+                    'Вам назначена задача: ' + taskData.title,
+                    taskId
+                );
+            }
+        }
     }
 }
 
-// Удаление задачи
 async function deleteTask(taskId) {
     if (confirm('Вы уверены, что хотите удалить эту задачу?')) {
         var newTasks = [];
@@ -278,10 +418,10 @@ async function deleteTask(taskId) {
         tasks = newTasks;
         await saveTasksToGitHub();
         renderKanban();
+        showToast('success', 'Задача удалена');
     }
 }
 
-// Сохранение задач в GitHub
 async function saveTasksToGitHub() {
     var currentUser = auth.getCurrentUser();
     if (!currentUser || !auth.hasPermission('edit')) {
@@ -314,7 +454,146 @@ async function saveTasksToGitHub() {
     );
 }
 
-// Вспомогательные функции
+// ========== КОММЕНТАРИИ ==========
+
+async function addComment() {
+    var taskId = parseInt(document.getElementById('taskId').value);
+    if (!taskId) return;
+    
+    var commentText = document.getElementById('newComment').value.trim();
+    if (!commentText) {
+        alert('Введите комментарий');
+        return;
+    }
+    
+    var currentUser = auth.getCurrentUser();
+    if (!currentUser) return;
+    
+    // Поиск @упоминаний
+    var mentions = [];
+    var mentionRegex = /@(\w+)/g;
+    var match;
+    while ((match = mentionRegex.exec(commentText)) !== null) {
+        if (mentions.indexOf(match[1]) === -1) {
+            mentions.push(match[1]);
+        }
+    }
+    
+    var newId = 1;
+    for (var i = 0; i < comments.length; i++) {
+        if (comments[i].id >= newId) newId = comments[i].id + 1;
+    }
+    
+    var newComment = {
+        id: newId,
+        task_id: taskId,
+        author: currentUser.github_username,
+        text: commentText,
+        mentions: mentions,
+        created_at: new Date().toISOString().slice(0, 19).replace('T', ' ')
+    };
+    
+    comments.push(newComment);
+    var saved = await saveCommentsToGitHub();
+    
+    if (saved) {
+        document.getElementById('newComment').value = '';
+        renderComments(taskId);
+        showToast('success', 'Комментарий добавлен');
+        
+        // Отправляем уведомления об упоминаниях
+        for (var m = 0; m < mentions.length; m++) {
+            sendMentionNotification(mentions[m], currentUser.name, commentText, taskId);
+        }
+    } else {
+        comments.pop();
+        alert('Ошибка сохранения');
+    }
+}
+
+function sendMentionNotification(mentionedUsername, authorName, commentText, taskId) {
+    var task = null;
+    for (var i = 0; i < tasks.length; i++) {
+        if (tasks[i].id === taskId) {
+            task = tasks[i];
+            break;
+        }
+    }
+    if (!task) return;
+    
+    if (window.notifications) {
+        window.notifications.send(
+            'Упоминание в комментарии',
+            authorName + ' упомянул вас в задаче "' + task.title + '"',
+            'mention_' + task.id,
+            'tasks.html?task=' + task.id
+        );
+        window.notifications.addToCenter(
+            'mention',
+            'Упоминание в комментарии',
+            authorName + ' упомянул вас в задаче "' + task.title + '"',
+            task.id
+        );
+    }
+    
+    showToast('info', authorName + ' упомянул вас в комментарии');
+}
+
+function renderComments(taskId) {
+    var taskComments = [];
+    for (var i = 0; i < comments.length; i++) {
+        if (comments[i].task_id === taskId) {
+            taskComments.push(comments[i]);
+        }
+    }
+    
+    taskComments.sort(function(a, b) {
+        return a.created_at > b.created_at ? 1 : -1;
+    });
+    
+    var container = document.getElementById('commentsList');
+    var countSpan = document.getElementById('commentsCount');
+    
+    if (!container) return;
+    
+    if (countSpan) countSpan.textContent = taskComments.length;
+    
+    if (taskComments.length === 0) {
+        container.innerHTML = '<div class="comment-empty">Нет комментариев</div>';
+        return;
+    }
+    
+    var html = '';
+    for (var i = 0; i < taskComments.length; i++) {
+        var c = taskComments[i];
+        
+        var authorName = c.author;
+        for (var u = 0; u < users.length; u++) {
+            if (users[u].github_username === c.author) {
+                authorName = users[u].name;
+                break;
+            }
+        }
+        
+        var formattedText = escapeHtml(c.text);
+        formattedText = formattedText.replace(/@(\w+)/g, '<span class="mention">@$1</span>');
+        
+        var date = c.created_at ? c.created_at.replace('T', ' ').slice(0, 16) : '';
+        
+        html += '<div class="comment-item">' +
+            '<div class="comment-header">' +
+                '<strong><i class="fas fa-user-circle"></i> ' + escapeHtml(authorName) + '</strong>' +
+                '<span class="comment-date">' + date + '</span>' +
+            '</div>' +
+            '<div class="comment-text">' + formattedText + '</div>' +
+        '</div>';
+    }
+    
+    container.innerHTML = html;
+}
+
+// ========== ВСПОМОГАТЕЛЬНЫЕ ==========
+
 function getPriorityText(priority) {
     var priorities = {
         high: 'Высокий',
@@ -342,7 +621,8 @@ function showToast(type, message) {
     }, 3000);
 }
 
-// Модальное окно
+// ========== МОДАЛЬНОЕ ОКНО ==========
+
 function openModal(taskId) {
     var modal = document.getElementById('taskModal');
     var modalTitle = document.getElementById('modalTitle');
@@ -365,6 +645,9 @@ function openModal(taskId) {
             document.getElementById('taskPriority').value = task.priority;
             document.getElementById('taskDueDate').value = task.due_date || '';
             document.getElementById('taskStatus').value = task.status;
+            
+            // Загружаем комментарии
+            renderComments(task.id);
         }
     } else {
         modalTitle.textContent = 'Создать задачу';
@@ -376,6 +659,12 @@ function openModal(taskId) {
         document.getElementById('taskPriority').value = 'medium';
         document.getElementById('taskDueDate').value = '';
         document.getElementById('taskStatus').value = 'todo';
+        
+        // Очищаем комментарии
+        var commentsContainer = document.getElementById('commentsList');
+        if (commentsContainer) commentsContainer.innerHTML = '';
+        var commentsCount = document.getElementById('commentsCount');
+        if (commentsCount) commentsCount.textContent = '0';
     }
     
     modal.classList.add('active');
@@ -404,10 +693,8 @@ async function saveTask() {
     
     if (taskId) {
         await updateTask(parseInt(taskId), taskData);
-        showToast('success', 'Задача обновлена');
     } else {
         await createTask(taskData);
-        showToast('success', 'Задача создана');
     }
     
     closeModal();
@@ -417,11 +704,13 @@ function editTask(taskId) {
     openModal(taskId);
 }
 
-// Инициализация
+// ========== ИНИЦИАЛИЗАЦИЯ ==========
+
 async function init() {
     await auth.initAuth();
     await loadUsersForSelect();
     await loadComplexesForSelect();
+    await loadComments();
     await loadTasks();
     setupDropZones();
     
@@ -438,6 +727,7 @@ async function init() {
         }
     }
     
+    // Добавляем обработчики для кнопок "Добавить задачу"
     var addBtns = document.querySelectorAll('.add-task-btn');
     for (var i = 0; i < addBtns.length; i++) {
         var btn = addBtns[i];
