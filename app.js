@@ -6,6 +6,7 @@
  *   - core.js: loadCSV(), utils.saveCSVToGitHub()
  *   - auth.js: auth.initAuth(), auth.getCurrentUser()
  *   - theme.js: window.theme.initTheme()
+ *   - layout.js: window.sidebar
  *   - Данные: data/users.csv, data/tasks.csv, data/complexes.csv
  * МЕХАНИКА:
  *   1. Инициализация авторизации и получение текущего пользователя
@@ -23,8 +24,46 @@
  *   6. Расчёт прогноза завершения проекта на основе текущей скорости
  *   7. Отображение всех данных с анимациями
  *   8. Обновление интерфейса при смене темы
+ *   9. Отображение профиля пользователя в шапке
  * ============================================
  */
+
+// Обновление профиля пользователя в шапке
+function updateUserProfile() {
+    var user = auth.getCurrentUser();
+    if (!user) return;
+    
+    var userNameSpan = document.getElementById('userName');
+    var userRoleSpan = document.getElementById('userRole');
+    var userAvatar = document.getElementById('userAvatar');
+    
+    if (userNameSpan) {
+        userNameSpan.textContent = user.name;
+    }
+    
+    if (userRoleSpan) {
+        var roleLabel = '';
+        if (user.role === 'admin') roleLabel = 'Администратор';
+        else if (user.role === 'manager') roleLabel = 'Менеджер';
+        else if (user.role === 'agent') roleLabel = 'Агент';
+        else roleLabel = 'Наблюдатель';
+        userRoleSpan.textContent = roleLabel;
+    }
+    
+    if (userAvatar) {
+        var nameParts = user.name.split(' ');
+        var initials = '';
+        for (var i = 0; i < nameParts.length && i < 2; i++) {
+            initials += nameParts[i][0];
+        }
+        userAvatar.innerHTML = initials.toUpperCase() || '<i class="fas fa-user"></i>';
+    }
+    
+    var welcomeMessage = document.getElementById('welcomeMessage');
+    if (welcomeMessage) {
+        welcomeMessage.textContent = 'Добро пожаловать, ' + user.name + '!';
+    }
+}
 
 async function loadDashboardStats() {
     try {
@@ -110,7 +149,7 @@ async function loadDashboardStats() {
         }
         
         var completedTrend = completedPrevWeek > 0 ? Math.round(((completedThisWeek - completedPrevWeek) / completedPrevWeek) * 100) : (completedThisWeek > 0 ? 100 : 0);
-        var overduePrevWeek = 0;
+        
         // Упрощённый расчёт тренда просрочек
         var overdueTrend = overdueCount > 0 ? -Math.min(30, Math.round(Math.random() * 30)) : 0;
         
@@ -297,27 +336,12 @@ async function init() {
     await auth.initAuth();
     
     var currentUser = auth.getCurrentUser();
-    if (currentUser) {
-        var userNameSpan = document.getElementById('userName');
-        var welcomeMessage = document.getElementById('welcomeMessage');
-        
-        if (userNameSpan) {
-            var roleLabel = '';
-            if (currentUser.role === 'admin') roleLabel = 'Администратор';
-            else if (currentUser.role === 'manager') roleLabel = 'Менеджер';
-            else if (currentUser.role === 'agent') roleLabel = 'Агент';
-            else roleLabel = 'Наблюдатель';
-            userNameSpan.innerHTML = '<i class="fab fa-github"></i> ' + escapeHtml(currentUser.name) + ' (' + roleLabel + ')';
-        }
-        
-        if (welcomeMessage) {
-            welcomeMessage.textContent = 'Добро пожаловать, ' + currentUser.name + '! Ваша роль: ' + 
-                (currentUser.role === 'admin' ? 'Администратор' : 
-                 currentUser.role === 'manager' ? 'Менеджер' : 
-                 currentUser.role === 'agent' ? 'Агент' : 'Наблюдатель');
-        }
+    if (!currentUser) {
+        window.location.href = 'auth.html';
+        return;
     }
     
+    updateUserProfile();
     await loadDashboardStats();
     
     if (window.theme) window.theme.initTheme();
