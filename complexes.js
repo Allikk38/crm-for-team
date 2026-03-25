@@ -1,9 +1,11 @@
 // complexes.js - управление объектами недвижимости
 
-var complexes = [];
-var allUsers = [];
-var tasks = [];
-var currentUser = null;
+var complexesList = [];
+var allUsersList = [];
+var allTasksList = [];
+var currentUserData = null;
+
+console.log('complexes.js loaded');
 
 // Загрузка данных
 async function loadComplexesData() {
@@ -11,16 +13,17 @@ async function loadComplexesData() {
     
     try {
         var tasksData = await loadCSV('data/tasks.csv');
-        tasks = tasksData || [];
+        allTasksList = tasksData || [];
+        console.log('Tasks loaded:', allTasksList.length);
         
         var complexesData = await loadCSV('data/complexes.csv');
-        console.log('Complexes loaded:', complexesData ? complexesData.length : 0);
+        console.log('Complexes CSV loaded:', complexesData ? complexesData.length : 0);
         
-        complexes = [];
+        complexesList = [];
         if (complexesData && complexesData.length > 0) {
             for (var i = 0; i < complexesData.length; i++) {
                 var c = complexesData[i];
-                complexes.push({
+                complexesList.push({
                     id: parseInt(c.id),
                     title: c.title || '',
                     address: c.address || '',
@@ -37,9 +40,10 @@ async function loadComplexesData() {
                 });
             }
         }
+        console.log('Complexes parsed:', complexesList.length);
         
-        allUsers = await loadCSV('data/users.csv');
-        console.log('Users loaded:', allUsers ? allUsers.length : 0);
+        allUsersList = await loadCSV('data/users.csv');
+        console.log('Users loaded:', allUsersList ? allUsersList.length : 0);
         
         renderComplexes();
         updateFilters();
@@ -48,7 +52,7 @@ async function loadComplexesData() {
         console.error('Ошибка загрузки данных:', error);
         var grid = document.getElementById('complexesGrid');
         if (grid) {
-            grid.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Ошибка загрузки данных</p></div>';
+            grid.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Ошибка загрузки данных: ' + error.message + '</p></div>';
         }
     }
 }
@@ -56,7 +60,17 @@ async function loadComplexesData() {
 // Рендер списка объектов
 function renderComplexes() {
     var grid = document.getElementById('complexesGrid');
-    if (!grid) return;
+    if (!grid) {
+        console.error('complexesGrid not found');
+        return;
+    }
+    
+    console.log('renderComplexes called, complexes count:', complexesList.length);
+    
+    if (!complexesList || complexesList.length === 0) {
+        grid.innerHTML = '<div class="empty-state"><i class="fas fa-building"></i><p>Нет объектов</p><p style="font-size: 0.8rem;">Добавьте первый объект</p></div>';
+        return;
+    }
     
     var searchInput = document.getElementById('searchInput');
     var searchText = searchInput ? searchInput.value.toLowerCase() : '';
@@ -66,8 +80,8 @@ function renderComplexes() {
     var agentValue = agentFilter ? agentFilter.value : 'all';
     
     var filtered = [];
-    for (var i = 0; i < complexes.length; i++) {
-        var complex = complexes[i];
+    for (var i = 0; i < complexesList.length; i++) {
+        var complex = complexesList[i];
         var matchSearch = searchText === '' || 
             complex.title.toLowerCase().indexOf(searchText) !== -1 || 
             complex.address.toLowerCase().indexOf(searchText) !== -1;
@@ -78,6 +92,8 @@ function renderComplexes() {
             filtered.push(complex);
         }
     }
+    
+    console.log('Filtered complexes:', filtered.length);
     
     if (filtered.length === 0) {
         grid.innerHTML = '<div class="empty-state"><i class="fas fa-building"></i><p>Нет объектов</p><p style="font-size: 0.8rem;">Добавьте первый объект</p></div>';
@@ -102,9 +118,9 @@ function renderComplexes() {
         }
         
         var agent = null;
-        for (var u = 0; u < allUsers.length; u++) {
-            if (allUsers[u].github_username === complex.assigned_to) {
-                agent = allUsers[u];
+        for (var u = 0; u < allUsersList.length; u++) {
+            if (allUsersList[u].github_username === complex.assigned_to) {
+                agent = allUsersList[u];
                 break;
             }
         }
@@ -114,9 +130,9 @@ function renderComplexes() {
         var priceTo = parseInt(complex.price_to).toLocaleString();
         
         var complexTasks = [];
-        for (var t = 0; t < tasks.length; t++) {
-            if (tasks[t].complex_id && parseInt(tasks[t].complex_id) === complex.id) {
-                complexTasks.push(tasks[t]);
+        for (var t = 0; t < allTasksList.length; t++) {
+            if (allTasksList[t].complex_id && parseInt(allTasksList[t].complex_id) === complex.id) {
+                complexTasks.push(allTasksList[t]);
             }
         }
         var tasksCount = complexTasks.length;
@@ -141,7 +157,7 @@ function renderComplexes() {
                 '<button class="complex-btn" onclick="event.stopPropagation(); openComplexTasks(' + complex.id + ')"><i class="fas fa-list"></i> Задачи</button>' +
                 '<button class="complex-btn" onclick="event.stopPropagation(); openMapForComplex(' + complex.id + ')"><i class="fas fa-map"></i> Карта</button>';
         
-        if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager')) {
+        if (currentUserData && (currentUserData.role === 'admin' || currentUserData.role === 'manager')) {
             html += '<button class="complex-btn" onclick="event.stopPropagation(); editComplex(' + complex.id + ')"><i class="fas fa-edit"></i> Ред.</button>';
         }
         
@@ -157,8 +173,8 @@ function updateFilters() {
     if (!agentSelect) return;
     
     agentSelect.innerHTML = '<option value="all">Все агенты</option>';
-    for (var i = 0; i < allUsers.length; i++) {
-        var user = allUsers[i];
+    for (var i = 0; i < allUsersList.length; i++) {
+        var user = allUsersList[i];
         if (user.role === 'agent' || user.role === 'manager' || user.role === 'admin') {
             var option = document.createElement('option');
             option.value = user.github_username;
@@ -171,9 +187,9 @@ function updateFilters() {
 // Открыть карточку объекта
 async function openComplexModal(complexId) {
     var complex = null;
-    for (var i = 0; i < complexes.length; i++) {
-        if (complexes[i].id === complexId) {
-            complex = complexes[i];
+    for (var i = 0; i < complexesList.length; i++) {
+        if (complexesList[i].id === complexId) {
+            complex = complexesList[i];
             break;
         }
     }
@@ -184,9 +200,9 @@ async function openComplexModal(complexId) {
     var editBtn = document.getElementById('editComplexBtn');
     
     var agent = null;
-    for (var u = 0; u < allUsers.length; u++) {
-        if (allUsers[u].github_username === complex.assigned_to) {
-            agent = allUsers[u];
+    for (var u = 0; u < allUsersList.length; u++) {
+        if (allUsersList[u].github_username === complex.assigned_to) {
+            agent = allUsersList[u];
             break;
         }
     }
@@ -198,9 +214,9 @@ async function openComplexModal(complexId) {
     else statusText = 'Архив';
     
     var complexTasks = [];
-    for (var t = 0; t < tasks.length; t++) {
-        if (tasks[t].complex_id && parseInt(tasks[t].complex_id) === complex.id) {
-            complexTasks.push(tasks[t]);
+    for (var t = 0; t < allTasksList.length; t++) {
+        if (allTasksList[t].complex_id && parseInt(allTasksList[t].complex_id) === complex.id) {
+            complexTasks.push(allTasksList[t]);
         }
     }
     
@@ -258,7 +274,7 @@ async function openComplexModal(complexId) {
         editComplex(complexId);
     };
     
-    if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager')) {
+    if (currentUserData && (currentUserData.role === 'admin' || currentUserData.role === 'manager')) {
         editBtn.style.display = 'block';
     } else {
         editBtn.style.display = 'none';
@@ -272,9 +288,9 @@ function getPriorityText(priority) {
 
 function editComplex(complexId) {
     var complex = null;
-    for (var i = 0; i < complexes.length; i++) {
-        if (complexes[i].id === complexId) {
-            complex = complexes[i];
+    for (var i = 0; i < complexesList.length; i++) {
+        if (complexesList[i].id === complexId) {
+            complex = complexesList[i];
             break;
         }
     }
@@ -336,24 +352,24 @@ async function saveComplex() {
     
     if (id) {
         var index = -1;
-        for (var i = 0; i < complexes.length; i++) {
-            if (complexes[i].id === parseInt(id)) {
+        for (var i = 0; i < complexesList.length; i++) {
+            if (complexesList[i].id === parseInt(id)) {
                 index = i;
                 break;
             }
         }
         if (index !== -1) {
             complexData.id = parseInt(id);
-            complexData.created_at = complexes[index].created_at;
-            complexes[index] = complexData;
+            complexData.created_at = complexesList[index].created_at;
+            complexesList[index] = complexData;
         }
     } else {
         var newId = 1;
-        for (var i = 0; i < complexes.length; i++) {
-            if (complexes[i].id >= newId) newId = complexes[i].id + 1;
+        for (var i = 0; i < complexesList.length; i++) {
+            if (complexesList[i].id >= newId) newId = complexesList[i].id + 1;
         }
         complexData.id = newId;
-        complexes.push(complexData);
+        complexesList.push(complexData);
     }
     
     var saved = await saveComplexesToGitHub();
@@ -375,8 +391,8 @@ async function saveComplexesToGitHub() {
     }
     
     var complexesToSave = [];
-    for (var i = 0; i < complexes.length; i++) {
-        var c = complexes[i];
+    for (var i = 0; i < complexesList.length; i++) {
+        var c = complexesList[i];
         complexesToSave.push({
             id: c.id,
             title: c.title,
@@ -407,9 +423,9 @@ function openComplexTasks(complexId) {
 
 function openMapForComplex(complexId) {
     var complex = null;
-    for (var i = 0; i < complexes.length; i++) {
-        if (complexes[i].id === complexId) {
-            complex = complexes[i];
+    for (var i = 0; i < complexesList.length; i++) {
+        if (complexesList[i].id === complexId) {
+            complex = complexesList[i];
             break;
         }
     }
@@ -452,18 +468,18 @@ async function init() {
     console.log('complexes.js init started');
     
     await auth.initAuth();
-    currentUser = auth.getCurrentUser();
-    console.log('Current user:', currentUser);
+    currentUserData = auth.getCurrentUser();
+    console.log('Current user:', currentUserData);
     
-    if (currentUser) {
+    if (currentUserData) {
         var userNameSpan = document.getElementById('userName');
         if (userNameSpan) {
             var roleLabel = '';
-            if (currentUser.role === 'admin') roleLabel = 'Администратор';
-            else if (currentUser.role === 'manager') roleLabel = 'Менеджер';
-            else if (currentUser.role === 'agent') roleLabel = 'Агент';
+            if (currentUserData.role === 'admin') roleLabel = 'Администратор';
+            else if (currentUserData.role === 'manager') roleLabel = 'Менеджер';
+            else if (currentUserData.role === 'agent') roleLabel = 'Агент';
             else roleLabel = 'Наблюдатель';
-            userNameSpan.innerHTML = '<i class="fab fa-github"></i> ' + escapeHtml(currentUser.name) + ' (' + roleLabel + ')';
+            userNameSpan.innerHTML = '<i class="fab fa-github"></i> ' + escapeHtml(currentUserData.name) + ' (' + roleLabel + ')';
         }
     }
     
