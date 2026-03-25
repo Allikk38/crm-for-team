@@ -7,18 +7,17 @@ let currentUser = null;
 // Загрузка данных
 async function loadData() {
     allTasks = await loadCSV('data/tasks.csv');
-    allTasks = allTasks.map(task => ({
-        ...task,
-        id: parseInt(task.id),
-        due_date: task.due_date || ''
-    }));
+    allTasks = allTasks.map(function(task) {
+        return {
+            ...task,
+            id: parseInt(task.id),
+            due_date: task.due_date || ''
+        };
+    });
     
     allUsers = await loadCSV('data/users.csv');
     
-    // Фильтруем только агентов
-    const agents = allUsers.filter(u => u.role === 'agent');
-    
-    return agents;
+    return allUsers.filter(function(u) { return u.role === 'agent'; });
 }
 
 // Расчёт KPI
@@ -29,24 +28,22 @@ function calculateKPI() {
     const weekAgoStr = weekAgo.toISOString().split('T')[0];
     
     const total = allTasks.length;
-    const inProgressCount = allTasks.filter(t => t.status === 'in_progress').length;
+    const inProgressCount = allTasks.filter(function(t) { return t.status === 'in_progress'; }).length;
     
-    // Просроченные: статус не done и due_date < сегодня
-    const overdue = allTasks.filter(t => {
+    const overdue = allTasks.filter(function(t) {
         if (t.status === 'done') return false;
         if (!t.due_date) return false;
         return t.due_date < today;
     });
     
-    // Закрытые за неделю
-    const closedThisWeek = allTasks.filter(t => {
+    const closedThisWeek = allTasks.filter(function(t) {
         if (t.status !== 'done') return false;
         if (!t.updated_at) return false;
         return t.updated_at >= weekAgoStr;
     });
     
     return {
-        total,
+        total: total,
         overdue: overdue.length,
         closedWeek: closedThisWeek.length,
         inProgress: inProgressCount,
@@ -56,36 +53,42 @@ function calculateKPI() {
 
 // Расчёт нагрузки по агентам
 function calculateAgentLoad() {
-    const agents = allUsers.filter(u => u.role === 'agent');
+    const agents = allUsers.filter(function(u) { return u.role === 'agent'; });
     const today = new Date().toISOString().split('T')[0];
     
-    return agents.map(agent => {
-        const agentTasks = allTasks.filter(t => t.assigned_to === agent.github_username);
-        const activeTasks = agentTasks.filter(t => t.status !== 'done').length;
-        const overdueTasks = agentTasks.filter(t => {
+    var result = [];
+    for (var a = 0; a < agents.length; a++) {
+        var agent = agents[a];
+        var agentTasks = allTasks.filter(function(t) { return t.assigned_to === agent.github_username; });
+        var activeTasks = agentTasks.filter(function(t) { return t.status !== 'done'; }).length;
+        var overdueTasks = agentTasks.filter(function(t) {
             if (t.status === 'done') return false;
             if (!t.due_date) return false;
             return t.due_date < today;
         }).length;
-        const completedTasks = agentTasks.filter(t => t.status === 'done').length;
+        var completedTasks = agentTasks.filter(function(t) { return t.status === 'done'; }).length;
         
-        // Процент загрузки (максимум 5 активных задач на агента)
-        const maxLoad = 5;
-        const loadPercent = Math.min(100, (activeTasks / maxLoad) * 100);
+        var maxLoad = 5;
+        var loadPercent = Math.min(100, (activeTasks / maxLoad) * 100);
         
-        return {
-            ...agent,
-            activeTasks,
-            overdueTasks,
-            completedTasks,
-            loadPercent
-        };
-    }).sort((a, b) => b.activeTasks - a.activeTasks);
+        result.push({
+            name: agent.name,
+            github_username: agent.github_username,
+            role: agent.role,
+            activeTasks: activeTasks,
+            overdueTasks: overdueTasks,
+            completedTasks: completedTasks,
+            loadPercent: loadPercent
+        });
+    }
+    
+    result.sort(function(a, b) { return b.activeTasks - a.activeTasks; });
+    return result;
 }
 
 // Отображение нагрузки по агентам
 function renderAgentLoad(agentLoad) {
-    const container = document.getElementById('agentList');
+    var container = document.getElementById('agentList');
     if (!container) return;
     
     if (agentLoad.length === 0) {
@@ -93,96 +96,115 @@ function renderAgentLoad(agentLoad) {
         return;
     }
     
-    container.innerHTML = agentLoad.map(agent => {
-        const initials = agent.name.split(' ').map(n => n[0]).join('');
-        const loadColor = agent.loadPercent > 80 ? '#ff6b6b' : agent.loadPercent > 50 ? '#ffc107' : '#4caf50';
+    var html = '';
+    for (var i = 0; i < agentLoad.length; i++) {
+        var agent = agentLoad[i];
+        var initials = agent.name.split(' ').map(function(n) { return n[0]; }).join('');
+        var loadColor = agent.loadPercent > 80 ? '#ff6b6b' : (agent.loadPercent > 50 ? '#ffc107' : '#4caf50');
         
-        return `
-            <div class="agent-item">
-                <div class="agent-info">
-                    <div class="agent-avatar">${initials}</div>
-                    <div class="agent-name">${escapeHtml(agent.name)}</div>
-                </div>
-                <div class="agent-stats">
-                    <span>📋 ${agent.activeTasks} активных</span>
-                    ${agent.overdueTasks > 0 ? `<span class="overdue-badge">⚠️ ${agent.overdueTasks} просрочено</span>` : ''}
-                    <div class="progress-bar-container">
-                        <div class="progress-bar" style="width: ${agent.loadPercent}%; background: ${loadColor};"></div>
-                    </div>
-                    <span>${Math.round(agent.loadPercent)}%</span>
-                </div>
-            </div>
-        `;
-    }).join('');
+        html += '<div class="agent-item">' +
+            '<div class="agent-info">' +
+                '<div class="agent-avatar">' + initials + '</div>' +
+                '<div class="agent-name">' + escapeHtml(agent.name) + '</div>' +
+            '</div>' +
+            '<div class="agent-stats">' +
+                '<span><i class="fas fa-tasks"></i> ' + agent.activeTasks + ' активных</span>';
+        
+        if (agent.overdueTasks > 0) {
+            html += '<span class="overdue-badge"><i class="fas fa-exclamation-triangle"></i> ' + agent.overdueTasks + ' просрочено</span>';
+        }
+        
+        html += '<div class="progress-bar-container">' +
+                    '<div class="progress-bar" style="width: ' + agent.loadPercent + '%; background: ' + loadColor + ';"></div>' +
+                '</div>' +
+                '<span>' + Math.round(agent.loadPercent) + '%</span>' +
+            '</div>' +
+        '</div>';
+    }
+    
+    container.innerHTML = html;
 }
 
 // Отображение просроченных задач
 function renderOverdueTasks(overdueList) {
-    const container = document.getElementById('overdueTasksList');
+    var container = document.getElementById('overdueTasksList');
     if (!container) return;
     
     if (overdueList.length === 0) {
-        container.innerHTML = '<p style="opacity: 0.6; text-align: center; padding: 20px;">✅ Нет просроченных задач</p>';
+        container.innerHTML = '<p style="opacity: 0.6; text-align: center; padding: 20px;"><i class="fas fa-check-circle"></i> Нет просроченных задач</p>';
         return;
     }
     
-    const today = new Date().toISOString().split('T')[0];
+    var today = new Date().toISOString().split('T')[0];
+    var html = '';
     
-    container.innerHTML = overdueList.map(task => {
-        const assignee = allUsers.find(u => u.github_username === task.assigned_to);
-        const assigneeName = assignee ? assignee.name : 'Не назначен';
-        const daysOverdue = Math.floor((new Date(today) - new Date(task.due_date)) / (1000 * 60 * 60 * 24));
+    for (var i = 0; i < overdueList.length; i++) {
+        var task = overdueList[i];
+        var assignee = null;
+        for (var u = 0; u < allUsers.length; u++) {
+            if (allUsers[u].github_username === task.assigned_to) {
+                assignee = allUsers[u];
+                break;
+            }
+        }
+        var assigneeName = assignee ? assignee.name : 'Не назначен';
+        var daysOverdue = Math.floor((new Date(today) - new Date(task.due_date)) / (1000 * 60 * 60 * 24));
         
-        return `
-            <div class="overdue-task">
-                <div>
-                    <div class="overdue-title">${escapeHtml(task.title)}</div>
-                    <div style="font-size: 0.75rem; opacity: 0.7; margin-top: 4px;">
-                        👤 ${assigneeName} | 📅 просрочено на ${daysOverdue} дн.
-                    </div>
-                </div>
-                <button class="action-btn" onclick="goToTask(${task.id})">Перейти →</button>
-            </div>
-        `;
-    }).join('');
+        html += '<div class="overdue-task">' +
+            '<div>' +
+                '<div class="overdue-title">' + escapeHtml(task.title) + '</div>' +
+                '<div style="font-size: 0.75rem; opacity: 0.7; margin-top: 4px;">' +
+                    '<i class="fas fa-user"></i> ' + assigneeName + ' | <i class="fas fa-calendar"></i> просрочено на ' + daysOverdue + ' дн.' +
+                '</div>' +
+            '</div>' +
+            '<button class="action-btn" onclick="goToTask(' + task.id + ')">Перейти →</button>' +
+        '</div>';
+    }
+    
+    container.innerHTML = html;
 }
 
 // Отображение графика активности
 function renderActivityChart() {
-    const container = document.getElementById('activityChart');
+    var container = document.getElementById('activityChart');
     if (!container) return;
     
-    // Получаем последние 7 дней
-    const days = [];
-    for (let i = 6; i >= 0; i--) {
-        const date = new Date();
+    var days = [];
+    for (var i = 6; i >= 0; i--) {
+        var date = new Date();
         date.setDate(date.getDate() - i);
         days.push(date.toISOString().split('T')[0]);
     }
     
-    // Считаем закрытые задачи по дням
-    const closedByDay = days.map(day => {
-        return allTasks.filter(t => {
-            if (t.status !== 'done') return false;
-            if (!t.updated_at) return false;
-            return t.updated_at === day;
-        }).length;
-    });
+    var closedByDay = [];
+    for (var d = 0; d < days.length; d++) {
+        var day = days[d];
+        var count = 0;
+        for (var t = 0; t < allTasks.length; t++) {
+            var task = allTasks[t];
+            if (task.status === 'done' && task.updated_at === day) {
+                count++;
+            }
+        }
+        closedByDay.push(count);
+    }
     
-    const maxCount = Math.max(...closedByDay, 1);
+    var maxCount = Math.max.apply(null, closedByDay);
+    if (maxCount === 0) maxCount = 1;
     
-    container.innerHTML = days.map((day, index) => {
-        const height = (closedByDay[index] / maxCount) * 120;
-        const dayLabel = day.slice(5); // MM-DD
+    var html = '';
+    for (var x = 0; x < days.length; x++) {
+        var height = (closedByDay[x] / maxCount) * 120;
+        var dayLabel = days[x].slice(5);
         
-        return `
-            <div class="chart-bar">
-                <div class="bar" style="height: ${Math.max(4, height)}px;"></div>
-                <div class="bar-label">${dayLabel}</div>
-                <div style="font-size: 0.65rem; color: #a0a0ff;">${closedByDay[index]}</div>
-            </div>
-        `;
-    }).join('');
+        html += '<div class="chart-bar">' +
+            '<div class="bar" style="height: ' + Math.max(4, height) + 'px;"></div>' +
+            '<div class="bar-label">' + dayLabel + '</div>' +
+            '<div style="font-size: 0.65rem; color: var(--accent);">' + closedByDay[x] + '</div>' +
+        '</div>';
+    }
+    
+    container.innerHTML = html;
 }
 
 // Обновление KPI
@@ -195,7 +217,7 @@ function updateKPI(kpi) {
 
 // Переход к задаче на доске
 function goToTask(taskId) {
-    window.location.href = `tasks.html?task=${taskId}`;
+    window.location.href = 'tasks.html?task=' + taskId;
 }
 
 // Инициализация
@@ -203,29 +225,49 @@ async function init() {
     await auth.initAuth();
     currentUser = auth.getCurrentUser();
     
+    // Обновляем интерфейс (показываем имя пользователя)
+    if (currentUser) {
+        var userNameSpan = document.getElementById('userName');
+        if (userNameSpan) {
+            var roleLabel = '';
+            if (currentUser.role === 'admin') roleLabel = 'Администратор';
+            else if (currentUser.role === 'manager') roleLabel = 'Менеджер';
+            else if (currentUser.role === 'agent') roleLabel = 'Агент';
+            else roleLabel = 'Наблюдатель';
+            userNameSpan.innerHTML = '<i class="fab fa-github"></i> ' + currentUser.name + ' (' + roleLabel + ')';
+        }
+    }
+    
     // Проверка прав доступа
     if (!currentUser || (currentUser.role !== 'manager' && currentUser.role !== 'admin')) {
-        document.querySelector('main').innerHTML = `
-            <div class="info-panel" style="text-align: center;">
-                <h2>⛔ Доступ ограничен</h2>
-                <p>Эта страница доступна только менеджерам и администраторам.</p>
-                <a href="index.html" class="nav-btn" style="margin-top: 20px; display: inline-block;">Вернуться на главную</a>
-            </div>
-        `;
+        var mainEl = document.querySelector('main');
+        if (mainEl) {
+            mainEl.innerHTML = '<div class="info-panel" style="text-align: center;">' +
+                '<h2><i class="fas fa-lock"></i> Доступ ограничен</h2>' +
+                '<p>Эта страница доступна только менеджерам и администраторам.</p>' +
+                '<a href="index.html" class="nav-btn" style="margin-top: 20px; display: inline-block;">Вернуться на главную</a>' +
+            '</div>';
+        }
         return;
     }
     
     await loadData();
     
-    const kpi = calculateKPI();
+    var kpi = calculateKPI();
     updateKPI(kpi);
     
-    const agentLoad = calculateAgentLoad();
+    var agentLoad = calculateAgentLoad();
     renderAgentLoad(agentLoad);
     
     renderOverdueTasks(kpi.overdueList);
     renderActivityChart();
 }
 
-// Запуск
+function escapeHtml(text) {
+    if (!text) return '';
+    var div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 document.addEventListener('DOMContentLoaded', init);
