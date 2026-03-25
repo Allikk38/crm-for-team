@@ -1,63 +1,82 @@
 // manager.js - панель управления менеджера
 
-let allTasks = [];
-let allUsers = [];
-let currentUser = null;
+// Объявляем переменные только один раз
+var allTasks = [];
+var allUsers = [];
+var currentUserManager = null;  // переименовал, чтобы избежать конфликта
 
 console.log('=== manager.js загружен ===');
-console.log('window.auth:', window.auth);
 
 // Загрузка данных
 async function loadData() {
     console.log('loadData() вызвана');
-    console.log('Начинаем загрузку tasks.csv...');
     
-    allTasks = await loadCSV('data/tasks.csv');
-    console.log('allTasks raw:', allTasks);
-    
-    allTasks = allTasks.map(function(task) {
-        return {
-            ...task,
-            id: parseInt(task.id),
-            due_date: task.due_date || ''
-        };
-    });
-    console.log('allTasks обработано:', allTasks.length);
-    
-    allUsers = await loadCSV('data/users.csv');
-    console.log('allUsers загружено:', allUsers.length);
-    
-    return allUsers.filter(function(u) { return u.role === 'agent'; });
+    try {
+        var tasksData = await loadCSV('data/tasks.csv');
+        console.log('tasksData загружено:', tasksData.length);
+        
+        allTasks = [];
+        for (var i = 0; i < tasksData.length; i++) {
+            var task = tasksData[i];
+            allTasks.push({
+                id: parseInt(task.id),
+                title: task.title || 'Без названия',
+                description: task.description || '',
+                assigned_to: task.assigned_to || '',
+                created_by: task.created_by || '',
+                status: task.status || 'todo',
+                priority: task.priority || 'medium',
+                created_at: task.created_at || '',
+                updated_at: task.updated_at || '',
+                due_date: task.due_date || ''
+            });
+        }
+        
+        allUsers = await loadCSV('data/users.csv');
+        console.log('allUsers загружено:', allUsers.length);
+        
+        return allUsers.filter(function(u) { return u.role === 'agent'; });
+    } catch (error) {
+        console.error('Ошибка загрузки данных:', error);
+        return [];
+    }
 }
 
 // Расчёт KPI
 function calculateKPI() {
-    const today = new Date().toISOString().split('T')[0];
-    const weekAgo = new Date();
+    var today = new Date().toISOString().split('T')[0];
+    var weekAgo = new Date();
     weekAgo.setDate(weekAgo.getDate() - 7);
-    const weekAgoStr = weekAgo.toISOString().split('T')[0];
+    var weekAgoStr = weekAgo.toISOString().split('T')[0];
     
-    const total = allTasks.length;
-    const inProgressCount = allTasks.filter(function(t) { return t.status === 'in_progress'; }).length;
+    var total = allTasks.length;
+    var inProgressCount = 0;
+    for (var i = 0; i < allTasks.length; i++) {
+        if (allTasks[i].status === 'in_progress') inProgressCount++;
+    }
     
-    const overdue = allTasks.filter(function(t) {
-        if (t.status === 'done') return false;
-        if (!t.due_date) return false;
-        return t.due_date < today;
-    });
+    var overdue = [];
+    for (var t = 0; t < allTasks.length; t++) {
+        var task = allTasks[t];
+        if (task.status !== 'done' && task.due_date && task.due_date < today) {
+            overdue.push(task);
+        }
+    }
     
-    const closedThisWeek = allTasks.filter(function(t) {
-        if (t.status !== 'done') return false;
-        if (!t.updated_at) return false;
-        return t.updated_at >= weekAgoStr;
-    });
+    var closedThisWeek = 0;
+    for (var c = 0; c < allTasks.length; c++) {
+        var taskClosed = allTasks[c];
+        if (taskClosed.status === 'done' && taskClosed.updated_at && taskClosed.updated_at >= weekAgoStr) {
+            closedThisWeek++;
+        }
+    }
     
-    console.log('KPI рассчитан:', { total, overdue: overdue.length, closedWeek: closedThisWeek.length, inProgress: inProgressCount });
+    console.log('KPI рассчитан:', { total: total, overdue: overdue.length, closedWeek: closedThisWeek, inProgress: inProgressCount });
     
     return {
         total: total,
         overdue: overdue.length,
-        closedWeek: closedThisWeek.length,
+        closedWeek: closedThisWeek,
         inProgress: inProgressCount,
         overdueList: overdue
     };
@@ -65,20 +84,36 @@ function calculateKPI() {
 
 // Расчёт нагрузки по агентам
 function calculateAgentLoad() {
-    const agents = allUsers.filter(function(u) { return u.role === 'agent'; });
-    const today = new Date().toISOString().split('T')[0];
+    var agents = [];
+    for (var u = 0; u < allUsers.length; u++) {
+        if (allUsers[u].role === 'agent') agents.push(allUsers[u]);
+    }
     
+    var today = new Date().toISOString().split('T')[0];
     var result = [];
+    
     for (var a = 0; a < agents.length; a++) {
         var agent = agents[a];
-        var agentTasks = allTasks.filter(function(t) { return t.assigned_to === agent.github_username; });
-        var activeTasks = agentTasks.filter(function(t) { return t.status !== 'done'; }).length;
-        var overdueTasks = agentTasks.filter(function(t) {
-            if (t.status === 'done') return false;
-            if (!t.due_date) return false;
-            return t.due_date < today;
-        }).length;
-        var completedTasks = agentTasks.filter(function(t) { return t.status === 'done'; }).length;
+        var agentTasks = [];
+        for (var tt = 0; tt < allTasks.length; tt++) {
+            if (allTasks[tt].assigned_to === agent.github_username) agentTasks.push(allTasks[tt]);
+        }
+        
+        var activeTasks = 0;
+        for (var at = 0; at < agentTasks.length; at++) {
+            if (agentTasks[at].status !== 'done') activeTasks++;
+        }
+        
+        var overdueTasks = 0;
+        for (var ot = 0; ot < agentTasks.length; ot++) {
+            var t = agentTasks[ot];
+            if (t.status !== 'done' && t.due_date && t.due_date < today) overdueTasks++;
+        }
+        
+        var completedTasks = 0;
+        for (var ct = 0; ct < agentTasks.length; ct++) {
+            if (agentTasks[ct].status === 'done') completedTasks++;
+        }
         
         var maxLoad = 5;
         var loadPercent = Math.min(100, (activeTasks / maxLoad) * 100);
@@ -95,7 +130,6 @@ function calculateAgentLoad() {
     }
     
     result.sort(function(a, b) { return b.activeTasks - a.activeTasks; });
-    console.log('Agent load рассчитан:', result);
     return result;
 }
 
@@ -115,7 +149,11 @@ function renderAgentLoad(agentLoad) {
     var html = '';
     for (var i = 0; i < agentLoad.length; i++) {
         var agent = agentLoad[i];
-        var initials = agent.name.split(' ').map(function(n) { return n[0]; }).join('');
+        var nameParts = agent.name.split(' ');
+        var initials = '';
+        for (var p = 0; p < nameParts.length; p++) {
+            initials += nameParts[p][0];
+        }
         var loadColor = agent.loadPercent > 80 ? '#ff6b6b' : (agent.loadPercent > 50 ? '#ffc107' : '#4caf50');
         
         html += '<div class="agent-item">' +
@@ -139,7 +177,6 @@ function renderAgentLoad(agentLoad) {
     }
     
     container.innerHTML = html;
-    console.log('Agent load отображён');
 }
 
 // Отображение просроченных задач
@@ -206,7 +243,10 @@ function renderActivityChart() {
         closedByDay.push(count);
     }
     
-    var maxCount = Math.max.apply(null, closedByDay);
+    var maxCount = 0;
+    for (var m = 0; m < closedByDay.length; m++) {
+        if (closedByDay[m] > maxCount) maxCount = closedByDay[m];
+    }
     if (maxCount === 0) maxCount = 1;
     
     var html = '';
@@ -255,29 +295,27 @@ async function init() {
     
     console.log('Вызываем auth.initAuth()...');
     await auth.initAuth();
-    currentUser = auth.getCurrentUser();
-    console.log('currentUser после initAuth:', currentUser);
+    var authUser = auth.getCurrentUser();
+    console.log('auth.getCurrentUser():', authUser);
     
-    // Обновляем интерфейс (показываем имя пользователя)
-    if (currentUser) {
+    // Обновляем интерфейс
+    if (authUser) {
         var userNameSpan = document.getElementById('userName');
         if (userNameSpan) {
             var roleLabel = '';
-            if (currentUser.role === 'admin') roleLabel = 'Администратор';
-            else if (currentUser.role === 'manager') roleLabel = 'Менеджер';
-            else if (currentUser.role === 'agent') roleLabel = 'Агент';
+            if (authUser.role === 'admin') roleLabel = 'Администратор';
+            else if (authUser.role === 'manager') roleLabel = 'Менеджер';
+            else if (authUser.role === 'agent') roleLabel = 'Агент';
             else roleLabel = 'Наблюдатель';
-            userNameSpan.innerHTML = '<i class="fab fa-github"></i> ' + currentUser.name + ' (' + roleLabel + ')';
-            console.log('Имя пользователя обновлено:', currentUser.name);
-        } else {
-            console.error('userName элемент не найден');
+            userNameSpan.innerHTML = '<i class="fab fa-github"></i> ' + authUser.name + ' (' + roleLabel + ')';
+            console.log('Имя пользователя обновлено:', authUser.name);
         }
     } else {
-        console.error('currentUser = null, пользователь не авторизован');
+        console.error('authUser = null, пользователь не авторизован');
     }
     
     // Проверка прав доступа
-    if (!currentUser || (currentUser.role !== 'manager' && currentUser.role !== 'admin')) {
+    if (!authUser || (authUser.role !== 'manager' && authUser.role !== 'admin')) {
         var mainEl = document.querySelector('main');
         if (mainEl) {
             mainEl.innerHTML = '<div class="info-panel" style="text-align: center;">' +
@@ -312,4 +350,9 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-document.addEventListener('DOMContentLoaded', init);
+// Запуск после загрузки страницы
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+} else {
+    init();
+}
