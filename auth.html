@@ -28,11 +28,13 @@
     <link rel="stylesheet" href="css/components.css">
     <link rel="stylesheet" href="css/modal.css">
     <link rel="stylesheet" href="css/responsive.css">
+    <link rel="stylesheet" href="css/animations.css">
     
     <style>
         .login-container {
             max-width: 480px;
             margin: 80px auto 40px;
+            animation: fadeInUp 0.5s ease;
         }
         
         .login-card {
@@ -42,12 +44,31 @@
             border: 1px solid var(--card-border);
             padding: 40px;
             text-align: center;
+            transition: all 0.3s ease;
+        }
+        
+        .login-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
         }
         
         .login-logo {
             font-size: 3rem;
             margin-bottom: 20px;
             color: var(--accent);
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% {
+                text-shadow: 0 0 0 rgba(108, 108, 255, 0);
+            }
+            50% {
+                text-shadow: 0 0 20px rgba(108, 108, 255, 0.5);
+            }
+            100% {
+                text-shadow: 0 0 0 rgba(108, 108, 255, 0);
+            }
         }
         
         .login-title {
@@ -81,17 +102,39 @@
             color: var(--text-muted);
             cursor: pointer;
             font-weight: 500;
-            transition: all 0.2s;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             border-radius: 40px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .login-tab::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(108, 108, 255, 0.2);
+            transform: translate(-50%, -50%);
+            transition: width 0.4s ease, height 0.4s ease;
+        }
+        
+        .login-tab:active::before {
+            width: 200px;
+            height: 200px;
         }
         
         .login-tab.active {
             color: var(--accent);
             background: rgba(108, 108, 255, 0.15);
+            transform: scale(1.02);
         }
         
         .login-tab:hover {
             color: var(--accent);
+            transform: translateY(-2px);
         }
         
         .login-panel {
@@ -100,17 +143,13 @@
         
         .login-panel.active {
             display: block;
-            animation: fadeIn 0.3s ease;
-        }
-        
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
+            animation: fadeInScale 0.3s ease;
         }
         
         .input-group {
             margin-bottom: 20px;
             text-align: left;
+            animation: fadeInUp 0.3s ease;
         }
         
         .input-group label {
@@ -118,6 +157,11 @@
             margin-bottom: 8px;
             font-size: 0.85rem;
             color: var(--text-secondary);
+            transition: color 0.2s ease;
+        }
+        
+        .input-group:focus-within label {
+            color: var(--accent);
         }
         
         .input-group select,
@@ -129,13 +173,15 @@
             border-radius: 16px;
             color: var(--text-primary);
             font-size: 1rem;
-            transition: all 0.2s;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
         
         .input-group select:focus,
         .input-group input:focus {
             outline: none;
             border-color: var(--accent);
+            transform: scale(1.02);
+            box-shadow: 0 0 0 3px rgba(108, 108, 255, 0.1);
         }
         
         .pin-input {
@@ -149,12 +195,23 @@
             align-items: center;
             gap: 8px;
             margin-bottom: 24px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .remember-me:hover {
+            transform: translateX(4px);
         }
         
         .remember-me input {
             width: 18px;
             height: 18px;
             cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .remember-me input:checked {
+            transform: scale(1.1);
         }
         
         .login-btn {
@@ -167,12 +224,36 @@
             font-weight: 600;
             font-size: 1rem;
             cursor: pointer;
-            transition: all 0.3s;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .login-btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s ease, height 0.6s ease;
+        }
+        
+        .login-btn:active::before {
+            width: 300px;
+            height: 300px;
         }
         
         .login-btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(108, 108, 255, 0.4);
+            box-shadow: 0 8px 20px rgba(108, 108, 255, 0.4);
+        }
+        
+        .login-btn:active {
+            transform: translateY(0px) scale(0.98);
         }
         
         .login-btn:disabled {
@@ -190,6 +271,20 @@
             color: #ff6b6b;
             font-size: 0.85rem;
             display: none;
+            animation: shake 0.4s ease;
+        }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        
+        .success-message {
+            background: rgba(76, 175, 80, 0.2);
+            border: 1px solid rgba(76, 175, 80, 0.3);
+            color: #4caf50;
+            animation: fadeInUp 0.3s ease;
         }
         
         .loading {
@@ -211,6 +306,11 @@
             margin-top: 24px;
             font-size: 0.7rem;
             color: var(--text-muted);
+            transition: all 0.2s ease;
+        }
+        
+        .info-text:hover {
+            transform: translateY(-2px);
         }
         
         .magic-link-info {
@@ -220,15 +320,44 @@
             margin-top: 16px;
             font-size: 0.75rem;
             text-align: left;
+            transition: all 0.2s ease;
+            cursor: default;
+        }
+        
+        .magic-link-info:hover {
+            background: rgba(108, 108, 255, 0.15);
+            transform: translateX(4px);
         }
         
         /* Модальное окно смены пин-кода */
         .change-pin-modal .modal-content {
             max-width: 400px;
+            animation: fadeInScale 0.3s ease;
         }
         
         .change-pin-modal input {
             margin-bottom: 16px;
+            transition: all 0.2s ease;
+        }
+        
+        .change-pin-modal input:focus {
+            transform: scale(1.02);
+        }
+        
+        /* Анимация для выбора пользователя */
+        #userSelect {
+            cursor: pointer;
+        }
+        
+        #userSelect:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+        }
+        
+        /* Анимация для поля пин-кода при ошибке */
+        .pin-input-error {
+            animation: shake 0.4s ease;
+            border-color: #ff6b6b !important;
         }
         
         @media (max-width: 768px) {
@@ -239,6 +368,10 @@
             
             .login-card {
                 padding: 24px;
+            }
+            
+            .login-card:hover {
+                transform: translateY(-2px);
             }
         }
     </style>
@@ -347,6 +480,7 @@
     
     <!-- 3. UI компоненты -->
     <script src="js/ui/theme.js"></script>
+    <script src="js/ui/animations.js"></script>
     
     <!-- 4. Логика страницы (встроена в HTML) -->
     <script>
@@ -370,11 +504,27 @@
                         else roleLabel = 'Наблюдатель';
                         option.textContent = user.name + ' (' + roleLabel + ')';
                         select.appendChild(option);
+                        
+                        // Добавляем анимацию появления опций
+                        option.style.animation = `fadeInUp 0.2s ease ${i * 0.02}s backwards`;
                     }
                 }
             } catch (error) {
                 console.error('Ошибка загрузки пользователей:', error);
+                const select = document.getElementById('userSelect');
+                if (select) {
+                    select.innerHTML = '<option value="">Ошибка загрузки</option>';
+                }
             }
+        }
+        
+        // Функция для анимации ошибки на поле пин-кода
+        function animatePinError() {
+            const pinInput = document.getElementById('pinCode');
+            pinInput.classList.add('pin-input-error');
+            setTimeout(() => {
+                pinInput.classList.remove('pin-input-error');
+            }, 400);
         }
         
         // Быстрый вход
@@ -390,11 +540,14 @@
             
             if (!username) {
                 showError('Выберите сотрудника');
+                userSelect.style.animation = 'shake 0.4s ease';
+                setTimeout(() => userSelect.style.animation = '', 400);
                 return;
             }
             
             if (!pin || pin.length !== 4) {
                 showError('Введите 4-значный пин-код');
+                animatePinError();
                 return;
             }
             
@@ -407,7 +560,15 @@
                 if (result.success) {
                     const sessionDuration = rememberMe.checked ? 30 : 1;
                     window.auth.saveSession(result.user, sessionDuration);
-                    window.location.href = 'index.html';
+                    
+                    // Анимация успешного входа
+                    const btn = document.getElementById('quickLoginBtn');
+                    btn.innerHTML = '<i class="fas fa-check"></i> Успешно!';
+                    btn.style.transform = 'scale(0.98)';
+                    
+                    setTimeout(() => {
+                        window.location.href = 'index.html';
+                    }, 500);
                 } else if (result.needChange) {
                     // Требуется смена пин-кода
                     pendingUser = result.user;
@@ -417,11 +578,15 @@
                     showError(result.error || 'Неверный пин-код. Попробуйте ещё раз.');
                     pinInput.value = '';
                     pinInput.focus();
+                    animatePinError();
                 }
             } catch (error) {
                 showError('Ошибка подключения. Попробуйте позже.');
             } finally {
                 loadingDiv.style.display = 'none';
+                const btn = document.getElementById('quickLoginBtn');
+                btn.innerHTML = '➡️ Войти';
+                btn.style.transform = '';
             }
         }
         
@@ -431,16 +596,24 @@
             const newPin = document.getElementById('newPin').value;
             const confirmPin = document.getElementById('confirmPin').value;
             const errorDiv = document.getElementById('errorMessage');
+            const saveBtn = document.getElementById('saveNewPinBtn');
             
             if (!newPin || newPin.length !== 4 || !/^\d+$/.test(newPin)) {
                 showError('Пин-код должен быть 4 цифры');
+                document.getElementById('newPin').classList.add('pin-input-error');
+                setTimeout(() => document.getElementById('newPin').classList.remove('pin-input-error'), 400);
                 return;
             }
             
             if (newPin !== confirmPin) {
                 showError('Пин-коды не совпадают');
+                document.getElementById('confirmPin').classList.add('pin-input-error');
+                setTimeout(() => document.getElementById('confirmPin').classList.remove('pin-input-error'), 400);
                 return;
             }
+            
+            saveBtn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Сохранение...';
+            saveBtn.disabled = true;
             
             try {
                 // Используем временный пин-код 1234 как старый
@@ -451,15 +624,25 @@
                     const loginResult = await window.auth.loginWithPin(username, newPin);
                     if (loginResult.success) {
                         window.auth.saveSession(loginResult.user, 7);
-                        window.location.href = 'index.html';
+                        
+                        saveBtn.innerHTML = '<i class="fas fa-check"></i> Успешно!';
+                        setTimeout(() => {
+                            window.location.href = 'index.html';
+                        }, 500);
                     } else {
                         showError('Ошибка входа после смены пин-кода');
+                        saveBtn.innerHTML = 'Сохранить и войти';
+                        saveBtn.disabled = false;
                     }
                 } else {
                     showError(result.error || 'Ошибка смены пин-кода');
+                    saveBtn.innerHTML = 'Сохранить и войти';
+                    saveBtn.disabled = false;
                 }
             } catch (error) {
                 showError('Ошибка при смене пин-кода');
+                saveBtn.innerHTML = 'Сохранить и войти';
+                saveBtn.disabled = false;
             }
         }
         
@@ -468,14 +651,20 @@
             const email = document.getElementById('magicEmail').value;
             const errorDiv = document.getElementById('errorMessage');
             const loadingDiv = document.getElementById('loading');
+            const btn = document.getElementById('magicLinkBtn');
             
             if (!email || !email.includes('@')) {
                 showError('Введите корректный email');
+                const emailInput = document.getElementById('magicEmail');
+                emailInput.classList.add('pin-input-error');
+                setTimeout(() => emailInput.classList.remove('pin-input-error'), 400);
                 return;
             }
             
             errorDiv.style.display = 'none';
             loadingDiv.style.display = 'block';
+            btn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Отправка...';
+            btn.disabled = true;
             
             try {
                 const result = await window.auth.sendMagicLink(email);
@@ -483,11 +672,21 @@
                 if (result.success) {
                     showSuccess('Ссылка для входа отправлена на ' + email);
                     document.getElementById('magicEmail').value = '';
+                    
+                    btn.innerHTML = '<i class="fas fa-check"></i> Отправлено!';
+                    setTimeout(() => {
+                        btn.innerHTML = '📩 Отправить ссылку для входа';
+                        btn.disabled = false;
+                    }, 2000);
                 } else {
                     showError(result.error || 'Пользователь с таким email не найден');
+                    btn.innerHTML = '📩 Отправить ссылку для входа';
+                    btn.disabled = false;
                 }
             } catch (error) {
                 showError('Ошибка отправки. Попробуйте позже.');
+                btn.innerHTML = '📩 Отправить ссылку для входа';
+                btn.disabled = false;
             } finally {
                 loadingDiv.style.display = 'none';
             }
@@ -496,7 +695,13 @@
         function showError(message) {
             const errorDiv = document.getElementById('errorMessage');
             errorDiv.textContent = message;
+            errorDiv.classList.remove('success-message');
             errorDiv.style.display = 'block';
+            
+            if (window.animations) {
+                window.animations.showToast(message, 'error');
+            }
+            
             setTimeout(() => {
                 errorDiv.style.display = 'none';
             }, 5000);
@@ -504,54 +709,92 @@
         
         function showSuccess(message) {
             const errorDiv = document.getElementById('errorMessage');
-            errorDiv.style.background = 'rgba(76, 175, 80, 0.2)';
-            errorDiv.style.borderColor = 'rgba(76, 175, 80, 0.3)';
-            errorDiv.style.color = '#4caf50';
+            errorDiv.classList.add('success-message');
             errorDiv.textContent = message;
             errorDiv.style.display = 'block';
+            
+            if (window.animations) {
+                window.animations.showToast(message, 'success');
+            }
+            
             setTimeout(() => {
                 errorDiv.style.display = 'none';
-                errorDiv.style.background = '';
-                errorDiv.style.borderColor = '';
-                errorDiv.style.color = '';
+                errorDiv.classList.remove('success-message');
             }, 5000);
         }
         
         function openChangePinModal() {
             const modal = document.getElementById('changePinModal');
-            if (modal) modal.style.display = 'flex';
+            if (modal) {
+                modal.style.display = 'flex';
+                modal.classList.add('fade-in-scale');
+            }
         }
         
         function closeChangePinModal() {
             const modal = document.getElementById('changePinModal');
-            if (modal) modal.style.display = 'none';
+            if (modal) {
+                modal.classList.add('modal-closing');
+                setTimeout(() => {
+                    modal.style.display = 'none';
+                    modal.classList.remove('modal-closing');
+                }, 200);
+            }
             document.getElementById('newPin').value = '';
             document.getElementById('confirmPin').value = '';
         }
         
         // Инициализация
         document.addEventListener('DOMContentLoaded', () => {
-            // Переключение вкладок
+            // Переключение вкладок с анимацией
             document.querySelectorAll('.login-tab').forEach(tab => {
                 tab.addEventListener('click', () => {
                     document.querySelectorAll('.login-tab').forEach(t => t.classList.remove('active'));
                     tab.classList.add('active');
                     
                     const panelId = tab.dataset.tab + 'Panel';
-                    document.querySelectorAll('.login-panel').forEach(p => p.classList.remove('active'));
-                    document.getElementById(panelId).classList.add('active');
+                    const currentPanel = document.querySelector('.login-panel.active');
+                    const newPanel = document.getElementById(panelId);
+                    
+                    if (currentPanel) {
+                        currentPanel.style.animation = 'fadeOutScale 0.2s ease forwards';
+                        setTimeout(() => {
+                            currentPanel.classList.remove('active');
+                            currentPanel.style.animation = '';
+                            newPanel.classList.add('active');
+                        }, 200);
+                    } else {
+                        newPanel.classList.add('active');
+                    }
                 });
             });
             
             // Обработчики
-            document.getElementById('quickLoginBtn').addEventListener('click', quickLogin);
-            document.getElementById('magicLinkBtn').addEventListener('click', sendMagicLink);
-            document.getElementById('saveNewPinBtn').addEventListener('click', saveNewPin);
+            const quickLoginBtn = document.getElementById('quickLoginBtn');
+            const magicLinkBtn = document.getElementById('magicLinkBtn');
+            const saveNewPinBtn = document.getElementById('saveNewPinBtn');
+            
+            if (quickLoginBtn) quickLoginBtn.addEventListener('click', quickLogin);
+            if (magicLinkBtn) magicLinkBtn.addEventListener('click', sendMagicLink);
+            if (saveNewPinBtn) saveNewPinBtn.addEventListener('click', saveNewPin);
             
             // Enter в поле пин-кода
-            document.getElementById('pinCode').addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') quickLogin();
-            });
+            const pinCodeInput = document.getElementById('pinCode');
+            if (pinCodeInput) {
+                pinCodeInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') quickLogin();
+                });
+            }
+            
+            // Автофокус на поле пин-кода при выборе пользователя
+            const userSelect = document.getElementById('userSelect');
+            if (userSelect) {
+                userSelect.addEventListener('change', () => {
+                    if (userSelect.value) {
+                        document.getElementById('pinCode').focus();
+                    }
+                });
+            }
             
             // Закрытие модального окна по клику вне
             window.onclick = function(event) {
