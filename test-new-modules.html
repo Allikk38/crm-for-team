@@ -3,151 +3,397 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Тест новых модулей</title>
+    <title>Тест новых модулей CRM</title>
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
         body {
-            font-family: 'Inter', sans-serif;
-            background: #f5f5f5;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
             padding: 20px;
         }
+        
         .container {
-            max-width: 800px;
+            max-width: 900px;
             margin: 0 auto;
             background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        
+        .status-card {
+            background: #f8f9fa;
             border-radius: 12px;
             padding: 20px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
         }
-        h1 { color: #333; }
-        .status {
-            background: #f0f0f0;
-            padding: 10px;
-            border-radius: 8px;
-            margin: 10px 0;
+        
+        .status-title {
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #333;
         }
-        .success { color: green; }
-        .error { color: red; }
+        
+        .status-content {
+            font-family: monospace;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .success {
+            color: #10b981;
+        }
+        
+        .error {
+            color: #ef4444;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
         button {
-            background: #4caf50;
+            background: #667eea;
             color: white;
             border: none;
             padding: 10px 20px;
-            border-radius: 6px;
+            border-radius: 8px;
             cursor: pointer;
-            margin: 5px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s;
         }
-        button:hover { background: #45a049; }
-        pre {
-            background: #f4f4f4;
-            padding: 10px;
-            border-radius: 4px;
+        
+        button:hover {
+            background: #5a67d8;
+            transform: translateY(-2px);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        .output {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            border-radius: 12px;
+            padding: 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
             overflow-x: auto;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .output-line {
+            margin: 2px 0;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        
+        .output-success {
+            color: #10b981;
+        }
+        
+        .output-error {
+            color: #ef4444;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            margin-left: 8px;
+        }
+        
+        .badge-success {
+            background: #10b98120;
+            color: #10b981;
+        }
+        
+        .badge-error {
+            background: #ef444420;
+            color: #ef4444;
+        }
+        
+        hr {
+            margin: 20px 0;
+            border: none;
+            border-top: 1px solid #e5e7eb;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Тестовая страница новых модулей</h1>
-        <div class="status" id="status">
-            Загрузка модулей...
+        <h1>🧪 Тестовая страница новых модулей CRM</h1>
+        <div class="subtitle">Проверка загрузки constants.js и helpers.js</div>
+        
+        <div class="status-card" id="statusCard">
+            <div class="status-title">Статус загрузки:</div>
+            <div class="status-content" id="statusContent">
+                ⏳ Загрузка модулей...
+            </div>
         </div>
         
-        <h3>Тесты:</h3>
-        <button onclick="testConstants()">Тест constants.js</button>
-        <button onclick="testHelpers()">Тест helpers.js</button>
-        <button onclick="clearLogs()">Очистить логи</button>
+        <div class="button-group">
+            <button onclick="testConstants()">📦 Тест constants.js</button>
+            <button onclick="testHelpers()">🛠️ Тест helpers.js</button>
+            <button onclick="checkAllModules()">🔍 Проверить все модули</button>
+            <button onclick="clearLogs()">🗑️ Очистить логи</button>
+        </div>
         
-        <h3>Результаты:</h3>
-        <pre id="output">Ожидание действий...</pre>
+        <h3>📋 Результаты тестирования:</h3>
+        <div class="output" id="output">
+            <div class="output-line">[system] Ожидание действий...</div>
+        </div>
+        
+        <hr>
+        
+        <div style="font-size: 12px; color: #999; text-align: center;">
+            <span id="moduleInfo">Модули не загружены</span>
+        </div>
     </div>
 
-    <script src="js/loader.js"></script>
+    <!-- Загружаем модули в правильном порядке -->
     <script>
-        function log(message, isError = false) {
+        // Функция для логирования
+        function addLog(message, isError = false) {
             const output = document.getElementById('output');
             const timestamp = new Date().toLocaleTimeString();
-            const formattedMessage = `[${timestamp}] ${message}\n`;
-            output.textContent += formattedMessage;
-            output.scrollTop = output.scrollHeight;
+            const line = document.createElement('div');
+            line.className = 'output-line' + (isError ? ' output-error' : '');
+            line.innerHTML = `[${timestamp}] ${escapeHtmlLog(message)}`;
+            output.appendChild(line);
+            line.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             
-            if (isError) {
-                console.error(message);
-            } else {
-                console.log(message);
+            // Ограничиваем количество строк
+            while (output.children.length > 100) {
+                output.removeChild(output.firstChild);
             }
         }
         
+        function escapeHtmlLog(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
         function clearLogs() {
-            document.getElementById('output').textContent = '';
-            log('Логи очищены');
+            const output = document.getElementById('output');
+            output.innerHTML = '<div class="output-line">[system] Логи очищены</div>';
+            addLog('Логи очищены');
+        }
+        
+        // Функция обновления статуса
+        function updateStatus(message, isError = false) {
+            const statusDiv = document.getElementById('statusContent');
+            statusDiv.innerHTML = message;
+            if (isError) {
+                statusDiv.style.color = '#ef4444';
+            } else {
+                statusDiv.style.color = '#10b981';
+            }
+        }
+        
+        // Функция загрузки скрипта
+        function loadScript(src) {
+            return new Promise((resolve, reject) => {
+                // Проверяем, загружен ли уже
+                const existing = document.querySelector(`script[src="${src}"]`);
+                if (existing) {
+                    addLog(`✓ Модуль уже загружен: ${src}`);
+                    resolve();
+                    return;
+                }
+                
+                const script = document.createElement('script');
+                script.src = src;
+                script.onload = () => {
+                    addLog(`✓ Загружен: ${src}`);
+                    resolve();
+                };
+                script.onerror = () => {
+                    addLog(`✗ Ошибка загрузки: ${src}`, true);
+                    reject(new Error(`Failed to load ${src}`));
+                };
+                document.head.appendChild(script);
+            });
+        }
+        
+        // Загрузка всех модулей
+        async function loadAllModules() {
+            addLog('🚀 Начало загрузки модулей...');
+            
+            const modules = [
+                'js/utils/constants.js',
+                'js/utils/helpers.js'
+            ];
+            
+            let successCount = 0;
+            let errorCount = 0;
+            
+            for (const modulePath of modules) {
+                try {
+                    await loadScript(modulePath);
+                    successCount++;
+                } catch (error) {
+                    errorCount++;
+                    addLog(`✗ Не удалось загрузить ${modulePath}`, true);
+                }
+            }
+            
+            addLog(`📊 Загрузка завершена: успешно ${successCount}, ошибок ${errorCount}`);
+            
+            if (successCount === modules.length) {
+                updateStatus('✓ Все модули загружены успешно!');
+                addLog('✓ Все модули загружены успешно');
+            } else {
+                updateStatus(`⚠️ Загружено ${successCount} из ${modules.length} модулей`, true);
+                addLog(`⚠️ Загружено ${successCount} из ${modules.length} модулей`, true);
+            }
+            
+            // Обновляем информацию о модулях
+            updateModuleInfo();
+        }
+        
+        function updateModuleInfo() {
+            const infoSpan = document.getElementById('moduleInfo');
+            if (window.CRM) {
+                let html = '✅ Модули: ';
+                if (window.CRM.constants) html += 'constants.js ✓ ';
+                if (window.CRM.helpers) html += 'helpers.js ✓ ';
+                infoSpan.innerHTML = html;
+            } else {
+                infoSpan.innerHTML = '❌ Модули не загружены';
+            }
         }
         
         function testConstants() {
-            log('=== Тест constants.js ===');
+            addLog('=== ТЕСТ: constants.js ===');
             
             if (window.CRM && window.CRM.constants) {
-                log('✓ constants.js загружен');
+                addLog('✓ constants.js загружен');
+                const constants = window.CRM.constants;
                 
-                const { ROLES, DEAL_STATUSES, NAVIGATION_ITEMS } = window.CRM.constants;
+                addLog(`- ROLES: ${Object.keys(constants.ROLES).length} ролей (${Object.keys(constants.ROLES).join(', ')})`);
+                addLog(`- DEAL_STATUSES: ${constants.DEAL_STATUSES.length} статусов`);
+                addLog(`- NAVIGATION_ITEMS: ${constants.NAVIGATION_ITEMS.length} пунктов меню`);
+                addLog(`- DEAL_TYPES: ${Object.keys(constants.DEAL_TYPES).length} типов`);
+                addLog(`- COUNTERPARTY_TYPES: ${Object.keys(constants.COUNTERPARTY_TYPES).length} типов`);
                 
-                log(`- ROLES: ${Object.keys(ROLES).length} ролей`);
-                log(`- DEAL_STATUSES: ${DEAL_STATUSES.length} статусов`);
-                log(`- NAVIGATION_ITEMS: ${NAVIGATION_ITEMS.length} пунктов меню`);
-                
-                log('✓ Тест constants.js пройден');
+                addLog('✅ Тест constants.js пройден');
             } else {
-                log('✗ constants.js НЕ загружен', true);
+                addLog('❌ constants.js НЕ загружен', true);
+                addLog('   Проверьте: существует ли файл js/utils/constants.js', true);
             }
         }
         
         function testHelpers() {
-            log('=== Тест helpers.js ===');
+            addLog('=== ТЕСТ: helpers.js ===');
             
             if (window.CRM && window.CRM.helpers) {
-                log('✓ helpers.js загружен');
-                
-                const { escapeHtml, formatDate, formatPrice, showToast } = window.CRM.helpers;
+                addLog('✓ helpers.js загружен');
+                const helpers = window.CRM.helpers;
                 
                 // Тест escapeHtml
-                const testHtml = '<script>alert("test")</script>';
-                const escaped = escapeHtml(testHtml);
-                log(`- escapeHtml: "${testHtml}" -> "${escaped}"`);
+                const testHtml = '<script>alert("xss")</script>';
+                const escaped = helpers.escapeHtml(testHtml);
+                addLog(`- escapeHtml: "${testHtml}" -> "${escaped}"`);
                 
                 // Тест formatDate
                 const testDate = '2026-03-26';
-                const formatted = formatDate(testDate);
-                log(`- formatDate: ${testDate} -> ${formatted}`);
+                const formatted = helpers.formatDate(testDate);
+                addLog(`- formatDate: ${testDate} -> ${formatted}`);
+                
+                // Тест getInitials
+                const testName = 'Иван Петров';
+                const initials = helpers.getInitials(testName);
+                addLog(`- getInitials: "${testName}" -> "${initials}"`);
+                
+                // Тест isOverdue
+                const yesterday = '2026-03-25';
+                const tomorrow = '2026-03-27';
+                addLog(`- isOverdue("${yesterday}"): ${helpers.isOverdue(yesterday)}`);
+                addLog(`- isOverdue("${tomorrow}"): ${helpers.isOverdue(tomorrow)}`);
                 
                 // Тест formatPrice
                 const testPrice = 15000000;
-                const priceFormatted = formatPrice(testPrice);
-                log(`- formatPrice: ${testPrice} -> ${priceFormatted}`);
+                const priceFormatted = helpers.formatPrice(testPrice);
+                addLog(`- formatPrice: ${testPrice} -> ${priceFormatted}`);
+                
+                // Тест generateId
+                const newId = helpers.generateId();
+                addLog(`- generateId: ${newId}`);
                 
                 // Тест showToast
-                showToast('success', 'Тестовое уведомление');
-                log('- showToast: уведомление отправлено');
+                helpers.showToast('success', 'Тестовое уведомление!');
+                addLog('- showToast: уведомление отправлено (должно появиться в углу)');
                 
-                log('✓ Тест helpers.js пройден');
+                addLog('✅ Тест helpers.js пройден');
             } else {
-                log('✗ helpers.js НЕ загружен', true);
+                addLog('❌ helpers.js НЕ загружен', true);
+                addLog('   Проверьте: существует ли файл js/utils/helpers.js', true);
             }
         }
         
-        // Проверка загрузки после инициализации
-        setTimeout(() => {
+        function checkAllModules() {
+            addLog('=== ПРОВЕРКА ВСЕХ МОДУЛЕЙ ===');
+            
             if (window.CRM) {
-                document.getElementById('status').innerHTML = `
-                    <strong>✓ Модули загружены успешно</strong><br>
-                    - constants.js: ${window.CRM.constants ? 'есть' : 'нет'}<br>
-                    - helpers.js: ${window.CRM.helpers ? 'есть' : 'нет'}
-                `;
-                document.getElementById('status').classList.add('success');
-                log('Система модулей инициализирована');
+                addLog('✓ Объект window.CRM существует');
+                
+                if (window.CRM.constants) {
+                    addLog('✓ constants.js: загружен');
+                } else {
+                    addLog('❌ constants.js: НЕ загружен', true);
+                }
+                
+                if (window.CRM.helpers) {
+                    addLog('✓ helpers.js: загружен');
+                } else {
+                    addLog('❌ helpers.js: НЕ загружен', true);
+                }
             } else {
-                document.getElementById('status').innerHTML = '<strong class="error">✗ Ошибка загрузки модулей</strong>';
-                log('Ошибка: CRM объект не создан', true);
+                addLog('❌ Объект window.CRM не создан', true);
+                addLog('   Возможные причины:', true);
+                addLog('   1. Файлы constants.js или helpers.js не созданы', true);
+                addLog('   2. В этих файлах есть синтаксическая ошибка', true);
+                addLog('   3. Пути к файлам неверные', true);
             }
-        }, 500);
+            
+            updateModuleInfo();
+        }
+        
+        // Запускаем загрузку после загрузки страницы
+        document.addEventListener('DOMContentLoaded', () => {
+            addLog('📄 DOM загружен, начинаем загрузку модулей...');
+            loadAllModules();
+        });
     </script>
 </body>
 </html>
