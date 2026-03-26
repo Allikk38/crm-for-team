@@ -52,31 +52,60 @@ async function loadDeals() {
     console.log('[deals.js] Загрузка заявок...');
     try {
         var dealsData = await loadCSV('data/deals.csv');
-        deals = [];
-        if (dealsData && dealsData.length > 0) {
-            for (var i = 0; i < dealsData.length; i++) {
-                var d = dealsData[i];
-                deals.push({
-                    id: parseInt(d.id),
-                    complex_id: parseInt(d.complex_id) || null,
-                    apartment: d.apartment || '',
-                    seller_id: parseInt(d.seller_id) || null,
-                    buyer_id: parseInt(d.buyer_id) || null,
-                    agent_id: d.agent_id || '',
-                    type: d.type || 'secondary',
-                    status: d.status || 'new',
-                    price_initial: parseInt(d.price_initial) || 0,
-                    price_current: parseInt(d.price_current) || 0,
-                    commission: parseFloat(d.commission) || 3,
-                    deadline: d.deadline || '',
-                    bank: d.bank || '',
-                    mortgage_approved: d.mortgage_approved === 'true',
-                    notes: d.notes || '',
-                    created_at: d.created_at || '',
-                    updated_at: d.updated_at || ''
-                });
-            }
+        
+        // Проверяем, есть ли данные
+        if (!dealsData || dealsData.length === 0) {
+            console.warn('[deals.js] Файл deals.csv пуст или не найден, создаём пустой массив');
+            deals = [];
+            renderKanban();
+            return;
         }
+        
+        deals = [];
+        for (var i = 0; i < dealsData.length; i++) {
+            var d = dealsData[i];
+            deals.push({
+                id: parseInt(d.id),
+                complex_id: parseInt(d.complex_id) || null,
+                apartment: d.apartment || '',
+                seller_id: parseInt(d.seller_id) || null,
+                buyer_id: parseInt(d.buyer_id) || null,
+                agent_id: d.agent_id || '',
+                type: d.type || 'secondary',
+                status: d.status || 'new',
+                price_initial: parseInt(d.price_initial) || 0,
+                price_current: parseInt(d.price_current) || 0,
+                commission: parseFloat(d.commission) || 3,
+                deadline: d.deadline || '',
+                bank: d.bank || '',
+                mortgage_approved: d.mortgage_approved === 'true',
+                notes: d.notes || '',
+                created_at: d.created_at || '',
+                updated_at: d.updated_at || ''
+            });
+        }
+        
+        console.log('[deals.js] Загружено заявок:', deals.length);
+        
+        // Проверяем дедлайны для уведомлений
+        if (window.notifications && window.notifications.checkDeadlines) {
+            window.notifications.checkDeadlines(deals);
+        }
+        
+        renderKanban();
+        
+    } catch (error) {
+        console.error('[deals.js] Ошибка загрузки заявок:', error);
+        deals = [];
+        renderKanban();
+        
+        // Показываем пользователю понятное сообщение
+        var board = document.getElementById('kanbanBoard');
+        if (board) {
+            board.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Ошибка загрузки заявок</p><p style="font-size: 0.8rem;">Проверьте наличие файла data/deals.csv</p></div>';
+        }
+    }
+}
         console.log('[deals.js] Загружено заявок:', deals.length);
     } catch (error) {
         console.error('[deals.js] Ошибка загрузки заявок:', error);
