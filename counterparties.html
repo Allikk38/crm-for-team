@@ -10,7 +10,7 @@
     РОЛЬ: Управление контрагентами (продавцы, покупатели, застройщики, инвесторы)
     СВЯЗИ:
       - CSS: base.css, theme.css, components.css, modal.css, responsive.css
-      - JS: core.js, auth.js, theme.js, layout.js, counterparties.js
+      - JS: js/core/*, js/utils/*, theme.js, layout.js, notifications.js, counterparties.js
       - Данные: data/counterparties.csv, data/deals.csv
     МЕХАНИКА:
       1. Боковая панель с навигацией (генерируется централизованно из layout.js)
@@ -491,16 +491,26 @@
         </div>
     </div>
     
-    <script src="core.js"></script>
-    <script src="auth.js"></script>
+    <!-- 1. Утилиты (не зависят ни от чего) -->
+    <script src="js/utils/constants.js"></script>
+    <script src="js/utils/helpers.js"></script>
+    
+    <!-- 2. Ядро (зависит от утилит) -->
+    <script src="js/core/api.js"></script>
+    <script src="js/core/auth.js"></script>
+    
+    <!-- 3. UI компоненты (зависят от ядра) -->
     <script src="theme.js"></script>
     <script src="layout.js"></script>
+    <script src="notifications.js"></script>
+    
+    <!-- 4. Модуль страницы -->
     <script src="counterparties.js"></script>
     
     <script>
         // Обновление информации о пользователе
         function updateUserProfile() {
-            var user = auth.getCurrentUser();
+            var user = window.auth.getCurrentUser();
             if (!user) return;
             
             var userNameSpan = document.getElementById('userName');
@@ -522,9 +532,12 @@
             }
         }
         
-        setTimeout(updateUserProfile, 500);
-        
-        if (window.sidebar) window.sidebar.initSidebar();
+        // Инициализация
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(updateUserProfile, 500);
+            
+            if (window.sidebar) window.sidebar.initSidebar();
+        });
     </script>
 </body>
 </html>
