@@ -326,10 +326,20 @@
         </main>
     </div>
     
-    <script src="core.js"></script>
-    <script src="auth.js"></script>
+    <!-- 1. Утилиты (не зависят ни от чего) -->
+    <script src="js/utils/constants.js"></script>
+    <script src="js/utils/helpers.js"></script>
+    
+    <!-- 2. Ядро (зависит от утилит) -->
+    <script src="js/core/api.js"></script>
+    <script src="js/core/auth.js"></script>
+    
+    <!-- 3. UI компоненты (зависят от ядра) -->
     <script src="theme.js"></script>
     <script src="layout.js"></script>
+    <script src="notifications.js"></script>
+    
+    <!-- 4. Модуль страницы -->
     <script src="app.js"></script>
 </body>
 </html>
