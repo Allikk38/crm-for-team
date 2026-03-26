@@ -10,7 +10,7 @@
     РОЛЬ: Настройка интеграции с внешними календарями (Google, Apple, Outlook)
     СВЯЗИ:
       - CSS: base.css, theme.css, components.css, modal.css, responsive.css
-      - JS: core.js, auth.js, theme.js, layout.js, calendar-integration.js
+      - JS: js/core/*, js/utils/*, theme.js, layout.js, notifications.js, calendar-integration.js
       - Данные: data/user_settings.csv (хранение настроек интеграции)
     МЕХАНИКА:
       1. Боковая панель с навигацией (можно сворачивать)
@@ -615,9 +615,11 @@
     
     <!-- 4. Модуль страницы -->
     <script src="calendar-integration.js"></script>
+    
+    <script>
         // Обновление информации о пользователе
         function updateUserProfile() {
-            var user = auth.getCurrentUser();
+            var user = window.auth.getCurrentUser();
             if (!user) return;
             
             var userNameSpan = document.getElementById('userName');
@@ -643,11 +645,14 @@
             }
         }
         
-        setTimeout(updateUserProfile, 500);
-        
-        if (window.sidebar) {
-            window.sidebar.initSidebar();
-        }
+        // Инициализация
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(updateUserProfile, 500);
+            
+            if (window.sidebar) {
+                window.sidebar.initSidebar();
+            }
+        });
     </script>
 </body>
 </html>
