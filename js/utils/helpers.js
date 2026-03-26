@@ -1,10 +1,14 @@
 /**
+ * ============================================
  * ФАЙЛ: helpers.js
  * РОЛЬ: Вспомогательные функции
+ * СТАТУС: НОВЫЙ МОДУЛЬ
+ * ВЕРСИЯ: 1.0
+ * ============================================
  */
 
 // Экранирование HTML
-export function escapeHtml(text) {
+function escapeHtml(text) {
     if (!text) return '';
     const div = document.createElement('div');
     div.textContent = text;
@@ -12,14 +16,14 @@ export function escapeHtml(text) {
 }
 
 // Форматирование даты
-export function formatDate(dateString) {
+function formatDate(dateString) {
     if (!dateString) return '—';
     const date = new Date(dateString);
     return date.toLocaleDateString('ru-RU');
 }
 
 // Получение инициалов
-export function getInitials(name) {
+function getInitials(name) {
     if (!name) return '?';
     const parts = name.split(' ');
     if (parts.length >= 2) {
@@ -29,20 +33,20 @@ export function getInitials(name) {
 }
 
 // Проверка просрочки
-export function isOverdue(dateString) {
+function isOverdue(dateString) {
     if (!dateString) return false;
     const today = new Date().toISOString().split('T')[0];
     return dateString < today;
 }
 
 // Форматирование цены
-export function formatPrice(price) {
+function formatPrice(price) {
     if (!price) return '0 RUB';
     return price.toLocaleString() + ' RUB';
 }
 
 // Показ уведомления (toast)
-export function showToast(type, message) {
+function showToast(type, message) {
     console.log('[helpers.js] Показ уведомления:', type, message);
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
@@ -57,7 +61,7 @@ export function showToast(type, message) {
 }
 
 // Дебаунс для фильтров
-export function debounce(func, wait) {
+function debounce(func, wait) {
     let timeout;
     return function executedFunction(...args) {
         const later = () => {
@@ -68,3 +72,29 @@ export function debounce(func, wait) {
         timeout = setTimeout(later, wait);
     };
 }
+
+// Генерация уникального ID
+function generateId() {
+    return Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+}
+
+// Глубокое клонирование объекта
+function deepClone(obj) {
+    return JSON.parse(JSON.stringify(obj));
+}
+
+// Экспортируем в глобальный объект
+window.CRM = window.CRM || {};
+window.CRM.helpers = {
+    escapeHtml,
+    formatDate,
+    getInitials,
+    isOverdue,
+    formatPrice,
+    showToast,
+    debounce,
+    generateId,
+    deepClone
+};
+
+console.log('[helpers.js] Вспомогательные функции загружены');
