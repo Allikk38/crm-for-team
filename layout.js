@@ -14,7 +14,7 @@
  *   5. Централизованная генерация навигации из единого массива
  *   6. Фильтрация пунктов меню по роли пользователя
  *   7. Подсветка активного пункта меню
- *   8. Кнопка выхода из системы в нижней части панели
+ *   8. Кнопка выхода и кнопка темы в нижней части панели
  * ============================================
  */
 
@@ -53,7 +53,6 @@ const NAVIGATION_ITEMS = [
 
 /**
  * Рендеринг навигации на основе роли пользователя
- * Вызывается при загрузке страницы и после смены пользователя
  */
 function renderNavigation() {
     const user = auth.getCurrentUser();
@@ -66,11 +65,8 @@ function renderNavigation() {
     
     // Фильтруем пункты по роли
     const visibleItems = NAVIGATION_ITEMS.filter(item => {
-        // Если roles не указаны — видят все
         if (!item.roles) return true;
-        // Если пользователь не авторизован — не показываем
         if (!user) return false;
-        // Проверяем, есть ли роль пользователя в разрешённых
         return item.roles.includes(user.role);
     });
     
@@ -93,9 +89,6 @@ function renderNavigation() {
     console.log('[layout.js] Навигация отрендерена, пунктов:', visibleItems.length);
 }
 
-/**
- * Вспомогательная функция для экранирования HTML
- */
 function escapeHtml(text) {
     if (!text) return '';
     const div = document.createElement('div');
@@ -120,8 +113,8 @@ function initSidebar() {
     // Добавляем обработчики для мобильного меню
     initMobileMenu();
     
-    // Добавляем кнопку выхода, если её нет
-    addLogoutButton();
+    // Добавляем кнопку выхода и кнопку темы
+    addSidebarButtons();
 }
 
 // Сворачивание/разворачивание панели
@@ -164,14 +157,28 @@ function initMobileMenu() {
     });
 }
 
-// Добавление кнопки выхода в боковую панель
-function addLogoutButton() {
+// Добавление кнопок в нижнюю часть боковой панели
+function addSidebarButtons() {
     const sidebarFooter = document.querySelector('.sidebar-footer');
     if (!sidebarFooter) return;
     
-    // Проверяем, есть ли уже кнопка выхода
-    if (sidebarFooter.querySelector('.logout-btn')) return;
+    // Очищаем футер от существующих кнопок (кроме collapse-btn)
+    const existingBtns = sidebarFooter.querySelectorAll('button:not(.collapse-btn)');
+    existingBtns.forEach(btn => btn.remove());
     
+    // Кнопка переключения темы
+    const themeBtn = document.createElement('button');
+    themeBtn.className = 'theme-btn';
+    const currentTheme = localStorage.getItem('crm_theme') || 'dark';
+    themeBtn.innerHTML = currentTheme === 'dark' 
+        ? '<i class="fas fa-sun"></i> <span>Светлая тема</span>' 
+        : '<i class="fas fa-moon"></i> <span>Тёмная тема</span>';
+    themeBtn.onclick = (e) => {
+        e.stopPropagation();
+        toggleTheme();
+    };
+    
+    // Кнопка выхода
     const logoutBtn = document.createElement('button');
     logoutBtn.className = 'logout-btn';
     logoutBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i> <span>Выйти</span>';
@@ -180,7 +187,40 @@ function addLogoutButton() {
         logout();
     };
     
+    sidebarFooter.appendChild(themeBtn);
     sidebarFooter.appendChild(logoutBtn);
+}
+
+// Переключение темы
+function toggleTheme() {
+    if (window.theme && window.theme.toggleTheme) {
+        window.theme.toggleTheme();
+    } else {
+        // Fallback
+        const isDark = document.documentElement.classList.contains('theme-dark');
+        if (isDark) {
+            document.documentElement.classList.remove('theme-dark');
+            document.documentElement.classList.add('theme-light');
+            document.body.classList.remove('theme-dark');
+            document.body.classList.add('theme-light');
+            localStorage.setItem('crm_theme', 'light');
+        } else {
+            document.documentElement.classList.remove('theme-light');
+            document.documentElement.classList.add('theme-dark');
+            document.body.classList.remove('theme-light');
+            document.body.classList.add('theme-dark');
+            localStorage.setItem('crm_theme', 'dark');
+        }
+    }
+    
+    // Обновляем текст кнопки
+    const themeBtn = document.querySelector('.theme-btn');
+    if (themeBtn) {
+        const isDarkNow = document.documentElement.classList.contains('theme-dark');
+        themeBtn.innerHTML = isDarkNow 
+            ? '<i class="fas fa-sun"></i> <span>Светлая тема</span>' 
+            : '<i class="fas fa-moon"></i> <span>Тёмная тема</span>';
+    }
 }
 
 // Переход в профиль
@@ -207,7 +247,7 @@ window.sidebar = {
     toggleSidebar,
     goToProfile,
     logout,
-    renderNavigation  // экспортируем для возможного обновления после смены роли
+    renderNavigation
 };
 
 // Автоматическая инициализация
