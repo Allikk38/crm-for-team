@@ -1,0 +1,469 @@
+/**
+ * ============================================
+ * ФАЙЛ: css/animations.css
+ * РОЛЬ: Анимации и микровзаимодействия для CRM
+ * ЗАВИСИМОСТИ:
+ *   - base.css (базовые стили)
+ *   - theme.css (переменные тем)
+ * ИСПОЛЬЗУЕТСЯ В:
+ *   - Все страницы CRM (подключать после основных CSS)
+ * ============================================
+ */
+
+/* ============================================
+ * 1. ПЛАВНЫЕ ПОЯВЛЕНИЯ
+ * ============================================ */
+
+/* Fade In - для появления элементов */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.fade-in {
+    animation: fadeIn 0.3s ease forwards;
+}
+
+/* Fade In Up - для элементов снизу */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.fade-in-up {
+    animation: fadeInUp 0.4s ease forwards;
+}
+
+/* Fade In Down - для элементов сверху */
+@keyframes fadeInDown {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.fade-in-down {
+    animation: fadeInDown 0.3s ease forwards;
+}
+
+/* Fade In Scale - для карточек и модалок */
+@keyframes fadeInScale {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.fade-in-scale {
+    animation: fadeInScale 0.25s ease forwards;
+}
+
+/* ============================================
+ * 2. АНИМАЦИИ ДЛЯ КАРТОЧЕК
+ * ============================================ */
+
+/* Hover-эффект для карточек */
+.card,
+.kanban-column,
+.kpi-card,
+.task-card,
+.deal-card {
+    transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.2s ease;
+}
+
+.card:hover,
+.kanban-column:hover,
+.kpi-card:hover,
+.task-card:hover,
+.deal-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.2);
+    border-color: var(--accent);
+}
+
+/* Эффект нажатия для кликабельных карточек */
+.card:active,
+.kanban-column:active,
+.kpi-card:active {
+    transform: translateY(-2px) scale(0.99);
+    transition: transform 0.05s ease;
+}
+
+/* Появление карточек при загрузке */
+.card,
+.kanban-column,
+.kpi-card {
+    animation: fadeInScale 0.3s ease backwards;
+}
+
+/* Стейггеринг (поочередное появление) */
+.card:nth-child(1) { animation-delay: 0.05s; }
+.card:nth-child(2) { animation-delay: 0.1s; }
+.card:nth-child(3) { animation-delay: 0.15s; }
+.card:nth-child(4) { animation-delay: 0.2s; }
+.card:nth-child(5) { animation-delay: 0.25s; }
+.card:nth-child(6) { animation-delay: 0.3s; }
+
+/* ============================================
+ * 3. АНИМАЦИИ ДЛЯ КНОПОК
+ * ============================================ */
+
+/* Ripple-эффект для кнопок */
+.btn-ripple {
+    position: relative;
+    overflow: hidden;
+}
+
+.btn-ripple::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(108, 108, 255, 0.4);
+    transform: translate(-50%, -50%);
+    transition: width 0.4s ease, height 0.4s ease;
+}
+
+.btn-ripple:active::after {
+    width: 300px;
+    height: 300px;
+}
+
+/* Hover-эффект для кнопок */
+button,
+.nav-btn,
+.theme-toggle,
+.collapse-btn,
+.logout-btn {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+button:hover,
+.nav-btn:hover,
+.theme-toggle:hover,
+.collapse-btn:hover,
+.logout-btn:hover {
+    transform: translateY(-2px);
+}
+
+button:active,
+.nav-btn:active,
+.theme-toggle:active,
+.collapse-btn:active,
+.logout-btn:active {
+    transform: translateY(0px) scale(0.98);
+}
+
+/* ============================================
+ * 4. АНИМАЦИИ ДЛЯ МОДАЛЬНЫХ ОКОН
+ * ============================================ */
+
+/* Затемнение (оверлей) */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    z-index: 999;
+    animation: fadeIn 0.2s ease forwards;
+}
+
+/* Само модальное окно */
+.modal {
+    animation: fadeInScale 0.3s ease forwards;
+}
+
+/* Закрытие модалки */
+.modal-closing {
+    animation: fadeOutScale 0.2s ease forwards;
+}
+
+@keyframes fadeOutScale {
+    from {
+        opacity: 1;
+        transform: scale(1);
+    }
+    to {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+}
+
+/* ============================================
+ * 5. АНИМАЦИИ ДЛЯ УВЕДОМЛЕНИЙ
+ * ============================================ */
+
+/* Улучшенные тосты */
+.toast {
+    animation: slideInRight 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+}
+
+.toast-removing {
+    animation: slideOutRight 0.3s ease forwards;
+}
+
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOutRight {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+}
+
+/* ============================================
+ * 6. АНИМАЦИИ ДЛЯ ТАБЛИЦ
+ * ============================================ */
+
+/* Появление строк таблицы */
+.table-row {
+    animation: slideInFromLeft 0.25s ease backwards;
+}
+
+@keyframes slideInFromLeft {
+    from {
+        opacity: 0;
+        transform: translateX(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Подсветка новой строки */
+.table-row-highlight {
+    animation: highlightRow 1s ease;
+}
+
+@keyframes highlightRow {
+    0% {
+        background: rgba(108, 108, 255, 0.4);
+    }
+    100% {
+        background: transparent;
+    }
+}
+
+/* Hover для строк таблицы */
+tbody tr {
+    transition: background 0.15s ease, transform 0.15s ease;
+}
+
+tbody tr:hover {
+    background: var(--card-hover);
+    transform: scale(1.01);
+}
+
+/* ============================================
+ * 7. АНИМАЦИИ ДЛЯ САЙДБАРА
+ * ============================================ */
+
+/* Сворачивание/разворачивание */
+.sidebar {
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Пункты меню при наведении */
+.nav-item {
+    position: relative;
+    overflow: hidden;
+}
+
+.nav-item::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 3px;
+    height: 100%;
+    background: var(--accent);
+    transform: scaleY(0);
+    transition: transform 0.2s ease;
+}
+
+.nav-item:hover::before {
+    transform: scaleY(1);
+}
+
+.nav-item.active::before {
+    transform: scaleY(1);
+}
+
+/* ============================================
+ * 8. АНИМАЦИИ ДЛЯ ЗАГРУЗКИ (SKELETON)
+ * ============================================ */
+
+/* Скелетон загрузки */
+.skeleton {
+    background: linear-gradient(
+        90deg,
+        var(--card-border) 25%,
+        var(--card-hover) 50%,
+        var(--card-border) 75%
+    );
+    background-size: 200% 100%;
+    animation: skeletonLoading 1.5s infinite;
+    border-radius: 8px;
+}
+
+@keyframes skeletonLoading {
+    0% {
+        background-position: 200% 0;
+    }
+    100% {
+        background-position: -200% 0;
+    }
+}
+
+/* ============================================
+ * 9. АНИМАЦИИ ДЛЯ ПРОГРЕСС-БАРОВ
+ * ============================================ */
+
+/* Анимация заполнения прогресс-бара */
+.progress-bar {
+    transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Пульсация для важных элементов */
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(108, 108, 255, 0.4);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(108, 108, 255, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(108, 108, 255, 0);
+    }
+}
+
+.pulse {
+    animation: pulse 2s infinite;
+}
+
+/* ============================================
+ * 10. АНИМАЦИИ ДЛЯ ЧЕКБОКСОВ И ПЕРЕКЛЮЧАТЕЛЕЙ
+ * ============================================ */
+
+/* Кастомный чекбокс */
+input[type="checkbox"] {
+    transition: all 0.2s ease;
+}
+
+input[type="checkbox"]:checked {
+    transform: scale(1.1);
+}
+
+/* ============================================
+ * 11. ПЕРЕХОД МЕЖДУ СТРАНИЦАМИ
+ * ============================================ */
+
+/* Fade transition для смены контента */
+.page-transition {
+    animation: fadeIn 0.3s ease forwards;
+}
+
+/* ============================================
+ * 12. АНИМАЦИИ ДЛЯ ФИЛЬТРОВ И ПОИСКА
+ * ============================================ */
+
+/* Анимация появления фильтров */
+.filter-panel {
+    animation: slideInDown 0.3s ease forwards;
+    transform-origin: top;
+}
+
+@keyframes slideInDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ============================================
+ * 13. АНИМАЦИЯ ДЛЯ DRAG & DROP
+ * ============================================ */
+
+.dragging {
+    opacity: 0.5;
+    transform: scale(0.98);
+    transition: all 0.2s ease;
+}
+
+.drag-over {
+    border: 2px dashed var(--accent);
+    background: rgba(108, 108, 255, 0.1);
+    transition: all 0.2s ease;
+}
+
+/* ============================================
+ * 14. ПРЕДОТВРАЩЕНИЕ FOUT (Flash of Unstyled Text)
+ * ============================================ */
+
+.font-loading {
+    animation: fadeIn 0.1s ease;
+}
+
+/* ============================================
+ * 15. МЕДИА-ЗАПРОСЫ ДЛЯ МОБИЛЬНЫХ
+ * ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+@media (max-width: 768px) {
+    .card:hover,
+    .kanban-column:hover,
+    .kpi-card:hover {
+        transform: translateY(-2px);
+    }
+}
