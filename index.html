@@ -9,14 +9,14 @@
     ФАЙЛ: index.html
     РОЛЬ: Главная страница (дашборд) с боковой панелью
     СВЯЗИ:
-      - CSS: base.css, theme.css, components.css, dashboard.css, responsive.css
-      - JS: core.js, auth.js, theme.js, layout.js, app.js
+      - CSS: base.css, theme.css, components.css, dashboard.css, responsive.css, animations.css
+      - JS: js/core/*, js/utils/*, js/ui/*, layout.js, notifications.js, app.js
       - Данные: data/users.csv, data/tasks.csv, data/complexes.csv
     МЕХАНИКА:
       1. Боковая панель с навигацией (можно сворачивать)
       2. Навигация генерируется централизованно из layout.js
       3. Кликабельный профиль в правом верхнем углу
-      4. Загрузка KPI, графиков, рейтинга агентов
+      4. Загрузка KPI, графиков, рейтинга агентов с анимациями
       5. Интеграция с системой тем
     ============================================
     -->
@@ -53,8 +53,50 @@
     <link rel="stylesheet" href="css/calendar.css">
     <link rel="stylesheet" href="css/modal.css">
     <link rel="stylesheet" href="css/responsive.css">
+    <link rel="stylesheet" href="css/animations.css">
     
     <style>
+        /* Анимация для KPI карточек */
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+        
+        .dashboard .card {
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            animation: fadeInUp 0.4s ease backwards;
+        }
+        
+        .dashboard .card:nth-child(1) { animation-delay: 0.05s; }
+        .dashboard .card:nth-child(2) { animation-delay: 0.1s; }
+        .dashboard .card:nth-child(3) { animation-delay: 0.15s; }
+        
+        .dashboard .card:hover {
+            transform: translateY(-6px) scale(1.02);
+            border-color: var(--accent);
+            box-shadow: 0 16px 32px rgba(0, 0, 0, 0.2);
+        }
+        
+        .dashboard .card:active {
+            transform: translateY(-2px) scale(0.99);
+        }
+        
+        .dashboard .card p {
+            font-size: 2rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--text-primary), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            transition: all 0.2s ease;
+        }
+        
+        .dashboard .card:hover p {
+            transform: scale(1.05);
+        }
+        
         .analytics-section {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -68,12 +110,17 @@
             border-radius: 24px;
             border: 1px solid var(--card-border);
             padding: 20px;
-            transition: all 0.3s;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            animation: fadeInUp 0.4s ease backwards;
         }
         
+        .analytics-card:nth-child(1) { animation-delay: 0.2s; }
+        .analytics-card:nth-child(2) { animation-delay: 0.25s; }
+        
         .analytics-card:hover {
-            transform: translateY(-2px);
+            transform: translateY(-4px);
             border-color: var(--accent);
+            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.15);
         }
         
         .analytics-title {
@@ -85,6 +132,11 @@
             display: flex;
             align-items: center;
             gap: 8px;
+            transition: all 0.2s ease;
+        }
+        
+        .analytics-card:hover .analytics-title {
+            color: var(--accent);
         }
         
         .kpi-compact {
@@ -95,6 +147,17 @@
         
         .kpi-compact-item {
             text-align: center;
+            transition: all 0.2s ease;
+            animation: fadeInScale 0.3s ease backwards;
+        }
+        
+        .kpi-compact-item:nth-child(1) { animation-delay: 0.3s; }
+        .kpi-compact-item:nth-child(2) { animation-delay: 0.35s; }
+        .kpi-compact-item:nth-child(3) { animation-delay: 0.4s; }
+        .kpi-compact-item:nth-child(4) { animation-delay: 0.45s; }
+        
+        .kpi-compact-item:hover {
+            transform: translateY(-4px);
         }
         
         .kpi-compact-value {
@@ -103,6 +166,11 @@
             background: linear-gradient(135deg, var(--text-primary), var(--accent));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
+            transition: all 0.2s ease;
+        }
+        
+        .kpi-compact-item:hover .kpi-compact-value {
+            transform: scale(1.05);
         }
         
         .kpi-compact-label {
@@ -114,11 +182,17 @@
         .trend-up {
             color: #4caf50;
             font-size: 0.7rem;
+            transition: all 0.2s ease;
         }
         
         .trend-down {
             color: #ff6b6b;
             font-size: 0.7rem;
+            transition: all 0.2s ease;
+        }
+        
+        .trend-up:hover, .trend-down:hover {
+            transform: translateX(2px);
         }
         
         .chart-container {
@@ -137,8 +211,14 @@
             flex: 1;
             background: linear-gradient(180deg, var(--accent), var(--accent-hover));
             border-radius: 4px 4px 0 0;
-            transition: height 0.5s ease;
+            transition: height 0.6s cubic-bezier(0.4, 0, 0.2, 1);
             min-height: 4px;
+            cursor: pointer;
+        }
+        
+        .chart-bar-mini:hover {
+            opacity: 0.8;
+            transform: scaleX(1.02);
         }
         
         .agent-ranking {
@@ -149,8 +229,23 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 8px 0;
+            padding: 10px 0;
             border-bottom: 1px solid var(--card-border);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            animation: slideInFromLeft 0.3s ease backwards;
+        }
+        
+        .agent-ranking-item:nth-child(1) { animation-delay: 0.05s; }
+        .agent-ranking-item:nth-child(2) { animation-delay: 0.1s; }
+        .agent-ranking-item:nth-child(3) { animation-delay: 0.15s; }
+        .agent-ranking-item:nth-child(4) { animation-delay: 0.2s; }
+        .agent-ranking-item:nth-child(5) { animation-delay: 0.25s; }
+        
+        .agent-ranking-item:hover {
+            transform: translateX(8px);
+            background: rgba(108, 108, 255, 0.05);
+            padding-left: 8px;
+            border-radius: 12px;
         }
         
         .agent-ranking-name {
@@ -160,25 +255,124 @@
         }
         
         .agent-ranking-badge {
-            width: 24px;
-            height: 24px;
-            background: var(--accent);
+            width: 28px;
+            height: 28px;
+            background: linear-gradient(135deg, var(--accent), var(--accent-hover));
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 0.7rem;
             font-weight: 600;
+            transition: all 0.2s ease;
+        }
+        
+        .agent-ranking-item:hover .agent-ranking-badge {
+            transform: scale(1.1);
         }
         
         .agent-ranking-value {
             font-weight: 600;
             color: var(--accent);
+            transition: all 0.2s ease;
+        }
+        
+        .agent-ranking-item:hover .agent-ranking-value {
+            transform: scale(1.05);
+        }
+        
+        /* Прогресс-бар анимация */
+        .progress-bar-container {
+            height: 8px;
+            background: var(--input-bg);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent), var(--accent-hover));
+            border-radius: 4px;
+            transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .progress-bar-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+            animation: shimmer 2s infinite;
+        }
+        
+        @keyframes shimmer {
+            0% { left: -100%; }
+            50% { left: 100%; }
+            100% { left: 100%; }
+        }
+        
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .progress-header h3 {
+            font-size: 0.9rem;
+        }
+        
+        .progress-stats {
+            display: flex;
+            gap: 16px;
+            margin-top: 12px;
+            font-size: 0.75rem;
+        }
+        
+        .progress-stats span {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.2s ease;
+        }
+        
+        .progress-stats span:hover {
+            transform: translateX(2px);
+        }
+        
+        .info-panel {
+            animation: fadeInUp 0.4s ease 0.5s backwards;
+        }
+        
+        .info-panel:hover {
+            transform: translateY(-2px);
+            border-color: var(--accent);
+        }
+        
+        /* Скелетон загрузки */
+        .skeleton {
+            background: linear-gradient(90deg, var(--card-border) 25%, var(--card-hover) 50%, var(--card-border) 75%);
+            background-size: 200% 100%;
+            animation: skeletonLoading 1.5s infinite;
+            border-radius: 8px;
+        }
+        
+        @keyframes skeletonLoading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
         }
         
         @media (max-width: 768px) {
             .analytics-section {
                 grid-template-columns: 1fr;
+            }
+            
+            .dashboard .card p {
+                font-size: 1.5rem;
             }
         }
     </style>
@@ -271,7 +465,9 @@
                         <i class="fas fa-chart-line"></i> Динамика задач
                     </div>
                     <div id="weeklyChart" class="chart-container">
-                        <div class="chart-bars-mini" id="weeklyBars"></div>
+                        <div class="chart-bars-mini" id="weeklyBars">
+                            <!-- Будет заполнено JS -->
+                        </div>
                     </div>
                     <div style="display: flex; justify-content: space-between; font-size: 0.65rem; color: var(--text-muted); margin-top: 8px;">
                         <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Вс</span>
@@ -285,7 +481,9 @@
                         <i class="fas fa-trophy"></i> Топ агентов
                     </div>
                     <div id="agentRanking" class="agent-ranking">
-                        <div style="text-align: center; color: var(--text-muted); padding: 20px;">Загрузка...</div>
+                        <div class="skeleton" style="height: 40px; margin: 8px 0;"></div>
+                        <div class="skeleton" style="height: 40px; margin: 8px 0;"></div>
+                        <div class="skeleton" style="height: 40px; margin: 8px 0;"></div>
                     </div>
                 </div>
                 
@@ -336,10 +534,107 @@
     
     <!-- 3. UI компоненты (зависят от ядра) -->
     <script src="js/ui/theme.js"></script>
+    <script src="js/ui/animations.js"></script>
     <script src="layout.js"></script>
     <script src="notifications.js"></script>
     
     <!-- 4. Модуль страницы -->
     <script src="app.js"></script>
+    
+    <script>
+        // Обновление информации о пользователе
+        function updateUserProfile() {
+            var user = window.auth.getCurrentUser();
+            if (!user) return;
+            
+            var userNameSpan = document.getElementById('userName');
+            var userRoleSpan = document.getElementById('userRole');
+            var userAvatar = document.getElementById('userAvatar');
+            
+            if (userNameSpan) userNameSpan.textContent = user.name;
+            if (userRoleSpan) {
+                var roleLabel = '';
+                if (user.role === 'admin') roleLabel = 'Администратор';
+                else if (user.role === 'manager') roleLabel = 'Менеджер';
+                else if (user.role === 'agent') roleLabel = 'Агент';
+                else roleLabel = 'Наблюдатель';
+                userRoleSpan.textContent = roleLabel;
+            }
+            if (userAvatar) {
+                var initials = user.name.split(' ').map(function(n) { return n[0]; }).join('').toUpperCase();
+                userAvatar.innerHTML = initials || '<i class="fas fa-user"></i>';
+            }
+            
+            // Приветственное сообщение
+            var welcomeMsg = document.getElementById('welcomeMessage');
+            if (welcomeMsg && user.name) {
+                var hour = new Date().getHours();
+                var greeting = '';
+                if (hour < 12) greeting = 'Доброе утро';
+                else if (hour < 18) greeting = 'Добрый день';
+                else greeting = 'Добрый вечер';
+                welcomeMsg.innerHTML = greeting + ', ' + user.name + '! 👋 Рады видеть вас в CRM.';
+            }
+        }
+        
+        // Анимация для KPI значений при загрузке
+        window.animateKPIValue = function(element, targetValue, suffix = '') {
+            if (!element) return;
+            let current = 0;
+            const increment = targetValue / 30;
+            const interval = setInterval(() => {
+                current += increment;
+                if (current >= targetValue) {
+                    element.textContent = targetValue + suffix;
+                    clearInterval(interval);
+                } else {
+                    element.textContent = Math.floor(current) + suffix;
+                }
+            }, 20);
+        };
+        
+        // Инициализация
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(updateUserProfile, 500);
+            
+            if (window.sidebar) window.sidebar.initSidebar();
+            
+            // Добавляем анимацию для карточек при наведении (эффект ripple для всей карточки)
+            const cards = document.querySelectorAll('.dashboard .card');
+            cards.forEach(card => {
+                card.addEventListener('click', function(e) {
+                    if (window.animations) {
+                        // ripple эффект для карточки
+                        const ripple = document.createElement('span');
+                        ripple.style.position = 'absolute';
+                        ripple.style.borderRadius = '50%';
+                        ripple.style.backgroundColor = 'rgba(108, 108, 255, 0.4)';
+                        ripple.style.width = '0';
+                        ripple.style.height = '0';
+                        ripple.style.transform = 'translate(-50%, -50%)';
+                        ripple.style.transition = 'width 0.4s, height 0.4s';
+                        ripple.style.pointerEvents = 'none';
+                        
+                        const rect = card.getBoundingClientRect();
+                        const x = e.clientX - rect.left;
+                        const y = e.clientY - rect.top;
+                        
+                        card.style.position = 'relative';
+                        card.style.overflow = 'hidden';
+                        ripple.style.left = x + 'px';
+                        ripple.style.top = y + 'px';
+                        
+                        card.appendChild(ripple);
+                        
+                        const size = Math.max(rect.width, rect.height);
+                        ripple.style.width = size + 'px';
+                        ripple.style.height = size + 'px';
+                        
+                        setTimeout(() => ripple.remove(), 400);
+                    }
+                });
+            });
+        });
+    </script>
 </body>
 </html>
