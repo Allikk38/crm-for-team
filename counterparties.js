@@ -34,25 +34,48 @@ async function loadCounterparties() {
     console.log('[counterparties.js] Загрузка контрагентов...');
     try {
         var data = await loadCSV('data/counterparties.csv');
-        counterparties = [];
-        if (data && data.length > 0) {
-            for (var i = 0; i < data.length; i++) {
-                var c = data[i];
-                counterparties.push({
-                    id: parseInt(c.id),
-                    type: c.type || 'seller',
-                    person_type: c.person_type || 'individual',
-                    name: c.name || '',
-                    phone: c.phone || '',
-                    email: c.email || '',
-                    telegram: c.telegram || '',
-                    whatsapp: c.whatsapp || '',
-                    notes: c.notes || '',
-                    created_at: c.created_at || '',
-                    updated_at: c.updated_at || ''
-                });
-            }
+        
+        // Проверяем, есть ли данные
+        if (!data || data.length === 0) {
+            console.warn('[counterparties.js] Файл counterparties.csv пуст или не найден, создаём пустой массив');
+            counterparties = [];
+            renderCounterparties();
+            return;
         }
+        
+        counterparties = [];
+        for (var i = 0; i < data.length; i++) {
+            var c = data[i];
+            counterparties.push({
+                id: parseInt(c.id),
+                type: c.type || 'seller',
+                person_type: c.person_type || 'individual',
+                name: c.name || '',
+                phone: c.phone || '',
+                email: c.email || '',
+                telegram: c.telegram || '',
+                whatsapp: c.whatsapp || '',
+                notes: c.notes || '',
+                created_at: c.created_at || '',
+                updated_at: c.updated_at || ''
+            });
+        }
+        
+        console.log('[counterparties.js] Загружено контрагентов:', counterparties.length);
+        renderCounterparties();
+        
+    } catch (error) {
+        console.error('[counterparties.js] Ошибка загрузки контрагентов:', error);
+        counterparties = [];
+        renderCounterparties();
+        
+        // Показываем пользователю понятное сообщение
+        var grid = document.getElementById('counterpartiesGrid');
+        if (grid) {
+            grid.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Ошибка загрузки контрагентов</p><p style="font-size: 0.8rem;">Проверьте наличие файла data/counterparties.csv</p></div>';
+        }
+    }
+}
         console.log('[counterparties.js] Загружено контрагентов:', counterparties.length);
     } catch (error) {
         console.error('[counterparties.js] Ошибка загрузки контрагентов:', error);
