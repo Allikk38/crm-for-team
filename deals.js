@@ -850,4 +850,55 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-function
+function showToast(type, message) {
+    console.log('[deals.js] Показ уведомления:', type, message);
+    const toast = document.createElement('div');
+    toast.className = 'toast toast-' + type;
+    toast.innerHTML = '<i class="fas ' + (type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle') + '"></i><span>' + escapeHtml(message) + '</span>';
+    document.body.appendChild(toast);
+    setTimeout(function() {
+        toast.style.animation = 'slideOut 0.3s ease';
+        setTimeout(function() { toast.remove(); }, 300);
+    }, 3000);
+}
+
+// ========== ИНИЦИАЛИЗАЦИЯ ==========
+
+async function init() {
+    console.log('[deals.js] === ИНИЦИАЛИЗАЦИЯ ===');
+    
+    await auth.initAuth();
+    currentUser = auth.getCurrentUser();
+    console.log('[deals.js] Пользователь:', currentUser ? currentUser.name + ' (' + currentUser.role + ')' : 'не авторизован');
+    
+    if (!currentUser) {
+        window.location.href = 'auth.html';
+        return;
+    }
+    
+    await loadComplexesForDeals();
+    await loadCounterparties();
+    await loadUsersForDeals();
+    await loadDeals();
+    renderKanban();
+    
+    // Обработчики фильтров
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) searchInput.addEventListener('input', renderKanban);
+    
+    const typeFilter = document.getElementById('typeFilter');
+    if (typeFilter) typeFilter.addEventListener('change', renderKanban);
+    
+    const agentFilter = document.getElementById('agentFilter');
+    if (agentFilter) agentFilter.addEventListener('change', renderKanban);
+    
+    const addDealBtn = document.getElementById('addDealBtn');
+    if (addDealBtn) addDealBtn.addEventListener('click', function() { openDealModal(); });
+    
+    if (window.theme) window.theme.initTheme();
+    if (window.sidebar) window.sidebar.initSidebar();
+    
+    console.log('[deals.js] === ИНИЦИАЛИЗАЦИЯ ЗАВЕРШЕНА ===');
+}
+
+document.addEventListener('DOMContentLoaded', init);
