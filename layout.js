@@ -11,13 +11,99 @@
  *   2. Сохранение состояния в localStorage
  *   3. Адаптация для мобильных устройств
  *   4. Обработка клика по профилю (переход в профиль)
- *   5. Подсветка активного пункта меню
- *   6. Кнопка выхода из системы в нижней части панели
+ *   5. Централизованная генерация навигации из единого массива
+ *   6. Фильтрация пунктов меню по роли пользователя
+ *   7. Подсветка активного пункта меню
+ *   8. Кнопка выхода из системы в нижней части панели
  * ============================================
  */
 
 // Состояние боковой панели
 let sidebarCollapsed = false;
+
+// ========== ЦЕНТРАЛИЗОВАННАЯ НАВИГАЦИЯ ==========
+
+/**
+ * Единый источник истины для всех пунктов меню
+ * 
+ * Структура пункта:
+ * {
+ *   href: string,        // ссылка на страницу
+ *   icon: string,        // класс иконки Font Awesome (без "fas ")
+ *   label: string,       // текст пункта
+ *   roles: array|null    // массив ролей, которые видят пункт (null = все)
+ * }
+ */
+const NAVIGATION_ITEMS = [
+    // Базовые пункты (видят все)
+    { href: "index.html", icon: "fa-home", label: "Дашборд", roles: null },
+    { href: "tasks.html", icon: "fa-tasks", label: "Доска задач", roles: null },
+    { href: "complexes.html", icon: "fa-building", label: "Объекты", roles: null },
+    { href: "deals.html", icon: "fa-handshake", label: "Заявки", roles: null },
+    { href: "counterparties.html", icon: "fa-users", label: "Контрагенты", roles: null },
+    { href: "calendar.html", icon: "fa-calendar-alt", label: "Календарь", roles: null },
+    { href: "calendar-integration.html", icon: "fa-plug", label: "Подключить календарь", roles: null },
+    
+    // Пункты для админов и менеджеров
+    { href: "manager.html", icon: "fa-chart-simple", label: "Панель менеджера", roles: ["admin", "manager"] },
+    
+    // Пункты только для админов
+    { href: "admin.html", icon: "fa-users-cog", label: "Управление", roles: ["admin"] }
+];
+
+/**
+ * Рендеринг навигации на основе роли пользователя
+ * Вызывается при загрузке страницы и после смены пользователя
+ */
+function renderNavigation() {
+    const user = auth.getCurrentUser();
+    const container = document.getElementById('sidebar-nav');
+    
+    if (!container) {
+        console.warn('[layout.js] Контейнер #sidebar-nav не найден');
+        return;
+    }
+    
+    // Фильтруем пункты по роли
+    const visibleItems = NAVIGATION_ITEMS.filter(item => {
+        // Если roles не указаны — видят все
+        if (!item.roles) return true;
+        // Если пользователь не авторизован — не показываем
+        if (!user) return false;
+        // Проверяем, есть ли роль пользователя в разрешённых
+        return item.roles.includes(user.role);
+    });
+    
+    // Определяем текущий путь для подсветки активного пункта
+    const currentPath = window.location.pathname.split('/').pop() || 'index.html';
+    
+    // Генерируем HTML
+    let html = '';
+    for (const item of visibleItems) {
+        const isActive = (item.href === currentPath) || 
+                         (currentPath === 'index.html' && item.href === 'index.html');
+        
+        html += `<a href="${item.href}" class="nav-item ${isActive ? 'active' : ''}">
+            <i class="fas ${item.icon}"></i>
+            <span>${escapeHtml(item.label)}</span>
+        </a>`;
+    }
+    
+    container.innerHTML = html;
+    console.log('[layout.js] Навигация отрендерена, пунктов:', visibleItems.length);
+}
+
+/**
+ * Вспомогательная функция для экранирования HTML
+ */
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// ========== ОСТАЛЬНОЙ ФУНКЦИОНАЛ ==========
 
 // Инициализация боковой панели
 function initSidebar() {
@@ -28,8 +114,8 @@ function initSidebar() {
         document.getElementById('sidebar')?.classList.add('collapsed');
     }
     
-    // Подсвечиваем активный пункт меню
-    highlightActiveNavItem();
+    // Рендерим навигацию (централизованно)
+    renderNavigation();
     
     // Добавляем обработчики для мобильного меню
     initMobileMenu();
@@ -52,21 +138,6 @@ function toggleSidebar() {
         sidebar.classList.remove('collapsed');
         localStorage.setItem('sidebar_collapsed', 'false');
     }
-}
-
-// Подсветка активного пункта меню
-function highlightActiveNavItem() {
-    const currentPath = window.location.pathname.split('/').pop() || 'index.html';
-    const navItems = document.querySelectorAll('.nav-item');
-    
-    navItems.forEach(item => {
-        const href = item.getAttribute('href');
-        if (href === currentPath || (currentPath === 'index.html' && href === 'index.html')) {
-            item.classList.add('active');
-        } else {
-            item.classList.remove('active');
-        }
-    });
 }
 
 // Инициализация мобильного меню
@@ -135,7 +206,8 @@ window.sidebar = {
     initSidebar,
     toggleSidebar,
     goToProfile,
-    logout
+    logout,
+    renderNavigation  // экспортируем для возможного обновления после смены роли
 };
 
 // Автоматическая инициализация
