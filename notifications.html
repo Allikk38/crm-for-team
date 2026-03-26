@@ -10,7 +10,7 @@
     РОЛЬ: Центр уведомлений
     СВЯЗИ:
       - CSS: base.css, theme.css, components.css, responsive.css
-      - JS: core.js, auth.js, theme.js, layout.js, notifications.js
+      - JS: js/core/*, js/utils/*, theme.js, layout.js, notifications.js
       - Данные: localStorage (crm_notifications_center)
     МЕХАНИКА:
       1. Боковая панель с навигацией (можно сворачивать)
@@ -231,8 +231,15 @@
         </main>
     </div>
     
-    <script src="core.js"></script>
-    <script src="auth.js"></script>
+    <!-- 1. Утилиты (не зависят ни от чего) -->
+    <script src="js/utils/constants.js"></script>
+    <script src="js/utils/helpers.js"></script>
+    
+    <!-- 2. Ядро (зависит от утилит) -->
+    <script src="js/core/api.js"></script>
+    <script src="js/core/auth.js"></script>
+    
+    <!-- 3. UI компоненты (зависят от ядра) -->
     <script src="theme.js"></script>
     <script src="layout.js"></script>
     <script src="notifications.js"></script>
@@ -267,8 +274,8 @@
                         '<span class="' + typeClass + '">' + typeLabel + '</span>' +
                         '<span class="notification-date">' + date + '</span>' +
                     '</div>' +
-                    '<div class="notification-title">' + escapeHtml(n.title) + '</div>' +
-                    '<div class="notification-message">' + escapeHtml(n.message) + '</div>' +
+                    '<div class="notification-title">' + window.escapeHtml(n.title) + '</div>' +
+                    '<div class="notification-message">' + window.escapeHtml(n.message) + '</div>' +
                     '<div class="notification-actions">' +
                         '<button onclick="event.stopPropagation(); markAsRead(' + n.id + ')">Отметить прочитанным</button>' +
                         (n.task_id ? '<button onclick="event.stopPropagation(); goToTask(' + n.task_id + ')">Перейти к задаче</button>' : '') +
@@ -313,16 +320,9 @@
             window.location.href = 'tasks.html?task=' + taskId;
         }
         
-        function escapeHtml(text) {
-            if (!text) return '';
-            var div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-        
         // Обновление информации о пользователе
         function updateUserProfile() {
-            var user = auth.getCurrentUser();
+            var user = window.auth.getCurrentUser();
             if (!user) return;
             
             var userNameSpan = document.getElementById('userName');
@@ -349,9 +349,9 @@
         }
         
         async function init() {
-            await auth.initAuth();
+            await window.auth.initAuth();
             
-            var currentUser = auth.getCurrentUser();
+            var currentUser = window.auth.getCurrentUser();
             if (currentUser) {
                 updateUserProfile();
             }
