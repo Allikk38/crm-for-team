@@ -9,17 +9,17 @@
     ФАЙЛ: profile.html
     РОЛЬ: Личный кабинет пользователя
     СВЯЗИ:
-      - CSS: base.css, theme.css, components.css, dashboard.css, modal.css, responsive.css
-      - JS: js/core/*, js/utils/*, theme.js, layout.js, notifications.js, profile.js
+      - CSS: base.css, theme.css, components.css, dashboard.css, modal.css, responsive.css, animations.css
+      - JS: js/core/*, js/utils/*, js/ui/*, layout.js, notifications.js, profile.js
       - Данные: data/users.csv, data/tasks.csv
     МЕХАНИКА:
       1. Боковая панель с навигацией (можно сворачивать)
       2. Навигация генерируется централизованно из layout.js
       3. Кликабельный профиль в правом верхнем углу
-      4. Отображение профиля текущего пользователя
-      5. Личная статистика (завершённые задачи, активные, просроченные, среднее время)
+      4. Отображение профиля текущего пользователя с анимациями
+      5. Личная статистика с анимированными счетчиками
       6. График личной активности
-      7. Настройки интерфейса (тема, уведомления, компактный режим)
+      7. Настройки интерфейса с toggle-анимациями
       8. История последних действий
     ============================================
     -->
@@ -54,6 +54,7 @@
     <link rel="stylesheet" href="css/calendar.css">
     <link rel="stylesheet" href="css/modal.css">
     <link rel="stylesheet" href="css/responsive.css">
+    <link rel="stylesheet" href="css/animations.css">
     
     <style>
         .profile-container {
@@ -69,6 +70,14 @@
             border: 1px solid var(--card-border);
             padding: 32px 24px;
             text-align: center;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            animation: fadeInUp 0.4s ease;
+        }
+        
+        .profile-sidebar:hover {
+            transform: translateY(-4px);
+            border-color: var(--accent);
+            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.15);
         }
         
         .profile-avatar {
@@ -82,12 +91,28 @@
             margin: 0 auto 20px;
             font-size: 3rem;
             color: white;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer;
+        }
+        
+        .profile-avatar:hover {
+            transform: scale(1.05) rotate(5deg);
+            box-shadow: 0 8px 24px rgba(108, 108, 255, 0.4);
+        }
+        
+        .profile-avatar:active {
+            transform: scale(0.98);
         }
         
         .profile-name {
             font-size: 1.5rem;
             font-weight: 700;
             margin-bottom: 4px;
+            transition: color 0.2s ease;
+        }
+        
+        .profile-sidebar:hover .profile-name {
+            color: var(--accent);
         }
         
         .profile-role {
@@ -97,6 +122,12 @@
             border-radius: 20px;
             font-size: 0.75rem;
             margin-bottom: 16px;
+            transition: all 0.2s ease;
+        }
+        
+        .profile-role:hover {
+            transform: scale(1.05);
+            background: rgba(108, 108, 255, 0.3);
         }
         
         .profile-info-item {
@@ -106,11 +137,29 @@
             padding: 12px 0;
             border-bottom: 1px solid var(--card-border);
             font-size: 0.85rem;
+            transition: all 0.2s ease;
+            animation: slideInFromLeft 0.3s ease backwards;
+        }
+        
+        .profile-info-item:nth-child(1) { animation-delay: 0.05s; }
+        .profile-info-item:nth-child(2) { animation-delay: 0.1s; }
+        .profile-info-item:nth-child(3) { animation-delay: 0.15s; }
+        
+        .profile-info-item:hover {
+            transform: translateX(8px);
+            background: rgba(108, 108, 255, 0.05);
+            padding-left: 8px;
+            border-radius: 12px;
         }
         
         .profile-info-item i {
             width: 24px;
             color: var(--accent);
+            transition: transform 0.2s ease;
+        }
+        
+        .profile-info-item:hover i {
+            transform: scale(1.1);
         }
         
         .profile-stats {
@@ -124,6 +173,17 @@
         
         .profile-stat {
             text-align: center;
+            transition: all 0.2s ease;
+            animation: fadeInScale 0.3s ease backwards;
+        }
+        
+        .profile-stat:nth-child(1) { animation-delay: 0.2s; }
+        .profile-stat:nth-child(2) { animation-delay: 0.25s; }
+        .profile-stat:nth-child(3) { animation-delay: 0.3s; }
+        .profile-stat:nth-child(4) { animation-delay: 0.35s; }
+        
+        .profile-stat:hover {
+            transform: translateY(-4px);
         }
         
         .profile-stat-value {
@@ -132,6 +192,11 @@
             background: linear-gradient(135deg, var(--text-primary), var(--accent));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
+            transition: all 0.2s ease;
+        }
+        
+        .profile-stat:hover .profile-stat-value {
+            transform: scale(1.05);
         }
         
         .profile-stat-label {
@@ -145,11 +210,23 @@
             border-radius: 28px;
             border: 1px solid var(--card-border);
             padding: 32px;
+            transition: all 0.3s ease;
+            animation: fadeInUp 0.4s ease 0.1s backwards;
+        }
+        
+        .profile-main:hover {
+            transform: translateY(-2px);
+            border-color: var(--accent);
         }
         
         .profile-section {
             margin-bottom: 32px;
+            animation: fadeInUp 0.3s ease backwards;
         }
+        
+        .profile-section:nth-child(1) { animation-delay: 0.15s; }
+        .profile-section:nth-child(2) { animation-delay: 0.2s; }
+        .profile-section:nth-child(3) { animation-delay: 0.25s; }
         
         .profile-section-title {
             font-size: 1.1rem;
@@ -160,6 +237,11 @@
             gap: 10px;
             padding-bottom: 12px;
             border-bottom: 2px solid var(--card-border);
+            transition: all 0.2s ease;
+        }
+        
+        .profile-section:hover .profile-section-title {
+            border-bottom-color: var(--accent);
         }
         
         .settings-group {
@@ -174,6 +256,20 @@
             align-items: center;
             padding: 12px 0;
             border-bottom: 1px solid var(--card-border);
+            transition: all 0.2s ease;
+            animation: slideInFromLeft 0.3s ease backwards;
+        }
+        
+        .setting-item:nth-child(1) { animation-delay: 0.25s; }
+        .setting-item:nth-child(2) { animation-delay: 0.3s; }
+        .setting-item:nth-child(3) { animation-delay: 0.35s; }
+        .setting-item:nth-child(4) { animation-delay: 0.4s; }
+        
+        .setting-item:hover {
+            transform: translateX(8px);
+            background: rgba(108, 108, 255, 0.05);
+            padding-left: 12px;
+            border-radius: 12px;
         }
         
         .setting-label {
@@ -185,6 +281,11 @@
         .setting-label i {
             width: 24px;
             color: var(--accent);
+            transition: transform 0.2s ease;
+        }
+        
+        .setting-item:hover .setting-label i {
+            transform: scale(1.1);
         }
         
         .toggle-switch {
@@ -192,6 +293,11 @@
             display: inline-block;
             width: 48px;
             height: 24px;
+            transition: all 0.2s ease;
+        }
+        
+        .toggle-switch:hover {
+            transform: scale(1.05);
         }
         
         .toggle-switch input {
@@ -248,8 +354,14 @@
             flex: 1;
             background: linear-gradient(180deg, var(--accent), var(--accent-hover));
             border-radius: 6px 6px 0 0;
-            transition: height 0.5s ease;
+            transition: height 0.6s cubic-bezier(0.4, 0, 0.2, 1);
             min-height: 4px;
+            cursor: pointer;
+        }
+        
+        .chart-bar-profile:hover {
+            opacity: 0.8;
+            transform: scaleX(1.02);
         }
         
         .recent-tasks-list {
@@ -263,10 +375,28 @@
             align-items: center;
             padding: 12px 0;
             border-bottom: 1px solid var(--card-border);
+            transition: all 0.2s ease;
+            animation: slideInFromLeft 0.3s ease backwards;
+        }
+        
+        .recent-task-item:nth-child(1) { animation-delay: 0.45s; }
+        .recent-task-item:nth-child(2) { animation-delay: 0.5s; }
+        .recent-task-item:nth-child(3) { animation-delay: 0.55s; }
+        
+        .recent-task-item:hover {
+            transform: translateX(8px);
+            background: rgba(108, 108, 255, 0.05);
+            padding-left: 12px;
+            border-radius: 12px;
         }
         
         .recent-task-title {
             font-weight: 500;
+            transition: color 0.2s ease;
+        }
+        
+        .recent-task-item:hover .recent-task-title {
+            color: var(--accent);
         }
         
         .recent-task-date {
@@ -281,12 +411,45 @@
             border-radius: 40px;
             color: var(--text-primary);
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             font-size: 0.8rem;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .edit-btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(108, 108, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.4s ease, height 0.4s ease;
+        }
+        
+        .edit-btn:active::before {
+            width: 200px;
+            height: 200px;
         }
         
         .edit-btn:hover {
             background: rgba(108, 108, 255, 0.3);
+            transform: translateY(-2px);
+        }
+        
+        .skeleton {
+            background: linear-gradient(90deg, var(--card-border) 25%, var(--card-hover) 50%, var(--card-border) 75%);
+            background-size: 200% 100%;
+            animation: skeletonLoading 1.5s infinite;
+            border-radius: 8px;
+        }
+        
+        @keyframes skeletonLoading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
         }
         
         @media (max-width: 768px) {
@@ -395,10 +558,12 @@
                             <i class="fas fa-chart-line"></i> Моя активность
                         </div>
                         <div class="activity-chart-small">
-                            <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted);">
+                            <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted); margin-bottom: 8px;">
                                 <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Вс</span>
                             </div>
-                            <div class="chart-bars-profile" id="personalChart"></div>
+                            <div class="chart-bars-profile" id="personalChart">
+                                <div class="skeleton" style="height: 100px; width: 100%;"></div>
+                            </div>
                         </div>
                     </div>
                     
@@ -457,7 +622,9 @@
                             <i class="fas fa-history"></i> Последние завершённые задачи
                         </div>
                         <div id="recentTasks" class="recent-tasks-list">
-                            <div style="text-align: center; color: var(--text-muted); padding: 20px;">Загрузка...</div>
+                            <div class="skeleton" style="height: 50px; margin-bottom: 8px;"></div>
+                            <div class="skeleton" style="height: 50px; margin-bottom: 8px;"></div>
+                            <div class="skeleton" style="height: 50px; margin-bottom: 8px;"></div>
                         </div>
                     </div>
                 </div>
@@ -488,6 +655,7 @@
     
     <!-- 3. UI компоненты (зависят от ядра) -->
     <script src="js/ui/theme.js"></script>
+    <script src="js/ui/animations.js"></script>
     <script src="layout.js"></script>
     <script src="notifications.js"></script>
     
@@ -522,6 +690,22 @@
                 userAvatar.innerHTML = initials || '<i class="fas fa-user"></i>';
             }
         }
+        
+        // Анимация для KPI значений
+        window.animateStatValue = function(element, targetValue) {
+            if (!element) return;
+            let current = 0;
+            const increment = targetValue / 30;
+            const interval = setInterval(() => {
+                current += increment;
+                if (current >= targetValue) {
+                    element.textContent = targetValue;
+                    clearInterval(interval);
+                } else {
+                    element.textContent = Math.floor(current);
+                }
+            }, 20);
+        };
         
         // Инициализация
         document.addEventListener('DOMContentLoaded', function() {
