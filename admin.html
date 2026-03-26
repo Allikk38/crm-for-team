@@ -10,7 +10,7 @@
     РОЛЬ: Панель администратора для управления пользователями
     СВЯЗИ:
       - CSS: base.css, theme.css, components.css, modal.css, responsive.css
-      - JS: core.js, auth.js, theme.js, layout.js, admin.js
+      - JS: js/core/*, js/utils/*, theme.js, layout.js, notifications.js
       - Данные: data/users.csv
     МЕХАНИКА:
       1. Боковая панель с навигацией (генерируется централизованно из layout.js)
@@ -249,7 +249,8 @@
             </div>
         </div>
     </div>
-        <!-- 1. Утилиты (не зависят ни от чего) -->
+    
+    <!-- 1. Утилиты (не зависят ни от чего) -->
     <script src="js/utils/constants.js"></script>
     <script src="js/utils/helpers.js"></script>
     
@@ -262,9 +263,7 @@
     <script src="layout.js"></script>
     <script src="notifications.js"></script>
     
-    <!-- 4. Модули страниц (зависят от всего) -->
-    <script src="tasks.js"></script>
-    
+    <!-- 4. Логика страницы -->
     <script>
         let currentUsersList = [];
         
@@ -374,7 +373,7 @@
             
             const users = await window.auth.getUsers();
             const filteredUsers = users.filter(u => u.github_username !== username);
-            const saved = await window.utils.saveCSVToGitHub('data/users.csv', filteredUsers, 'Delete user ' + username);
+            const saved = await window.saveCSVToGitHub('data/users.csv', filteredUsers, 'Delete user ' + username);
             
             if (saved) {
                 alert('Пользователь удалён');
@@ -393,13 +392,6 @@
         
         function closeResetPinModal() {
             document.getElementById('resetPinModal').style.display = 'none';
-        }
-        
-        function escapeHtml(text) {
-            if (!text) return '';
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
         }
         
         function updateUserProfile() {
@@ -441,21 +433,28 @@
             if (window.sidebar) window.sidebar.initSidebar();
         }
         
-        document.getElementById('addUserBtn').addEventListener('click', () => {
-            document.getElementById('addUserModal').style.display = 'flex';
+        // Добавляем обработчики событий
+        document.addEventListener('DOMContentLoaded', () => {
+            const addUserBtn = document.getElementById('addUserBtn');
+            const confirmAddUserBtn = document.getElementById('confirmAddUserBtn');
+            const confirmResetPinBtn = document.getElementById('confirmResetPinBtn');
+            
+            if (addUserBtn) addUserBtn.addEventListener('click', () => {
+                document.getElementById('addUserModal').style.display = 'flex';
+            });
+            
+            if (confirmAddUserBtn) confirmAddUserBtn.addEventListener('click', addUser);
+            if (confirmResetPinBtn) confirmResetPinBtn.addEventListener('click', resetPin);
+            
+            window.onclick = function(event) {
+                const addModal = document.getElementById('addUserModal');
+                const resetModal = document.getElementById('resetPinModal');
+                if (event.target === addModal) closeAddUserModal();
+                if (event.target === resetModal) closeResetPinModal();
+            };
+            
+            init();
         });
-        
-        document.getElementById('confirmAddUserBtn').addEventListener('click', addUser);
-        document.getElementById('confirmResetPinBtn').addEventListener('click', resetPin);
-        
-        window.onclick = function(event) {
-            const addModal = document.getElementById('addUserModal');
-            const resetModal = document.getElementById('resetPinModal');
-            if (event.target === addModal) closeAddUserModal();
-            if (event.target === resetModal) closeResetPinModal();
-        };
-        
-        document.addEventListener('DOMContentLoaded', init);
     </script>
 </body>
 </html>
