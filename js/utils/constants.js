@@ -1,97 +1,51 @@
-/**
- * ============================================
- * ФАЙЛ: constants.js
- * РОЛЬ: Централизованное хранение констант
- * СТАТУС: НОВЫЙ МОДУЛЬ
- * ВЕРСИЯ: 1.0
- * ============================================
- */
-
-// Роли пользователей
-const ROLES = {
-    ADMIN: 'admin',
-    MANAGER: 'manager',
-    AGENT: 'agent',
-    VIEWER: 'viewer'
-};
-
-// Права доступа
-const PERMISSIONS = {
-    VIEW_ALL: 'view_all',
-    EDIT_ALL: 'edit_all',
-    DELETE_ALL: 'delete_all',
-    MANAGE_USERS: 'manage_users',
-    VIEW_MANAGER_PANEL: 'view_manager_panel'
-};
-
-// Статусы задач
-const TASK_STATUSES = {
-    TODO: 'todo',
-    IN_PROGRESS: 'in_progress',
-    DONE: 'done'
-};
-
-// Статусы заявок
-const DEAL_STATUSES = [
-    { id: 'new', name: 'Новая', icon: 'N', color: '#9e9e9e' },
-    { id: 'showing', name: 'Показ', icon: 'V', color: '#2196f3' },
-    { id: 'negotiation', name: 'Торг', icon: 'R', color: '#ffc107' },
-    { id: 'deposit', name: 'Задаток', icon: 'D', color: '#9c27b0' },
-    { id: 'documents', name: 'Документы', icon: 'P', color: '#ff9800' },
-    { id: 'contract', name: 'Договор', icon: 'S', color: '#f44336' },
-    { id: 'payment', name: 'Расчёт', icon: 'M', color: '#4caf50' },
-    { id: 'closed', name: 'Закрыта', icon: 'C', color: '#607d8b' },
-    { id: 'cancelled', name: 'Отказ', icon: 'X', color: '#9e9e9e' }
-];
-
-// Типы сделок
-const DEAL_TYPES = {
-    primary: { name: 'Первичка', icon: 'P', class: 'type-primary' },
-    secondary: { name: 'Вторичка', icon: 'S', class: 'type-secondary' },
-    exchange: { name: 'Альтернатива', icon: 'A', class: 'type-exchange' },
-    urgent: { name: 'Срочный выкуп', icon: 'U', class: 'type-urgent' }
-};
-
-// Типы контрагентов
-const COUNTERPARTY_TYPES = {
-    seller: { name: 'Продавец', icon: 'S', class: 'type-seller' },
-    buyer: { name: 'Покупатель', icon: 'B', class: 'type-buyer' },
-    developer: { name: 'Застройщик', icon: 'D', class: 'type-developer' },
-    investor: { name: 'Инвестор', icon: 'I', class: 'type-investor' }
-};
-
-// Приоритеты задач
-const TASK_PRIORITIES = {
-    LOW: 'low',
-    MEDIUM: 'medium',
-    HIGH: 'high',
-    URGENT: 'urgent'
-};
-
-// Навигация
-const NAVIGATION_ITEMS = [
-    { path: 'index.html', icon: 'fas fa-chart-line', name: 'Дашборд', roles: ['admin', 'manager', 'agent', 'viewer'] },
-    { path: 'tasks.html', icon: 'fas fa-tasks', name: 'Доска задач', roles: ['admin', 'manager', 'agent', 'viewer'] },
-    { path: 'complexes.html', icon: 'fas fa-building', name: 'Объекты', roles: ['admin', 'manager', 'agent', 'viewer'] },
-    { path: 'deals.html', icon: 'fas fa-handshake', name: 'Заявки', roles: ['admin', 'manager', 'agent'] },
-    { path: 'counterparties.html', icon: 'fas fa-users', name: 'Контрагенты', roles: ['admin', 'manager', 'agent'] },
-    { path: 'calendar.html', icon: 'fas fa-calendar-alt', name: 'Календарь', roles: ['admin', 'manager', 'agent', 'viewer'] },
-    { path: 'calendar-integration.html', icon: 'fas fa-plug', name: 'Подключить календарь', roles: ['admin', 'manager', 'agent'] },
-    { path: 'manager.html', icon: 'fas fa-chart-simple', name: 'Панель менеджера', roles: ['admin', 'manager'] },
-    { path: 'admin.html', icon: 'fas fa-user-cog', name: 'Управление', roles: ['admin'] }
-];
-
-// Экспортируем в глобальный объект (для обратной совместимости)
+// Константы CRM
 window.CRM = window.CRM || {};
+
 window.CRM.constants = {
-    ROLES,
-    PERMISSIONS,
-    TASK_STATUSES,
-    DEAL_STATUSES,
-    DEAL_TYPES,
-    COUNTERPARTY_TYPES,
-    TASK_PRIORITIES,
-    NAVIGATION_ITEMS
+    ROLES: {
+        ADMIN: 'admin',
+        MANAGER: 'manager',
+        AGENT: 'agent',
+        VIEWER: 'viewer'
+    },
+    
+    DEAL_STATUSES: [
+        { id: 'new', name: 'New', icon: 'N', color: '#9e9e9e' },
+        { id: 'showing', name: 'Showing', icon: 'V', color: '#2196f3' },
+        { id: 'negotiation', name: 'Negotiation', icon: 'R', color: '#ffc107' },
+        { id: 'deposit', name: 'Deposit', icon: 'D', color: '#9c27b0' },
+        { id: 'documents', name: 'Documents', icon: 'P', color: '#ff9800' },
+        { id: 'contract', name: 'Contract', icon: 'S', color: '#f44336' },
+        { id: 'payment', name: 'Payment', icon: 'M', color: '#4caf50' },
+        { id: 'closed', name: 'Closed', icon: 'C', color: '#607d8b' },
+        { id: 'cancelled', name: 'Cancelled', icon: 'X', color: '#9e9e9e' }
+    ],
+    
+    DEAL_TYPES: {
+        primary: { name: 'Primary', icon: 'P', class: 'type-primary' },
+        secondary: { name: 'Secondary', icon: 'S', class: 'type-secondary' },
+        exchange: { name: 'Exchange', icon: 'A', class: 'type-exchange' },
+        urgent: { name: 'Urgent', icon: 'U', class: 'type-urgent' }
+    },
+    
+    COUNTERPARTY_TYPES: {
+        seller: { name: 'Seller', icon: 'S', class: 'type-seller' },
+        buyer: { name: 'Buyer', icon: 'B', class: 'type-buyer' },
+        developer: { name: 'Developer', icon: 'D', class: 'type-developer' },
+        investor: { name: 'Investor', icon: 'I', class: 'type-investor' }
+    },
+    
+    NAVIGATION_ITEMS: [
+        { path: 'index.html', icon: 'fas fa-chart-line', name: 'Dashboard', roles: ['admin', 'manager', 'agent', 'viewer'] },
+        { path: 'tasks.html', icon: 'fas fa-tasks', name: 'Tasks', roles: ['admin', 'manager', 'agent', 'viewer'] },
+        { path: 'complexes.html', icon: 'fas fa-building', name: 'Complexes', roles: ['admin', 'manager', 'agent', 'viewer'] },
+        { path: 'deals.html', icon: 'fas fa-handshake', name: 'Deals', roles: ['admin', 'manager', 'agent'] },
+        { path: 'counterparties.html', icon: 'fas fa-users', name: 'Counterparties', roles: ['admin', 'manager', 'agent'] },
+        { path: 'calendar.html', icon: 'fas fa-calendar-alt', name: 'Calendar', roles: ['admin', 'manager', 'agent', 'viewer'] },
+        { path: 'calendar-integration.html', icon: 'fas fa-plug', name: 'Calendar Integration', roles: ['admin', 'manager', 'agent'] },
+        { path: 'manager.html', icon: 'fas fa-chart-simple', name: 'Manager Panel', roles: ['admin', 'manager'] },
+        { path: 'admin.html', icon: 'fas fa-user-cog', name: 'Admin', roles: ['admin'] }
+    ]
 };
 
-console.log('[constants.js] Константы загружены');
+console.log('[constants.js] Loaded');
