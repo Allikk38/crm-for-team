@@ -9,17 +9,16 @@
     ФАЙЛ: complexes.html
     РОЛЬ: Страница управления объектами недвижимости (ЖК)
     СВЯЗИ:
-      - CSS: base.css, theme.css, components.css, dashboard.css, modal.css, responsive.css
-      - JS: js/core/*, js/utils/*, theme.js, layout.js, notifications.js, complexes.js
+      - CSS: base.css, theme.css, components.css, dashboard.css, modal.css, responsive.css, animations.css
+      - JS: js/core/*, js/utils/*, js/ui/*, layout.js, notifications.js, complexes.js
       - Данные: data/complexes.csv, data/tasks.csv, data/users.csv
     МЕХАНИКА:
       1. Боковая панель с навигацией (можно сворачивать)
       2. Навигация генерируется централизованно из layout.js
       3. Кликабельный профиль в правом верхнем углу
-      4. Отображение карточек объектов с фильтрацией и сортировкой
+      4. Отображение карточек объектов с анимациями и фильтрацией
       5. Модальные окна для создания/редактирования объектов
       6. Прогресс-бар выполнения задач по объекту
-      7. Поддержка приватных/публичных объектов
     ============================================
     -->
     
@@ -55,6 +54,7 @@
     <link rel="stylesheet" href="css/calendar.css">
     <link rel="stylesheet" href="css/modal.css">
     <link rel="stylesheet" href="css/responsive.css">
+    <link rel="stylesheet" href="css/animations.css">
     
     <style>
         .complexes-header {
@@ -64,6 +64,7 @@
             margin-bottom: 24px;
             flex-wrap: wrap;
             gap: 16px;
+            animation: fadeInUp 0.4s ease;
         }
         
         .complexes-filters {
@@ -80,6 +81,19 @@
             border: 1px solid var(--card-border);
             border-radius: 40px;
             color: var(--text-primary);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .complexes-filters input:focus,
+        .complexes-filters select:focus {
+            outline: none;
+            border-color: var(--accent);
+            transform: scale(1.02);
+        }
+        
+        .complexes-filters input:hover,
+        .complexes-filters select:hover {
+            border-color: var(--accent);
         }
         
         .sort-buttons {
@@ -94,8 +108,28 @@
             border-radius: 40px;
             cursor: pointer;
             color: var(--text-primary);
-            transition: all 0.2s;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             font-size: 0.8rem;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .sort-btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(108, 108, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.4s ease, height 0.4s ease;
+        }
+        
+        .sort-btn:active::before {
+            width: 200px;
+            height: 200px;
         }
         
         .sort-btn.active {
@@ -105,6 +139,7 @@
         
         .sort-btn:hover {
             background: rgba(108, 108, 255, 0.3);
+            transform: translateY(-2px);
         }
         
         .my-objects-toggle {
@@ -114,13 +149,18 @@
             border-radius: 40px;
             cursor: pointer;
             color: var(--text-primary);
-            transition: all 0.2s;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             font-size: 0.8rem;
         }
         
         .my-objects-toggle.active {
             background: var(--accent);
             border-color: var(--accent);
+        }
+        
+        .my-objects-toggle:hover {
+            background: rgba(108, 108, 255, 0.3);
+            transform: translateY(-2px);
         }
         
         .complexes-grid {
@@ -136,14 +176,26 @@
             border-radius: 24px;
             border: 1px solid var(--card-border);
             overflow: hidden;
-            transition: all 0.3s ease;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             cursor: pointer;
+            animation: fadeInScale 0.3s ease backwards;
         }
         
+        .complex-card:nth-child(1) { animation-delay: 0.03s; }
+        .complex-card:nth-child(2) { animation-delay: 0.06s; }
+        .complex-card:nth-child(3) { animation-delay: 0.09s; }
+        .complex-card:nth-child(4) { animation-delay: 0.12s; }
+        .complex-card:nth-child(5) { animation-delay: 0.15s; }
+        .complex-card:nth-child(6) { animation-delay: 0.18s; }
+        
         .complex-card:hover {
-            transform: translateY(-4px);
+            transform: translateY(-6px);
             border-color: var(--accent);
-            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 16px 32px rgba(0, 0, 0, 0.25);
+        }
+        
+        .complex-card:active {
+            transform: translateY(-2px) scale(0.99);
         }
         
         .complex-card-header {
@@ -163,6 +215,11 @@
             justify-content: center;
             font-size: 2rem;
             flex-shrink: 0;
+            transition: all 0.3s ease;
+        }
+        
+        .complex-card:hover .complex-card-image {
+            transform: scale(1.05) rotate(5deg);
         }
         
         .complex-card-image img {
@@ -179,6 +236,11 @@
         .complex-card-info h3 {
             font-size: 1.1rem;
             margin-bottom: 4px;
+            transition: color 0.2s ease;
+        }
+        
+        .complex-card:hover .complex-card-info h3 {
+            color: var(--accent);
         }
         
         .complex-address {
@@ -196,6 +258,11 @@
             border-radius: 20px;
             font-size: 0.65rem;
             font-weight: 600;
+            transition: all 0.2s ease;
+        }
+        
+        .complex-status:hover {
+            transform: scale(1.05);
         }
         
         .status-active { background: rgba(76, 175, 80, 0.2); color: #4caf50; }
@@ -210,6 +277,7 @@
             padding: 2px 6px;
             border-radius: 12px;
             margin-left: 8px;
+            transition: all 0.2s ease;
         }
         
         .public-badge {
@@ -220,6 +288,7 @@
             padding: 2px 6px;
             border-radius: 12px;
             margin-left: 8px;
+            transition: all 0.2s ease;
         }
         
         .complex-card-body {
@@ -241,6 +310,12 @@
             background: var(--input-bg);
             padding: 4px 10px;
             border-radius: 20px;
+            transition: all 0.2s ease;
+        }
+        
+        .complex-stat:hover {
+            transform: translateX(4px);
+            background: rgba(108, 108, 255, 0.2);
         }
         
         .complex-stat i {
@@ -264,7 +339,7 @@
             height: 100%;
             background: linear-gradient(90deg, var(--accent), var(--accent-hover));
             border-radius: 4px;
-            transition: width 0.3s;
+            transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
         }
         
         .complex-card-footer {
@@ -283,17 +358,41 @@
             border-radius: 40px;
             color: var(--text-primary);
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             font-size: 0.75rem;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             gap: 6px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .complex-btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(108, 108, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.4s ease, height 0.4s ease;
+        }
+        
+        .complex-btn:active::before {
+            width: 200px;
+            height: 200px;
         }
         
         .complex-btn:hover {
             background: rgba(108, 108, 255, 0.3);
             transform: translateY(-2px);
+        }
+        
+        .complex-btn:active {
+            transform: translateY(0px) scale(0.98);
         }
         
         .complex-btn-danger {
@@ -306,6 +405,7 @@
         
         .complex-modal-content {
             max-width: 700px;
+            animation: fadeInScale 0.3s ease;
         }
         
         .complex-detail-row {
@@ -313,7 +413,13 @@
             margin-bottom: 16px;
             padding-bottom: 12px;
             border-bottom: 1px solid var(--card-border);
+            animation: slideInFromLeft 0.3s ease backwards;
         }
+        
+        .complex-detail-row:nth-child(1) { animation-delay: 0.05s; }
+        .complex-detail-row:nth-child(2) { animation-delay: 0.1s; }
+        .complex-detail-row:nth-child(3) { animation-delay: 0.15s; }
+        .complex-detail-row:nth-child(4) { animation-delay: 0.2s; }
         
         .complex-detail-label {
             width: 120px;
@@ -335,6 +441,14 @@
             align-items: center;
             padding: 8px 0;
             border-bottom: 1px solid var(--card-border);
+            transition: all 0.2s ease;
+        }
+        
+        .task-item:hover {
+            transform: translateX(4px);
+            background: rgba(108, 108, 255, 0.05);
+            padding-left: 8px;
+            border-radius: 8px;
         }
         
         .add-complex-btn {
@@ -344,18 +458,26 @@
             border-radius: 40px;
             color: white;
             cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .add-complex-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(108, 108, 255, 0.4);
         }
         
         .empty-state {
             text-align: center;
             padding: 60px;
             color: var(--text-muted);
+            animation: fadeInUp 0.4s ease;
         }
         
         .loading-state {
             text-align: center;
             padding: 60px;
             color: var(--text-muted);
+            animation: fadeInUp 0.3s ease;
         }
         
         .loading-state i {
@@ -393,6 +515,7 @@
             margin-bottom: 24px;
             border: 1px solid var(--card-border);
             display: none;
+            animation: fadeInUp 0.3s ease;
         }
         
         .quick-add-panel.active {
@@ -413,6 +536,14 @@
             border: 1px solid var(--card-border);
             border-radius: 12px;
             color: var(--text-primary);
+            transition: all 0.2s ease;
+        }
+        
+        .quick-add-form input:focus,
+        .quick-add-form select:focus {
+            outline: none;
+            border-color: var(--accent);
+            transform: scale(1.02);
         }
         
         .photo-gallery {
@@ -433,6 +564,11 @@
             cursor: pointer;
             overflow: hidden;
             position: relative;
+            transition: all 0.2s ease;
+        }
+        
+        .photo-item:hover {
+            transform: scale(1.05);
         }
         
         .photo-item img {
@@ -480,11 +616,31 @@
             border-radius: 40px;
             color: white;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             display: inline-flex;
             align-items: center;
             gap: 8px;
             font-weight: 500;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .add-complex-btn-header::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.4s ease, height 0.4s ease;
+        }
+        
+        .add-complex-btn-header:active::before {
+            width: 200px;
+            height: 200px;
         }
         
         .add-complex-btn-header:hover {
@@ -504,12 +660,27 @@
             display: flex;
             align-items: center;
             gap: 8px;
+            transition: all 0.2s ease;
+        }
+        
+        .public-checkbox-wrapper label:hover {
+            transform: translateX(4px);
         }
         
         .help-text {
             font-size: 0.7rem;
             color: var(--text-muted);
             margin-top: 4px;
+        }
+        
+        /* Анимация для карточки при удалении */
+        .card-removing {
+            animation: fadeOutScale 0.2s ease forwards;
+        }
+        
+        /* Анимация для добавленной карточки */
+        .card-added {
+            animation: fadeInScale 0.3s ease;
         }
     </style>
 </head>
@@ -572,7 +743,7 @@
             
             <div class="complexes-header">
                 <div class="complexes-filters">
-                    <input type="text" id="searchInput" placeholder="Поиск по названию или адресу">
+                    <input type="text" id="searchInput" placeholder="🔍 Поиск по названию или адресу">
                     <select id="statusFilter">
                         <option value="all">Все статусы</option>
                         <option value="active">Активен</option>
@@ -666,6 +837,7 @@
     
     <!-- 3. UI компоненты (зависят от ядра) -->
     <script src="js/ui/theme.js"></script>
+    <script src="js/ui/animations.js"></script>
     <script src="layout.js"></script>
     <script src="notifications.js"></script>
     
@@ -701,12 +873,37 @@
             }
         }
         
+        // Функции для анимаций карточек (будут использоваться в complexes.js)
+        window.animateCardRemove = function(cardElement, callback) {
+            cardElement.classList.add('card-removing');
+            setTimeout(() => {
+                if (callback) callback();
+            }, 200);
+        };
+        
+        window.animateCardAdd = function(cardElement) {
+            cardElement.classList.add('card-added');
+            setTimeout(() => {
+                cardElement.classList.remove('card-added');
+            }, 300);
+        };
+        
         // Инициализация
         document.addEventListener('DOMContentLoaded', function() {
             setTimeout(updateUserProfile, 500);
             
             if (window.sidebar) {
                 window.sidebar.initSidebar();
+            }
+            
+            // Анимация для кнопки "Новый объект"
+            const addBtn = document.getElementById('addComplexBtn');
+            if (addBtn) {
+                addBtn.addEventListener('click', function() {
+                    if (window.animations) {
+                        // Анимация будет в complexes.js
+                    }
+                });
             }
         });
     </script>
