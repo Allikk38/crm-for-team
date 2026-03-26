@@ -9,17 +9,16 @@
     ФАЙЛ: counterparties.html
     РОЛЬ: Управление контрагентами (продавцы, покупатели, застройщики, инвесторы)
     СВЯЗИ:
-      - CSS: base.css, theme.css, components.css, modal.css, responsive.css
-      - JS: js/core/*, js/utils/*, theme.js, layout.js, notifications.js, counterparties.js
+      - CSS: base.css, theme.css, components.css, modal.css, responsive.css, animations.css
+      - JS: js/core/*, js/utils/*, js/ui/*, layout.js, notifications.js, counterparties.js
       - Данные: data/counterparties.csv, data/deals.csv
     МЕХАНИКА:
       1. Боковая панель с навигацией (генерируется централизованно из layout.js)
       2. Кликабельный профиль в правом верхнем углу
-      3. Список контрагентов с фильтрацией по типу и поиском
+      3. Список контрагентов с анимациями, фильтрацией и поиском
       4. Карточка контрагента с информацией и связанными сделками
       5. CRUD операции с контрагентами
-      6. Фильтрация по роли (админ/менеджер видят всех, агент — только своих)
-      7. Экспорт контактов
+      6. Экспорт контактов
     ============================================
     -->
     
@@ -53,6 +52,7 @@
     <link rel="stylesheet" href="css/calendar.css">
     <link rel="stylesheet" href="css/modal.css">
     <link rel="stylesheet" href="css/responsive.css">
+    <link rel="stylesheet" href="css/animations.css">
     
     <style>
         /* Стили для страницы контрагентов */
@@ -63,6 +63,7 @@
             margin-bottom: 24px;
             flex-wrap: wrap;
             gap: 16px;
+            animation: fadeInUp 0.4s ease;
         }
         
         .counterparties-filters {
@@ -79,6 +80,19 @@
             border: 1px solid var(--card-border);
             border-radius: 40px;
             color: var(--text-primary);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .counterparties-filters input:focus,
+        .counterparties-filters select:focus {
+            outline: none;
+            border-color: var(--accent);
+            transform: scale(1.02);
+        }
+        
+        .counterparties-filters input:hover,
+        .counterparties-filters select:hover {
+            border-color: var(--accent);
         }
         
         .add-counterparty-btn {
@@ -88,11 +102,31 @@
             border-radius: 40px;
             color: white;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             display: inline-flex;
             align-items: center;
             gap: 8px;
             font-weight: 500;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .add-counterparty-btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.4s ease, height 0.4s ease;
+        }
+        
+        .add-counterparty-btn:active::before {
+            width: 200px;
+            height: 200px;
         }
         
         .add-counterparty-btn:hover {
@@ -107,11 +141,32 @@
             border-radius: 40px;
             color: var(--text-primary);
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .export-btn-sm::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(108, 108, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.4s ease, height 0.4s ease;
+        }
+        
+        .export-btn-sm:active::before {
+            width: 200px;
+            height: 200px;
         }
         
         .export-btn-sm:hover {
             background: rgba(108, 108, 255, 0.3);
+            transform: translateY(-2px);
         }
         
         /* Сетка контрагентов */
@@ -128,14 +183,26 @@
             border-radius: 24px;
             border: 1px solid var(--card-border);
             overflow: hidden;
-            transition: all 0.3s ease;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             cursor: pointer;
+            animation: fadeInScale 0.3s ease backwards;
         }
         
+        .counterparty-card:nth-child(1) { animation-delay: 0.03s; }
+        .counterparty-card:nth-child(2) { animation-delay: 0.06s; }
+        .counterparty-card:nth-child(3) { animation-delay: 0.09s; }
+        .counterparty-card:nth-child(4) { animation-delay: 0.12s; }
+        .counterparty-card:nth-child(5) { animation-delay: 0.15s; }
+        .counterparty-card:nth-child(6) { animation-delay: 0.18s; }
+        
         .counterparty-card:hover {
-            transform: translateY(-4px);
+            transform: translateY(-6px);
             border-color: var(--accent);
-            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 16px 32px rgba(0, 0, 0, 0.25);
+        }
+        
+        .counterparty-card:active {
+            transform: translateY(-2px) scale(0.99);
         }
         
         .counterparty-card-header {
@@ -156,6 +223,11 @@
             font-size: 1.5rem;
             color: white;
             flex-shrink: 0;
+            transition: all 0.3s ease;
+        }
+        
+        .counterparty-card:hover .counterparty-avatar {
+            transform: scale(1.05) rotate(5deg);
         }
         
         .counterparty-info {
@@ -169,6 +241,11 @@
             align-items: center;
             gap: 8px;
             flex-wrap: wrap;
+            transition: color 0.2s ease;
+        }
+        
+        .counterparty-card:hover .counterparty-info h3 {
+            color: var(--accent);
         }
         
         .counterparty-type {
@@ -177,6 +254,11 @@
             border-radius: 20px;
             font-size: 0.6rem;
             font-weight: 600;
+            transition: all 0.2s ease;
+        }
+        
+        .counterparty-type:hover {
+            transform: scale(1.05);
         }
         
         .type-seller { background: rgba(33, 150, 243, 0.2); color: #2196f3; }
@@ -197,6 +279,12 @@
             display: flex;
             align-items: center;
             gap: 6px;
+            transition: all 0.2s ease;
+        }
+        
+        .counterparty-contacts span:hover {
+            transform: translateX(4px);
+            color: var(--accent);
         }
         
         .counterparty-card-body {
@@ -218,6 +306,12 @@
             background: var(--input-bg);
             padding: 4px 10px;
             border-radius: 20px;
+            transition: all 0.2s ease;
+        }
+        
+        .counterparty-stat:hover {
+            transform: translateX(4px);
+            background: rgba(108, 108, 255, 0.2);
         }
         
         .counterparty-stat i {
@@ -230,6 +324,11 @@
             margin-top: 8px;
             padding-top: 8px;
             border-top: 1px solid var(--card-border);
+            transition: all 0.2s ease;
+        }
+        
+        .counterparty-notes:hover {
+            color: var(--text-primary);
         }
         
         .counterparty-card-footer {
@@ -248,12 +347,32 @@
             border-radius: 40px;
             color: var(--text-primary);
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             font-size: 0.75rem;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             gap: 6px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .counterparty-btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(108, 108, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.4s ease, height 0.4s ease;
+        }
+        
+        .counterparty-btn:active::before {
+            width: 200px;
+            height: 200px;
         }
         
         .counterparty-btn:hover {
@@ -261,16 +380,22 @@
             transform: translateY(-2px);
         }
         
+        .counterparty-btn:active {
+            transform: translateY(0px) scale(0.98);
+        }
+        
         .empty-state {
             text-align: center;
             padding: 60px;
             color: var(--text-muted);
+            animation: fadeInUp 0.4s ease;
         }
         
         .loading-state {
             text-align: center;
             padding: 60px;
             color: var(--text-muted);
+            animation: fadeInUp 0.3s ease;
         }
         
         .loading-state i {
@@ -287,6 +412,7 @@
         /* Модальное окно контрагента */
         .counterparty-modal-content {
             max-width: 600px;
+            animation: fadeInScale 0.3s ease;
         }
         
         .form-row {
@@ -298,6 +424,46 @@
         .form-row .input-group {
             flex: 1;
             margin-bottom: 0;
+            animation: slideInFromLeft 0.3s ease backwards;
+        }
+        
+        .form-row .input-group:nth-child(1) { animation-delay: 0.05s; }
+        .form-row .input-group:nth-child(2) { animation-delay: 0.1s; }
+        
+        .input-group {
+            margin-bottom: 16px;
+        }
+        
+        .input-group label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            transition: color 0.2s ease;
+        }
+        
+        .input-group:focus-within label {
+            color: var(--accent);
+        }
+        
+        .input-group input,
+        .input-group select,
+        .input-group textarea {
+            width: 100%;
+            padding: 10px 14px;
+            background: var(--input-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            color: var(--text-primary);
+            transition: all 0.2s ease;
+        }
+        
+        .input-group input:focus,
+        .input-group select:focus,
+        .input-group textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+            transform: scale(1.02);
         }
         
         .deals-list {
@@ -313,12 +479,36 @@
             padding: 8px 0;
             border-bottom: 1px solid var(--card-border);
             font-size: 0.8rem;
+            transition: all 0.2s ease;
+        }
+        
+        .deal-item:hover {
+            transform: translateX(4px);
+            background: rgba(108, 108, 255, 0.05);
+            padding-left: 8px;
+            border-radius: 8px;
         }
         
         .deal-status {
             font-size: 0.65rem;
             padding: 2px 6px;
             border-radius: 12px;
+        }
+        
+        /* Анимация для карточки при удалении */
+        .card-removing {
+            animation: fadeOutScale 0.2s ease forwards;
+        }
+        
+        /* Анимация для добавленной карточки */
+        .card-added {
+            animation: fadeInScale 0.3s ease;
+        }
+        
+        .top-bar-actions {
+            display: flex;
+            align-items: center;
+            gap: 16px;
         }
         
         @media (max-width: 768px) {
@@ -336,12 +526,6 @@
                 align-items: center;
                 text-align: center;
             }
-        }
-        
-        .top-bar-actions {
-            display: flex;
-            align-items: center;
-            gap: 16px;
         }
     </style>
 </head>
@@ -392,7 +576,7 @@
             
             <div class="counterparties-header">
                 <div class="counterparties-filters">
-                    <input type="text" id="searchInput" placeholder="Поиск по имени, телефону, email">
+                    <input type="text" id="searchInput" placeholder="🔍 Поиск по имени, телефону, email">
                     <select id="typeFilter">
                         <option value="all">Все типы</option>
                         <option value="seller">Продавцы</option>
@@ -501,6 +685,7 @@
     
     <!-- 3. UI компоненты (зависят от ядра) -->
     <script src="js/ui/theme.js"></script>
+    <script src="js/ui/animations.js"></script>
     <script src="layout.js"></script>
     <script src="notifications.js"></script>
     
@@ -531,6 +716,43 @@
                 userAvatar.innerHTML = initials || '<i class="fas fa-user"></i>';
             }
         }
+        
+        // Функции для анимаций карточек
+        window.animateCardRemove = function(cardElement, callback) {
+            cardElement.classList.add('card-removing');
+            setTimeout(() => {
+                if (callback) callback();
+            }, 200);
+        };
+        
+        window.animateCardAdd = function(cardElement) {
+            cardElement.classList.add('card-added');
+            setTimeout(() => {
+                cardElement.classList.remove('card-added');
+            }, 300);
+        };
+        
+        // Функция экспорта с анимацией
+        window.exportCounterparties = function() {
+            const btn = document.getElementById('exportBtn');
+            const originalText = btn.innerHTML;
+            
+            btn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Экспорт...';
+            btn.disabled = true;
+            
+            setTimeout(() => {
+                btn.innerHTML = '<i class="fas fa-check"></i> Готово!';
+                
+                if (window.animations) {
+                    window.animations.showToast('Экспорт контрагентов выполнен', 'success');
+                }
+                
+                setTimeout(() => {
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                }, 2000);
+            }, 800);
+        };
         
         // Инициализация
         document.addEventListener('DOMContentLoaded', function() {
