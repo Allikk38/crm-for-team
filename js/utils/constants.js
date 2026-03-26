@@ -1,10 +1,14 @@
 /**
+ * ============================================
  * ФАЙЛ: constants.js
  * РОЛЬ: Централизованное хранение констант
+ * СТАТУС: НОВЫЙ МОДУЛЬ
+ * ВЕРСИЯ: 1.0
+ * ============================================
  */
 
 // Роли пользователей
-export const ROLES = {
+const ROLES = {
     ADMIN: 'admin',
     MANAGER: 'manager',
     AGENT: 'agent',
@@ -12,7 +16,7 @@ export const ROLES = {
 };
 
 // Права доступа
-export const PERMISSIONS = {
+const PERMISSIONS = {
     VIEW_ALL: 'view_all',
     EDIT_ALL: 'edit_all',
     DELETE_ALL: 'delete_all',
@@ -21,14 +25,14 @@ export const PERMISSIONS = {
 };
 
 // Статусы задач
-export const TASK_STATUSES = {
+const TASK_STATUSES = {
     TODO: 'todo',
     IN_PROGRESS: 'in_progress',
     DONE: 'done'
 };
 
 // Статусы заявок
-export const DEAL_STATUSES = [
+const DEAL_STATUSES = [
     { id: 'new', name: 'Новая', icon: 'N', color: '#9e9e9e' },
     { id: 'showing', name: 'Показ', icon: 'V', color: '#2196f3' },
     { id: 'negotiation', name: 'Торг', icon: 'R', color: '#ffc107' },
@@ -41,7 +45,7 @@ export const DEAL_STATUSES = [
 ];
 
 // Типы сделок
-export const DEAL_TYPES = {
+const DEAL_TYPES = {
     primary: { name: 'Первичка', icon: 'P', class: 'type-primary' },
     secondary: { name: 'Вторичка', icon: 'S', class: 'type-secondary' },
     exchange: { name: 'Альтернатива', icon: 'A', class: 'type-exchange' },
@@ -49,7 +53,7 @@ export const DEAL_TYPES = {
 };
 
 // Типы контрагентов
-export const COUNTERPARTY_TYPES = {
+const COUNTERPARTY_TYPES = {
     seller: { name: 'Продавец', icon: 'S', class: 'type-seller' },
     buyer: { name: 'Покупатель', icon: 'B', class: 'type-buyer' },
     developer: { name: 'Застройщик', icon: 'D', class: 'type-developer' },
@@ -57,7 +61,7 @@ export const COUNTERPARTY_TYPES = {
 };
 
 // Приоритеты задач
-export const TASK_PRIORITIES = {
+const TASK_PRIORITIES = {
     LOW: 'low',
     MEDIUM: 'medium',
     HIGH: 'high',
@@ -65,7 +69,7 @@ export const TASK_PRIORITIES = {
 };
 
 // Навигация
-export const NAVIGATION_ITEMS = [
+const NAVIGATION_ITEMS = [
     { path: 'index.html', icon: 'fas fa-chart-line', name: 'Дашборд', roles: ['admin', 'manager', 'agent', 'viewer'] },
     { path: 'tasks.html', icon: 'fas fa-tasks', name: 'Доска задач', roles: ['admin', 'manager', 'agent', 'viewer'] },
     { path: 'complexes.html', icon: 'fas fa-building', name: 'Объекты', roles: ['admin', 'manager', 'agent', 'viewer'] },
@@ -76,3 +80,18 @@ export const NAVIGATION_ITEMS = [
     { path: 'manager.html', icon: 'fas fa-chart-simple', name: 'Панель менеджера', roles: ['admin', 'manager'] },
     { path: 'admin.html', icon: 'fas fa-user-cog', name: 'Управление', roles: ['admin'] }
 ];
+
+// Экспортируем в глобальный объект (для обратной совместимости)
+window.CRM = window.CRM || {};
+window.CRM.constants = {
+    ROLES,
+    PERMISSIONS,
+    TASK_STATUSES,
+    DEAL_STATUSES,
+    DEAL_TYPES,
+    COUNTERPARTY_TYPES,
+    TASK_PRIORITIES,
+    NAVIGATION_ITEMS
+};
+
+console.log('[constants.js] Константы загружены');
