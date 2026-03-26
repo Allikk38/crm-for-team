@@ -9,8 +9,8 @@
     ФАЙЛ: tasks.html
     РОЛЬ: Доска задач (Kanban) с боковой панелью
     СВЯЗИ:
-      - CSS: base.css, theme.css, components.css, kanban.css, modal.css, responsive.css
-      - JS: core.js, auth.js, theme.js, layout.js, notifications.js, tasks.js
+      - CSS: base.css, theme.css, components.css, kanban.css, modal.css, responsive.css, animations.css
+      - JS: js/core/*, js/utils/*, js/ui/*, layout.js, notifications.js, tasks.js
       - Данные: data/tasks.csv, data/users.csv, data/complexes.csv, data/comments.csv
     МЕХАНИКА:
       1. Боковая панель с навигацией (можно сворачивать)
@@ -52,84 +52,139 @@
     <link rel="stylesheet" href="css/calendar.css">
     <link rel="stylesheet" href="css/modal.css">
     <link rel="stylesheet" href="css/responsive.css">
+    <link rel="stylesheet" href="css/animations.css">
     
     <style>
-        .comments-section {
-            margin-top: 20px;
-            padding-top: 16px;
-            border-top: 1px solid var(--card-border);
+        /* Анимация для Kanban колонок */
+        .kanban-column {
+            animation: fadeInUp 0.4s ease backwards;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
         
-        .comments-header {
-            font-size: 0.9rem;
-            font-weight: 600;
-            margin-bottom: 12px;
-            display: flex;
+        .kanban-column:nth-child(1) { animation-delay: 0.05s; }
+        .kanban-column:nth-child(2) { animation-delay: 0.1s; }
+        .kanban-column:nth-child(3) { animation-delay: 0.15s; }
+        
+        .kanban-column:hover {
+            transform: translateY(-4px);
+            border-color: var(--accent);
+            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.15);
+        }
+        
+        .column-header {
+            transition: all 0.2s ease;
+        }
+        
+        .kanban-column:hover .column-header {
+            background: rgba(108, 108, 255, 0.1);
+        }
+        
+        /* Анимация для карточек задач */
+        .task-card {
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            animation: fadeInScale 0.3s ease backwards;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .task-card:nth-child(1) { animation-delay: 0.02s; }
+        .task-card:nth-child(2) { animation-delay: 0.04s; }
+        .task-card:nth-child(3) { animation-delay: 0.06s; }
+        
+        .task-card:hover {
+            transform: translateX(6px) translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+            border-color: var(--accent);
+        }
+        
+        .task-card:active {
+            transform: translateX(3px) translateY(-1px) scale(0.99);
+        }
+        
+        /* Анимация для drag-and-drop */
+        .task-card.dragging {
+            opacity: 0.5;
+            transform: scale(0.98);
+            cursor: grabbing;
+        }
+        
+        .drag-over {
+            background: rgba(108, 108, 255, 0.1);
+            border: 2px dashed var(--accent);
+            transition: all 0.2s ease;
+        }
+        
+        /* Анимация для кнопок */
+        .add-task-btn-header {
+            background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+            border: none;
+            padding: 10px 20px;
+            border-radius: 40px;
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            display: inline-flex;
             align-items: center;
             gap: 8px;
-        }
-        
-        .comments-list {
-            max-height: 300px;
-            overflow-y: auto;
-            margin-bottom: 16px;
-        }
-        
-        .comment-item {
-            background: rgba(0, 0, 0, 0.2);
-            border-radius: 16px;
-            padding: 12px;
-            margin-bottom: 12px;
-        }
-        
-        .comment-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 8px;
-            font-size: 0.8rem;
-        }
-        
-        .comment-date {
-            font-size: 0.7rem;
-            color: var(--text-muted);
-        }
-        
-        .comment-text {
-            font-size: 0.85rem;
-            line-height: 1.4;
-        }
-        
-        .comment-text .mention {
-            color: var(--accent);
             font-weight: 500;
-            background: rgba(108, 108, 255, 0.15);
-            padding: 0 4px;
-            border-radius: 4px;
-        }
-        
-        .comment-empty {
-            text-align: center;
-            color: var(--text-muted);
-            padding: 20px;
-        }
-        
-        .add-comment textarea {
-            width: 100%;
-            padding: 10px;
-            background: var(--input-bg);
-            border: 1px solid var(--card-border);
-            border-radius: 12px;
-            color: var(--text-primary);
-            font-family: inherit;
-            resize: vertical;
-        }
-        
-        .notification-btn-wrapper {
             position: relative;
-            margin-left: auto;
+            overflow: hidden;
         }
         
+        .add-task-btn-header::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.4s ease, height 0.4s ease;
+        }
+        
+        .add-task-btn-header:active::before {
+            width: 200px;
+            height: 200px;
+        }
+        
+        .add-task-btn-header:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(108, 108, 255, 0.4);
+        }
+        
+        .add-task-btn {
+            transition: all 0.2s ease;
+        }
+        
+        .add-task-btn:hover {
+            transform: translateY(-2px);
+            background: rgba(108, 108, 255, 0.3);
+        }
+        
+        /* Анимация для комментариев */
+        .comment-item {
+            transition: all 0.2s ease;
+            animation: fadeInScale 0.3s ease backwards;
+        }
+        
+        .comment-item:hover {
+            transform: translateX(4px);
+            background: rgba(108, 108, 255, 0.1);
+        }
+        
+        /* Анимация для счетчиков */
+        .column-header span:last-child {
+            transition: all 0.2s ease;
+        }
+        
+        .kanban-column:hover .column-header span:last-child {
+            transform: scale(1.1);
+            background: rgba(108, 108, 255, 0.3);
+        }
+        
+        /* Анимация для бейджа уведомлений */
         #notificationBadge {
             position: absolute;
             top: -5px;
@@ -143,33 +198,27 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            animation: pulse 1s ease;
         }
         
-        .add-task-btn-header {
-            background: linear-gradient(135deg, var(--accent), var(--accent-hover));
-            border: none;
-            padding: 10px 20px;
-            border-radius: 40px;
-            color: white;
-            cursor: pointer;
-            transition: all 0.2s;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            font-weight: 500;
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
         }
         
-        .add-task-btn-header:hover {
+        /* Анимация для кнопки уведомлений */
+        #notificationBtn {
+            transition: all 0.2s ease;
+            position: relative;
+        }
+        
+        #notificationBtn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(108, 108, 255, 0.4);
+            background: rgba(108, 108, 255, 0.25) !important;
         }
         
-        .top-bar-actions {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-        }
-        
+        /* Анимация для приватного бейджа */
         .private-badge {
             display: inline-block;
             background: rgba(255, 107, 107, 0.2);
@@ -178,20 +227,78 @@
             padding: 2px 6px;
             border-radius: 12px;
             margin-left: 8px;
+            transition: all 0.2s ease;
         }
         
-        .private-checkbox-wrapper {
-            margin: 12px 0;
-            display: flex;
-            align-items: center;
-            gap: 8px;
+        .private-badge:hover {
+            transform: scale(1.05);
         }
         
-        .private-checkbox-wrapper label {
-            cursor: pointer;
+        /* Анимация для комментариев */
+        .comments-section {
+            animation: fadeInUp 0.3s ease;
+        }
+        
+        .add-comment textarea {
+            transition: all 0.2s ease;
+        }
+        
+        .add-comment textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+            transform: scale(1.02);
+        }
+        
+        /* Скелетон загрузки */
+        .skeleton-task {
+            background: linear-gradient(90deg, var(--card-border) 25%, var(--card-hover) 50%, var(--card-border) 75%);
+            background-size: 200% 100%;
+            animation: skeletonLoading 1.5s infinite;
+            height: 100px;
+            border-radius: 12px;
+            margin-bottom: 12px;
+        }
+        
+        @keyframes skeletonLoading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        
+        /* Анимация удаления карточки */
+        .task-removing {
+            animation: fadeOutScale 0.2s ease forwards;
+        }
+        
+        @keyframes fadeOutScale {
+            from {
+                opacity: 1;
+                transform: scale(1);
+            }
+            to {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+        }
+        
+        /* Анимация добавленной карточки */
+        .task-added {
+            animation: fadeInScale 0.3s ease;
+        }
+        
+        .top-bar-actions {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 16px;
+        }
+        
+        @media (max-width: 768px) {
+            .kanban-column:hover {
+                transform: translateY(-2px);
+            }
+            
+            .task-card:hover {
+                transform: translateX(3px) translateY(-1px);
+            }
         }
     </style>
 </head>
@@ -247,7 +354,11 @@
                         <span><i class="fas fa-circle"></i> To Do</span>
                         <span id="todoCount">0</span>
                     </div>
-                    <div id="todoTasks" class="tasks-container"></div>
+                    <div id="todoTasks" class="tasks-container">
+                        <!-- Скелетон загрузки -->
+                        <div class="skeleton-task"></div>
+                        <div class="skeleton-task"></div>
+                    </div>
                     <button class="add-task-btn" data-status="todo"><i class="fas fa-plus"></i> Добавить задачу</button>
                 </div>
                 
@@ -256,7 +367,9 @@
                         <span><i class="fas fa-spinner fa-pulse"></i> В работе</span>
                         <span id="progressCount">0</span>
                     </div>
-                    <div id="progressTasks" class="tasks-container"></div>
+                    <div id="progressTasks" class="tasks-container">
+                        <div class="skeleton-task"></div>
+                    </div>
                     <button class="add-task-btn" data-status="in_progress"><i class="fas fa-plus"></i> Добавить задачу</button>
                 </div>
                 
@@ -265,7 +378,9 @@
                         <span><i class="fas fa-check-circle"></i> Готово</span>
                         <span id="doneCount">0</span>
                     </div>
-                    <div id="doneTasks" class="tasks-container"></div>
+                    <div id="doneTasks" class="tasks-container">
+                        <div class="skeleton-task"></div>
+                    </div>
                     <button class="add-task-btn" data-status="done"><i class="fas fa-plus"></i> Добавить задачу</button>
                 </div>
             </div>
@@ -322,6 +437,7 @@
             </div>
         </div>
     </div>
+    
     <!-- 1. Утилиты (не зависят ни от чего) -->
     <script src="js/utils/constants.js"></script>
     <script src="js/utils/helpers.js"></script>
@@ -332,6 +448,7 @@
     
     <!-- 3. UI компоненты (зависят от ядра) -->
     <script src="js/ui/theme.js"></script>
+    <script src="js/ui/animations.js"></script>
     <script src="layout.js"></script>
     <script src="notifications.js"></script>
     
@@ -373,11 +490,37 @@
                 if (unread > 0) {
                     badge.textContent = unread > 99 ? '99+' : unread;
                     badge.style.display = 'flex';
+                    badge.style.animation = 'pulse 0.5s ease';
+                    setTimeout(() => {
+                        if (badge) badge.style.animation = '';
+                    }, 500);
                 } else {
                     badge.style.display = 'none';
                 }
             }
         }
+        
+        // Функции для анимаций (будут использоваться в tasks.js)
+        window.animateTaskRemove = function(taskElement, callback) {
+            taskElement.classList.add('task-removing');
+            setTimeout(() => {
+                if (callback) callback();
+            }, 200);
+        };
+        
+        window.animateTaskAdd = function(taskElement) {
+            taskElement.classList.add('task-added');
+            setTimeout(() => {
+                taskElement.classList.remove('task-added');
+            }, 300);
+        };
+        
+        window.addDragOverAnimation = function(columnElement) {
+            columnElement.classList.add('drag-over');
+            setTimeout(() => {
+                columnElement.classList.remove('drag-over');
+            }, 200);
+        };
         
         if (window.notifications && window.notifications.requestPermission) {
             window.notifications.requestPermission();
