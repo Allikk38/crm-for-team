@@ -972,3 +972,52 @@ async function init() {
         window.location.href = 'auth.html';
         return;
     }
+    
+    await loadUsersForSelect();
+    await loadComplexesForSelect();
+    await loadComments();
+    await loadTasks();
+    setupDropZones();
+    
+    var userNameSpan = document.getElementById('userName');
+    var userRoleSpan = document.getElementById('userRole');
+    var userAvatar = document.getElementById('userAvatar');
+    
+    if (userNameSpan) userNameSpan.textContent = currentUser.name;
+    if (userRoleSpan) {
+        var roleLabel = '';
+        if (currentUser.role === 'admin') roleLabel = 'Администратор';
+        else if (currentUser.role === 'manager') roleLabel = 'Менеджер';
+        else if (currentUser.role === 'agent') roleLabel = 'Агент';
+        else roleLabel = 'Наблюдатель';
+        userRoleSpan.textContent = roleLabel;
+    }
+    if (userAvatar) {
+        var initials = currentUser.name.split(' ').map(function(n) { return n[0]; }).join('').toUpperCase();
+        userAvatar.innerHTML = initials || '<i class="fas fa-user"></i>';
+    }
+    
+    // Добавляем обработчики для кнопок "Добавить задачу"
+    var addBtns = document.querySelectorAll('.add-task-btn');
+    for (var i = 0; i < addBtns.length; i++) {
+        var btn = addBtns[i];
+        btn.addEventListener('click', function() {
+            var status = this.getAttribute('data-status');
+            document.getElementById('taskStatus').value = status;
+            openModal();
+        });
+    }
+    
+    var addTaskBtn = document.getElementById('addTaskBtn');
+    if (addTaskBtn) addTaskBtn.addEventListener('click', function() { openModal(); });
+    
+    if (window.theme) window.theme.initTheme();
+    if (window.sidebar) window.sidebar.initSidebar();
+    
+    // Обновляем бейдж уведомлений
+    if (window.notifications) window.notifications.updateBadge();
+    
+    log('=== ИНИЦИАЛИЗАЦИЯ tasks.js ЗАВЕРШЕНА ===');
+}
+
+document.addEventListener('DOMContentLoaded', init);
