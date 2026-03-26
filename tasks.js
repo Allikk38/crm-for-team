@@ -1,10 +1,10 @@
 /**
  * ============================================
- * ФАЙЛ: tasks.js (ИСПРАВЛЕННАЯ ВЕРСИЯ)
+ * ФАЙЛ: tasks.js
  * РОЛЬ: Логика доски задач (Kanban) с поддержкой приватных задач и ролевой модели
  * СВЯЗИ:
  *   - core.js: loadCSV(), utils.saveCSVToGitHub()
- *   - auth.js: auth.getCurrentUser(), auth.hasPermission(), auth.filterTasksByPermissions()
+ *   - auth.js: auth.getCurrentUser(), auth.hasPermission()
  *   - theme.js: window.theme.initTheme()
  *   - notifications.js: window.notifications.send(), window.notifications.addToCenter()
  *   - Данные: data/tasks.csv, data/users.csv, data/complexes.csv, data/comments.csv
@@ -12,24 +12,37 @@
  *   1. Загрузка задач, пользователей, объектов, комментариев
  *   2. Отображение Kanban-доски с тремя статусами
  *   3. Фильтрация задач по ролям (приватные/публичные)
- *   4. Drag-and-drop для изменения статуса и приоритета
+ *   4. Drag-and-drop для изменения статуса
  *   5. CRUD операции с задачами (с учётом прав)
  *   6. Система комментариев с @упоминаниями
- *   7. Push-уведомления при назначении задачи, дедлайне, упоминании
+ *   7. Push-уведомления
  *   8. Сохранение всех изменений в GitHub
  * ============================================
  */
+
+// Используем глобальную переменную из auth.js, не объявляем свою
+// var currentUser = null; // УДАЛЕНО - используем auth.getCurrentUser()
 
 var tasks = [];
 var users = [];
 var complexes = [];
 var comments = [];
 var draggedTask = null;
-var currentUser = null;
+
+// ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ ЛОГИРОВАНИЯ ==========
+
+function log(message, data) {
+    console.log('[tasks.js] ' + message, data || '');
+}
+
+function logError(message, error) {
+    console.error('[tasks.js] ERROR: ' + message, error || '');
+}
 
 // ========== ЗАГРУЗКА ДАННЫХ ==========
 
 async function loadComments() {
+    log('Загрузка комментариев...');
     try {
         var commentsData = await loadCSV('data/comments.csv');
         comments = [];
@@ -46,7 +59,9 @@ async function loadComments() {
                 });
             }
         }
+        log('Загружено комментариев:', comments.length);
     } catch (e) {
+        logError('Ошибка загрузки комментариев:', e);
         comments = [];
     }
 }
@@ -54,6 +69,7 @@ async function loadComments() {
 async function saveCommentsToGitHub() {
     var currentUserAuth = auth.getCurrentUser();
     if (!currentUserAuth || !auth.hasPermission('edit_all')) {
+        logError('Нет прав на сохранение комментариев');
         return false;
     }
     
@@ -78,6 +94,7 @@ async function saveCommentsToGitHub() {
 }
 
 async function loadComplexesForSelect() {
+    log('Загрузка объектов для выпадающего списка...');
     try {
         complexes = await loadCSV('data/complexes.csv');
         var complexSelect = document.getElementById('taskComplex');
@@ -91,12 +108,14 @@ async function loadComplexesForSelect() {
                 complexSelect.appendChild(option);
             }
         }
+        log('Загружено объектов:', complexes.length);
     } catch (error) {
-        console.error('Ошибка загрузки объектов:', error);
+        logError('Ошибка загрузки объектов:', error);
     }
 }
 
 async function loadTasks() {
+    log('Загрузка задач...');
     var tasksData = await loadCSV('data/tasks.csv');
     tasks = [];
     for (var i = 0; i < tasksData.length; i++) {
@@ -116,6 +135,7 @@ async function loadTasks() {
             is_private: task.is_private === 'true'
         });
     }
+    log('Загружено задач:', tasks.length);
     
     // Проверяем дедлайны для уведомлений
     if (window.notifications && window.notifications.checkDeadlines) {
@@ -126,6 +146,7 @@ async function loadTasks() {
 }
 
 async function loadUsersForSelect() {
+    log('Загрузка пользователей для выпадающего списка...');
     users = await loadCSV('data/users.csv');
     var assigneeSelect = document.getElementById('taskAssignee');
     if (assigneeSelect) {
@@ -138,50 +159,80 @@ async function loadUsersForSelect() {
             assigneeSelect.appendChild(option);
         }
     }
+    log('Загружено пользователей:', users.length);
+}
+
+// Получение текущего пользователя (обёртка для единообразия)
+function getCurrentUser() {
+    var user = auth.getCurrentUser();
+    if (!user) {
+        log('Пользователь не авторизован');
+    }
+    return user;
 }
 
 // Фильтрация задач по правам пользователя
 function filterTasksByRole() {
+    var currentUser = getCurrentUser();
     if (!currentUser) return [];
     
     // Админ и менеджер видят всё
     if (currentUser.role === 'admin' || currentUser.role === 'manager') {
+        log('Роль ' + currentUser.role + ': показывает все задачи');
         return tasks;
     }
     
     // Агент: свои задачи + публичные
     if (currentUser.role === 'agent') {
-        return tasks.filter(function(task) {
+        var filtered = tasks.filter(function(task) {
             return task.assigned_to === currentUser.github_username || !task.is_private;
         });
+        log('Роль agent: показывает ' + filtered.length + ' из ' + tasks.length + ' задач');
+        return filtered;
     }
     
     // Наблюдатель: только публичные
-    return tasks.filter(function(task) {
+    var filtered = tasks.filter(function(task) {
         return !task.is_private;
     });
+    log('Роль viewer: показывает ' + filtered.length + ' из ' + tasks.length + ' задач');
+    return filtered;
 }
 
 // Проверка, может ли пользователь редактировать задачу
 function canEditTask(task) {
-    if (!currentUser) return false;
+    var currentUser = getCurrentUser();
+    if (!currentUser) {
+        log('canEditTask: пользователь не найден');
+        return false;
+    }
     
     // Админ может всё
-    if (currentUser.role === 'admin') return true;
+    if (currentUser.role === 'admin') {
+        log('canEditTask: admin может редактировать задачу ' + task.id);
+        return true;
+    }
     
     // Менеджер может редактировать всё
-    if (currentUser.role === 'manager') return true;
+    if (currentUser.role === 'manager') {
+        log('canEditTask: manager может редактировать задачу ' + task.id);
+        return true;
+    }
     
     // Агент может редактировать только свои задачи
     if (currentUser.role === 'agent') {
-        return task.assigned_to === currentUser.github_username;
+        var canEdit = task.assigned_to === currentUser.github_username;
+        log('canEditTask: agent ' + (canEdit ? 'может' : 'не может') + ' редактировать задачу ' + task.id);
+        return canEdit;
     }
     
+    log('canEditTask: роль ' + currentUser.role + ' не имеет прав на редактирование');
     return false;
 }
 
 // Проверка, может ли пользователь видеть задачу
 function canViewTask(task) {
+    var currentUser = getCurrentUser();
     if (!currentUser) return false;
     
     // Админ и менеджер видят всё
@@ -199,11 +250,15 @@ function canViewTask(task) {
 // ========== RENDER KANBAN ==========
 
 function renderKanban() {
+    log('Рендеринг Kanban-доски...');
     var todoContainer = document.getElementById('todoTasks');
     var progressContainer = document.getElementById('progressTasks');
     var doneContainer = document.getElementById('doneTasks');
     
-    if (!todoContainer) return;
+    if (!todoContainer) {
+        logError('Контейнер todoTasks не найден');
+        return;
+    }
     
     todoContainer.innerHTML = '';
     progressContainer.innerHTML = '';
@@ -232,17 +287,23 @@ function renderKanban() {
     document.getElementById('progressCount').textContent = progressCount;
     document.getElementById('doneCount').textContent = doneCount;
     
+    log('Рендеринг завершён: todo=' + todoCount + ', progress=' + progressCount + ', done=' + doneCount);
+    
     // Показываем/скрываем кнопку добавления задачи
     var addTaskBtn = document.getElementById('addTaskBtn');
+    var currentUser = getCurrentUser();
     if (addTaskBtn) {
-        addTaskBtn.style.display = (currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager' || currentUser.role === 'agent')) ? 'inline-flex' : 'none';
+        var canAdd = currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager' || currentUser.role === 'agent');
+        addTaskBtn.style.display = canAdd ? 'inline-flex' : 'none';
+        log('Кнопка добавления задачи ' + (canAdd ? 'показана' : 'скрыта'));
     }
 }
 
 function createTaskCard(task) {
     var card = document.createElement('div');
     card.className = 'task-card';
-    card.draggable = canEditTask(task);
+    var canEdit = canEditTask(task);
+    card.draggable = canEdit;
     card.setAttribute('data-task-id', task.id);
     
     var priorityColors = {
@@ -286,11 +347,11 @@ function createTaskCard(task) {
         '</div>' +
         '<div class="task-meta">' +
             '<span><i class="fas fa-calendar"></i> ' + (task.due_date || 'без срока') + '</span>' +
-            (canEditTask(task) ? '<button class="delete-task" onclick="deleteTask(' + task.id + ')"><i class="fas fa-trash"></i></button>' : '') +
+            (canEdit ? '<button class="delete-task" onclick="deleteTask(' + task.id + ')"><i class="fas fa-trash"></i></button>' : '') +
         '</div>' +
         (complexName ? '<div class="task-meta"><span>' + complexName + '</span></div>' : '');
     
-    if (canEditTask(task)) {
+    if (canEdit) {
         card.addEventListener('dragstart', handleDragStart);
         card.addEventListener('dragend', handleDragEnd);
     }
@@ -309,6 +370,7 @@ function createTaskCard(task) {
 // ========== DRAG AND DROP ==========
 
 function handleDragStart(e) {
+    log('Drag start');
     draggedTask = e.target.closest('.task-card');
     if (draggedTask) {
         draggedTask.classList.add('dragging');
@@ -317,6 +379,7 @@ function handleDragStart(e) {
 }
 
 function handleDragEnd(e) {
+    log('Drag end');
     if (draggedTask) {
         draggedTask.classList.remove('dragging');
         draggedTask = null;
@@ -324,6 +387,7 @@ function handleDragEnd(e) {
 }
 
 function setupDropZones() {
+    log('Настройка зон для drop...');
     var columns = document.querySelectorAll('.tasks-container');
     for (var i = 0; i < columns.length; i++) {
         var column = columns[i];
@@ -335,15 +399,18 @@ function setupDropZones() {
             e.preventDefault();
             var taskId = e.dataTransfer.getData('text/plain');
             var newStatus = this.parentElement.getAttribute('data-status');
+            log('Drop: taskId=' + taskId + ', newStatus=' + newStatus);
             
             if (taskId && newStatus) {
                 await updateTaskStatus(parseInt(taskId), newStatus);
             }
         });
     }
+    log('Зоны для drop настроены');
 }
 
 async function updateTaskStatus(taskId, newStatus) {
+    log('Обновление статуса задачи ' + taskId + ' -> ' + newStatus);
     var task = null;
     for (var i = 0; i < tasks.length; i++) {
         if (tasks[i].id === taskId) {
@@ -352,22 +419,28 @@ async function updateTaskStatus(taskId, newStatus) {
         }
     }
     
-    if (!task) return;
+    if (!task) {
+        logError('Задача не найдена: ' + taskId);
+        return;
+    }
     
     // Проверка прав на изменение
     if (!canEditTask(task)) {
         showToast('error', 'У вас нет прав на изменение этой задачи');
+        log('Нет прав на изменение задачи ' + taskId);
         return;
     }
     
-    if (task && task.status !== newStatus) {
+    if (task.status !== newStatus) {
         var oldStatus = task.status;
         task.status = newStatus;
         task.updated_at = new Date().toISOString().split('T')[0];
         await saveTasksToGitHub();
         renderKanban();
+        log('Статус задачи ' + taskId + ' изменён с ' + oldStatus + ' на ' + newStatus);
         
         // Уведомление о смене статуса
+        var currentUser = getCurrentUser();
         if (window.notifications && task.assigned_to && task.assigned_to !== currentUser.github_username) {
             window.notifications.send(
                 'Статус задачи изменён',
@@ -382,6 +455,8 @@ async function updateTaskStatus(taskId, newStatus) {
                 task.id
             );
         }
+    } else {
+        log('Статус задачи ' + taskId + ' не изменился');
     }
 }
 
@@ -393,8 +468,12 @@ function getStatusText(status) {
 // ========== CRUD ЗАДАЧ ==========
 
 async function createTask(taskData) {
+    var currentUser = getCurrentUser();
+    log('Создание задачи:', taskData.title);
+    
     if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'manager' && currentUser.role !== 'agent')) {
         showToast('error', 'У вас нет прав на создание задач');
+        log('Нет прав на создание задачи');
         return;
     }
     
@@ -420,6 +499,7 @@ async function createTask(taskData) {
     };
     
     tasks.push(newTask);
+    log('Задача создана с ID ' + newId);
     await saveTasksToGitHub();
     renderKanban();
     showToast('success', 'Задача создана');
@@ -452,6 +532,7 @@ async function createTask(taskData) {
 }
 
 async function updateTask(taskId, taskData) {
+    log('Обновление задачи ' + taskId);
     var taskIndex = -1;
     for (var i = 0; i < tasks.length; i++) {
         if (tasks[i].id === taskId) {
@@ -466,6 +547,7 @@ async function updateTask(taskId, taskData) {
         // Проверка прав на редактирование
         if (!canEditTask(task)) {
             showToast('error', 'У вас нет прав на редактирование этой задачи');
+            log('Нет прав на редактирование задачи ' + taskId);
             return;
         }
         
@@ -482,11 +564,13 @@ async function updateTask(taskId, taskData) {
             is_private: taskData.is_private === true,
             updated_at: new Date().toISOString().split('T')[0]
         };
+        log('Задача обновлена');
         await saveTasksToGitHub();
         renderKanban();
         showToast('success', 'Задача обновлена');
         
         // Уведомление при смене исполнителя
+        var currentUser = getCurrentUser();
         if (taskData.assigned_to && taskData.assigned_to !== oldAssignee && taskData.assigned_to !== currentUser.github_username) {
             if (window.notifications) {
                 window.notifications.send(
@@ -503,10 +587,13 @@ async function updateTask(taskId, taskData) {
                 );
             }
         }
+    } else {
+        logError('Задача для обновления не найдена: ' + taskId);
     }
 }
 
 async function deleteTask(taskId) {
+    log('Удаление задачи ' + taskId);
     var task = null;
     for (var i = 0; i < tasks.length; i++) {
         if (tasks[i].id === taskId) {
@@ -515,10 +602,14 @@ async function deleteTask(taskId) {
         }
     }
     
-    if (!task) return;
+    if (!task) {
+        logError('Задача для удаления не найдена: ' + taskId);
+        return;
+    }
     
     if (!canEditTask(task)) {
         showToast('error', 'У вас нет прав на удаление этой задачи');
+        log('Нет прав на удаление задачи ' + taskId);
         return;
     }
     
@@ -531,12 +622,16 @@ async function deleteTask(taskId) {
         await saveTasksToGitHub();
         renderKanban();
         showToast('success', 'Задача удалена');
+        log('Задача ' + taskId + ' удалена');
     }
 }
 
 async function saveTasksToGitHub() {
-    if (!currentUser || !canEditTask({})) {
-        alert('У вас нет прав на редактирование задач');
+    var currentUser = getCurrentUser();
+    log('Сохранение задач в GitHub...');
+    
+    if (!currentUser) {
+        logError('Пользователь не авторизован для сохранения');
         return false;
     }
     
@@ -559,17 +654,22 @@ async function saveTasksToGitHub() {
         });
     }
     
-    return await window.utils.saveCSVToGitHub(
+    var result = await window.utils.saveCSVToGitHub(
         'data/tasks.csv',
         tasksToSave,
         'Update tasks by ' + currentUser.name
     );
+    
+    log('Сохранение ' + (result ? 'успешно' : 'не удалось'));
+    return result;
 }
 
 // ========== КОММЕНТАРИИ ==========
 
 async function addComment() {
     var taskId = parseInt(document.getElementById('taskId').value);
+    log('Добавление комментария к задаче ' + taskId);
+    
     if (!taskId) return;
     
     // Проверка, может ли пользователь видеть задачу
@@ -583,6 +683,7 @@ async function addComment() {
     
     if (!task || !canViewTask(task)) {
         alert('У вас нет доступа к этой задаче');
+        log('Нет доступа к задаче ' + taskId);
         return;
     }
     
@@ -592,6 +693,7 @@ async function addComment() {
         return;
     }
     
+    var currentUser = getCurrentUser();
     if (!currentUser) return;
     
     // Поиск @упоминаний
@@ -625,6 +727,7 @@ async function addComment() {
         document.getElementById('newComment').value = '';
         renderComments(taskId);
         showToast('success', 'Комментарий добавлен');
+        log('Комментарий добавлен к задаче ' + taskId);
         
         // Отправляем уведомления об упоминаниях
         for (var m = 0; m < mentions.length; m++) {
@@ -633,6 +736,7 @@ async function addComment() {
     } else {
         comments.pop();
         alert('Ошибка сохранения');
+        logError('Ошибка сохранения комментария');
     }
 }
 
@@ -752,6 +856,9 @@ function openModal(taskId) {
     var modal = document.getElementById('taskModal');
     var modalTitle = document.getElementById('modalTitle');
     var privateCheckbox = document.getElementById('taskPrivate');
+    var currentUser = getCurrentUser();
+    
+    log('Открытие модального окна, taskId=' + taskId);
     
     if (taskId) {
         modalTitle.textContent = 'Редактировать задачу';
@@ -775,8 +882,10 @@ function openModal(taskId) {
             
             // Загружаем комментарии
             renderComments(task.id);
+            log('Загружена задача ' + taskId);
         } else {
             alert('У вас нет доступа к этой задаче');
+            log('Нет доступа к задаче ' + taskId);
             return;
         }
     } else {
@@ -796,17 +905,21 @@ function openModal(taskId) {
         if (commentsContainer) commentsContainer.innerHTML = '';
         var commentsCount = document.getElementById('commentsCount');
         if (commentsCount) commentsCount.textContent = '0';
+        log('Открыто окно создания задачи');
     }
     
     // Показываем/скрываем чекбокс приватности в зависимости от роли
     if (privateCheckbox) {
-        privateCheckbox.parentElement.style.display = (currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager')) ? 'block' : 'none';
+        var showPrivate = currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager');
+        privateCheckbox.parentElement.style.display = showPrivate ? 'block' : 'none';
+        log('Чекбокс приватности ' + (showPrivate ? 'показан' : 'скрыт'));
     }
     
     modal.classList.add('active');
 }
 
 function closeModal() {
+    log('Закрытие модального окна');
     document.getElementById('taskModal').classList.remove('active');
 }
 
@@ -824,6 +937,8 @@ async function saveTask() {
         is_private: privateCheckbox ? privateCheckbox.checked : false
     };
     
+    log('Сохранение задачи, taskId=' + (taskId || 'новая'));
+    
     if (!taskData.title) {
         alert('Введите название задачи');
         return;
@@ -839,63 +954,21 @@ async function saveTask() {
 }
 
 function editTask(taskId) {
+    log('Редактирование задачи ' + taskId);
     openModal(taskId);
 }
 
 // ========== ИНИЦИАЛИЗАЦИЯ ==========
 
 async function init() {
+    log('=== ИНИЦИАЛИЗАЦИЯ tasks.js ===');
+    
     await auth.initAuth();
-    currentUser = auth.getCurrentUser();
+    var currentUser = auth.getCurrentUser();
+    log('Пользователь:', currentUser ? currentUser.name + ' (' + currentUser.role + ')' : 'не авторизован');
     
     if (!currentUser) {
+        log('Перенаправление на страницу входа');
         window.location.href = 'auth.html';
         return;
     }
-    
-    await loadUsersForSelect();
-    await loadComplexesForSelect();
-    await loadComments();
-    await loadTasks();
-    setupDropZones();
-    
-    var userNameSpan = document.getElementById('userName');
-    var userRoleSpan = document.getElementById('userRole');
-    var userAvatar = document.getElementById('userAvatar');
-    
-    if (userNameSpan) userNameSpan.textContent = currentUser.name;
-    if (userRoleSpan) {
-        var roleLabel = '';
-        if (currentUser.role === 'admin') roleLabel = 'Администратор';
-        else if (currentUser.role === 'manager') roleLabel = 'Менеджер';
-        else if (currentUser.role === 'agent') roleLabel = 'Агент';
-        else roleLabel = 'Наблюдатель';
-        userRoleSpan.textContent = roleLabel;
-    }
-    if (userAvatar) {
-        var initials = currentUser.name.split(' ').map(function(n) { return n[0]; }).join('').toUpperCase();
-        userAvatar.innerHTML = initials || '<i class="fas fa-user"></i>';
-    }
-    
-    // Добавляем обработчики для кнопок "Добавить задачу"
-    var addBtns = document.querySelectorAll('.add-task-btn');
-    for (var i = 0; i < addBtns.length; i++) {
-        var btn = addBtns[i];
-        btn.addEventListener('click', function() {
-            var status = this.getAttribute('data-status');
-            document.getElementById('taskStatus').value = status;
-            openModal();
-        });
-    }
-    
-    var addTaskBtn = document.getElementById('addTaskBtn');
-    if (addTaskBtn) addTaskBtn.addEventListener('click', function() { openModal(); });
-    
-    if (window.theme) window.theme.initTheme();
-    if (window.sidebar) window.sidebar.initSidebar();
-    
-    // Обновляем бейдж уведомлений
-    if (window.notifications) window.notifications.updateBadge();
-}
-
-document.addEventListener('DOMContentLoaded', init);
