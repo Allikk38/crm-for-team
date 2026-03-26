@@ -1,24 +1,205 @@
+/* ============================================
+ * ФАЙЛ: css/responsive.css
+ * РОЛЬ: Улучшенная мобильная адаптация
+ * ============================================
+ */
+
 /* Анимации */
 @keyframes fadeInUp {
     from { opacity: 0; transform: translateY(20px); }
     to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes fadeInScale {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+}
+
 .card, .kanban-column, .info-panel, .kpi-card, .progress-section, .calendar-container {
     animation: fadeInUp 0.5s ease-out;
 }
 
-/* Адаптив для календаря на мобильных */
+/* Базовые медиа-запросы */
+@media (max-width: 1200px) {
+    .complexes-grid {
+        grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    }
+    
+    .counterparties-grid {
+        grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    }
+}
+
+@media (max-width: 1024px) {
+    .kanban-board {
+        display: flex;
+        overflow-x: auto;
+        gap: 16px;
+        padding-bottom: 16px;
+    }
+    
+    .kanban-column {
+        min-width: 280px;
+        flex: 0 0 auto;
+    }
+    
+    .kpi-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 16px;
+    }
+    
+    .analytics-section {
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+}
+
 @media (max-width: 768px) {
+    body {
+        padding: 12px;
+    }
+    
+    /* Шапка */
+    .top-bar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+    
+    .top-bar-actions {
+        justify-content: space-between;
+        order: 2;
+    }
+    
+    .user-profile {
+        order: 1;
+        justify-content: center;
+        width: fit-content;
+        margin: 0 auto;
+    }
+    
+    /* KPI карточки */
+    .dashboard {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+    
+    .dashboard .card {
+        padding: 20px;
+    }
+    
+    .dashboard .card p {
+        font-size: 1.8rem;
+    }
+    
+    .kpi-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+    }
+    
+    .kpi-card {
+        padding: 16px;
+    }
+    
+    .kpi-value {
+        font-size: 1.5rem;
+    }
+    
+    /* Таблицы - горизонтальная прокрутка */
+    .users-table,
+    .deals-table {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    .users-table table,
+    .deals-table table {
+        min-width: 600px;
+    }
+    
+    .users-table th,
+    .users-table td,
+    .deals-table th,
+    .deals-table td {
+        padding: 12px 8px;
+        font-size: 0.8rem;
+    }
+    
+    /* Kanban */
+    .kanban-board {
+        gap: 12px;
+    }
+    
+    .kanban-column {
+        min-width: 260px;
+        padding: 16px;
+    }
+    
+    .task-card {
+        padding: 12px;
+    }
+    
+    .task-title {
+        font-size: 0.85rem;
+    }
+    
+    /* Карточки объектов */
+    .complexes-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+    
+    .complex-card-header {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+    
+    .complex-card-image {
+        width: 80px;
+        height: 80px;
+    }
+    
+    /* Карточки контрагентов */
+    .counterparties-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+    
+    .counterparty-card-header {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+    
+    /* Модальные окна */
+    .modal-content {
+        width: 95%;
+        margin: 20px auto;
+        padding: 20px;
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+    
+    .form-row {
+        flex-direction: column;
+        gap: 12px;
+    }
+    
+    /* Календарь */
     .calendar-day {
-        min-height: 70px;
+        min-height: 65px;
         font-size: 0.7rem;
         position: relative;
     }
     
-    .day-task { display: none; }
+    .day-task {
+        display: none;
+    }
     
-    .calendar-day:hover .day-task {
+    .calendar-day:hover .day-task,
+    .calendar-day:active .day-task {
         display: block;
         position: absolute;
         top: 100%;
@@ -31,22 +212,242 @@
         box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     }
     
-    .calendar-day:hover { z-index: 11; }
+    .calendar-day:hover,
+    .calendar-day:active {
+        z-index: 11;
+    }
+    
+    /* Профиль */
+    .profile-container {
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+    
+    .profile-sidebar {
+        order: 2;
+    }
+    
+    .profile-main {
+        order: 1;
+    }
+    
+    /* Агенты в менеджере */
+    .agent-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+    
+    .agent-stats {
+        width: 100%;
+        justify-content: space-between;
+        flex-wrap: wrap;
+    }
+    
+    /* Навигация */
+    .nav-buttons {
+        width: 100%;
+    }
+    
+    .nav-btn {
+        flex: 1;
+        justify-content: center;
+        font-size: 0.8rem;
+        padding: 8px 12px;
+    }
+    
+    /* Фильтры */
+    .complexes-filters,
+    .counterparties-filters,
+    .deals-filters {
+        flex-direction: column;
+        width: 100%;
+    }
+    
+    .complexes-filters input,
+    .complexes-filters select,
+    .counterparties-filters input,
+    .counterparties-filters select,
+    .deals-filters input,
+    .deals-filters select {
+        width: 100%;
+    }
+    
+    /* Кнопки сортировки */
+    .sort-buttons {
+        flex-wrap: wrap;
+    }
+    
+    .sort-btn {
+        flex: 1;
+        text-align: center;
+        font-size: 0.7rem;
+        padding: 6px 12px;
+    }
+    
+    /* Инфо-панель */
+    .info-panel {
+        padding: 20px;
+    }
+    
+    .info-panel h2 {
+        font-size: 1.2rem;
+    }
+    
+    /* Графики */
+    .chart-bars,
+    .chart-bars-mini,
+    .chart-bars-profile {
+        height: 80px;
+        gap: 4px;
+    }
+    
+    /* Toast уведомления */
+    .toast {
+        bottom: 70px;
+        right: 16px;
+        left: 16px;
+        max-width: calc(100% - 32px);
+        font-size: 0.85rem;
+    }
 }
 
-/* Общая адаптивность */
-@media (max-width: 1024px) {
-    .kanban-board { grid-template-columns: 1fr; }
-    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+/* Планшеты */
+@media (min-width: 769px) and (max-width: 1024px) {
+    .complexes-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .counterparties-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .dashboard {
+        grid-template-columns: repeat(3, 1fr);
+    }
+    
+    .kpi-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+/* Увеличенные области нажатия для мобильных */
+@media (max-width: 768px) {
+    button,
+    .nav-item,
+    .action-btn,
+    .add-task-btn,
+    .complex-btn,
+    .counterparty-btn,
+    .deal-card {
+        min-height: 44px;
+        min-width: 44px;
+    }
+    
+    .nav-item i {
+        font-size: 1.2rem;
+    }
+    
+    .action-btn {
+        padding: 8px 12px;
+    }
+}
+
+/* Стили для активного состояния при тапе (мобильные) */
+.tap-active {
+    transform: scale(0.98);
+    transition: transform 0.1s ease;
+}
+
+/* Стили для бургер-меню */
+.mobile-menu-toggle {
+    display: none;
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: white;
+    border: none;
+    cursor: pointer;
+    z-index: 1000;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    transition: all 0.3s ease;
+    font-size: 1.2rem;
+}
+
+.mobile-menu-toggle.active {
+    background: var(--accent-hover);
+    transform: rotate(90deg);
 }
 
 @media (max-width: 768px) {
-    body { padding: 16px; }
-    header { padding: 20px; }
-    .header-top { flex-direction: column; align-items: flex-start; }
-    .dashboard, .kpi-grid { grid-template-columns: 1fr; }
-    .agent-item { flex-direction: column; align-items: flex-start; gap: 12px; }
-    .agent-stats { width: 100%; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
-    .nav-buttons { width: 100%; }
-    .nav-btn { flex: 1; justify-content: center; }
+    .mobile-menu-toggle {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+}
+
+/* Анимация для меню на мобильных */
+@media (max-width: 768px) {
+    .sidebar {
+        transform: translateX(-100%);
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        width: 280px;
+    }
+    
+    .sidebar.mobile-open {
+        transform: translateX(0);
+    }
+    
+    .main-content {
+        margin-left: 0 !important;
+    }
+}
+
+/* Оптимизация для очень маленьких экранов */
+@media (max-width: 480px) {
+    body {
+        padding: 8px;
+    }
+    
+    .modal-content {
+        padding: 16px;
+    }
+    
+    .modal-buttons {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .modal-buttons button {
+        width: 100%;
+    }
+    
+    .kpi-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .calendar-weekdays span {
+        font-size: 0.65rem;
+    }
+    
+    .calendar-day {
+        min-height: 55px;
+        padding: 4px;
+    }
+    
+    .day-number {
+        font-size: 0.7rem;
+    }
+}
+
+/* Предотвращение зума при фокусе на инпутах (iOS) */
+@media (max-width: 768px) {
+    input, select, textarea {
+        font-size: 16px !important;
+    }
 }
