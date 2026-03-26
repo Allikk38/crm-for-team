@@ -1,10 +1,7 @@
 /**
  * ============================================
  * ФАЙЛ: js/ui/onboarding.js
- * РОЛЬ: Обучение новых пользователей (onboarding tour)
- * ЗАВИСИМОСТИ:
- *   - js/ui/animations.js
- * ИСПОЛЬЗУЕТСЯ В: всех страницах
+ * РОЛЬ: Обучение новых пользователей (красивый тур)
  * ============================================
  */
 
@@ -19,63 +16,31 @@ class OnboardingManager {
     }
     
     init() {
-        // Проверяем, нужно ли показывать обучение
         const hasSeenOnboarding = localStorage.getItem('crm_onboarding_seen');
         
         if (!hasSeenOnboarding) {
-            // Ждем загрузки страницы
             setTimeout(() => {
                 this.startOnboarding();
-            }, 1000);
+            }, 1500);
         }
         
-        // Добавляем кнопку "Помощь" в интерфейс
         this.addHelpButton();
         
         console.log('[OnboardingManager] Инициализирован');
     }
     
-    // Добавление кнопки помощи
     addHelpButton() {
         const helpBtn = document.createElement('button');
         helpBtn.className = 'help-tour-btn';
-        helpBtn.innerHTML = '<i class="fas fa-question-circle"></i>';
-        helpBtn.setAttribute('aria-label', 'Помощь и обучение');
-        helpBtn.title = 'Помощь и обучение';
+        helpBtn.innerHTML = '<i class="fas fa-graduation-cap"></i>';
+        helpBtn.setAttribute('aria-label', 'Обучение');
+        helpBtn.setAttribute('title', 'Обучение работе с CRM');
+        
         helpBtn.onclick = () => this.startOnboarding();
-        
-        // Стили для кнопки
-        helpBtn.style.cssText = `
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            width: 48px;
-            height: 48px;
-            border-radius: 50%;
-            background: var(--accent);
-            color: white;
-            border: none;
-            cursor: pointer;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            z-index: 1000;
-            transition: all 0.3s ease;
-            font-size: 1.2rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        `;
-        
-        helpBtn.onmouseenter = () => {
-            helpBtn.style.transform = 'scale(1.1)';
-        };
-        helpBtn.onmouseleave = () => {
-            helpBtn.style.transform = 'scale(1)';
-        };
         
         document.body.appendChild(helpBtn);
     }
     
-    // Определение шагов в зависимости от страницы
     getStepsForPage() {
         const path = window.location.pathname;
         const page = path.split('/').pop().split('.')[0] || 'index';
@@ -84,19 +49,13 @@ class OnboardingManager {
             {
                 element: '.sidebar',
                 title: '📱 Навигационное меню',
-                content: 'Здесь находится главное меню. Вы можете свернуть его для экономии места.',
+                content: 'Здесь находится главное меню. Нажмите на ☰ внизу экрана, чтобы открыть его на мобильном.',
                 position: 'right'
             },
             {
                 element: '.user-profile',
                 title: '👤 Ваш профиль',
                 content: 'Нажмите сюда, чтобы открыть личный кабинет и изменить настройки.',
-                position: 'bottom'
-            },
-            {
-                element: '.theme-toggle',
-                title: '🎨 Смена темы',
-                content: 'Переключайтесь между светлой и тёмной темой для комфортной работы.',
                 position: 'bottom'
             }
         ];
@@ -126,7 +85,7 @@ class OnboardingManager {
                 {
                     element: '.kanban-column:first-child',
                     title: '📋 Доска задач (Kanban)',
-                    content: 'Перетаскивайте задачи между колонками, чтобы менять их статус.',
+                    content: 'Перетаскивайте задачи между колонками, чтобы менять их статус. На мобильном — нажмите и удерживайте.',
                     position: 'right'
                 },
                 {
@@ -146,7 +105,7 @@ class OnboardingManager {
                 {
                     element: '.calendar-container',
                     title: '📅 Календарь задач',
-                    content: 'Все задачи с дедлайнами отображаются здесь. Вы можете перетаскивать задачи на новые даты.',
+                    content: 'Все задачи с дедлайнами отображаются здесь. На мобильном — нажмите на ячейку, чтобы увидеть задачи.',
                     position: 'top'
                 },
                 {
@@ -210,12 +169,6 @@ class OnboardingManager {
                     title: '👥 Нагрузка команды',
                     content: 'Следите за загрузкой каждого агента и распределяйте задачи равномерно.',
                     position: 'top'
-                },
-                {
-                    element: '.overdue-list',
-                    title: '⚠️ Просроченные задачи',
-                    content: 'Задачи, которые требуют вашего внимания в первую очередь.',
-                    position: 'top'
                 }
             ],
             'admin': [
@@ -237,7 +190,6 @@ class OnboardingManager {
         return [...commonSteps, ...(pageSteps[page] || [])];
     }
     
-    // Запуск обучения
     startOnboarding() {
         if (this.isActive) {
             this.endOnboarding();
@@ -246,7 +198,9 @@ class OnboardingManager {
         
         this.steps = this.getStepsForPage();
         if (this.steps.length === 0) {
-            this.showToast('Для этой страницы пока нет обучающего тура', 'info');
+            if (window.animations) {
+                window.animations.showToast('Для этой страницы пока нет обучающего тура', 'info');
+            }
             return;
         }
         
@@ -254,8 +208,6 @@ class OnboardingManager {
         this.isActive = true;
         this.createOverlay();
         this.showStep(this.currentStep);
-        
-        // Добавляем кнопку пропуска
         this.addSkipButton();
         
         console.log('[Onboarding] Начат тур из', this.steps.length, 'шагов');
@@ -264,17 +216,6 @@ class OnboardingManager {
     createOverlay() {
         this.overlay = document.createElement('div');
         this.overlay.className = 'onboarding-overlay';
-        this.overlay.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.7);
-            z-index: 9998;
-            pointer-events: none;
-            animation: fadeIn 0.3s ease;
-        `;
         document.body.appendChild(this.overlay);
     }
     
@@ -282,6 +223,8 @@ class OnboardingManager {
         const rect = element.getBoundingClientRect();
         const tooltip = document.createElement('div');
         tooltip.className = 'onboarding-tooltip';
+        
+        const isLast = this.currentStep === this.steps.length - 1;
         
         tooltip.innerHTML = `
             <div class="onboarding-tooltip-header">
@@ -292,55 +235,63 @@ class OnboardingManager {
                 <p>${step.content}</p>
             </div>
             <div class="onboarding-tooltip-footer">
-                <div class="onboarding-dots">
-                    ${this.steps.map((_, i) => `<span class="dot ${i === this.currentStep ? 'active' : ''}"></span>`).join('')}
+                <div class="onboarding-progress">
+                    <span>${this.currentStep + 1} / ${this.steps.length}</span>
+                    <div class="onboarding-progress-bar">
+                        <div class="onboarding-progress-fill" style="width: ${((this.currentStep + 1) / this.steps.length) * 100}%"></div>
+                    </div>
                 </div>
                 <div class="onboarding-buttons">
                     ${this.currentStep > 0 ? '<button class="onboarding-prev">← Назад</button>' : ''}
-                    <button class="onboarding-next">${this.currentStep === this.steps.length - 1 ? 'Готово ✓' : 'Далее →'}</button>
+                    <button class="onboarding-next">${isLast ? '✨ Завершить' : 'Далее →'}</button>
                 </div>
             </div>
         `;
         
-        // Позиционирование тултипа
         let top, left;
+        const tooltipWidth = 320;
+        const tooltipHeight = 200;
+        
         switch (step.position) {
             case 'top':
-                top = rect.top - 120;
-                left = rect.left + rect.width / 2 - 150;
+                top = rect.top - tooltipHeight - 20;
+                left = rect.left + rect.width / 2 - tooltipWidth / 2;
                 break;
             case 'bottom':
                 top = rect.bottom + 20;
-                left = rect.left + rect.width / 2 - 150;
+                left = rect.left + rect.width / 2 - tooltipWidth / 2;
                 break;
             case 'left':
-                top = rect.top + rect.height / 2 - 80;
-                left = rect.left - 320;
+                top = rect.top + rect.height / 2 - tooltipHeight / 2;
+                left = rect.left - tooltipWidth - 20;
                 break;
             case 'right':
-                top = rect.top + rect.height / 2 - 80;
+                top = rect.top + rect.height / 2 - tooltipHeight / 2;
                 left = rect.right + 20;
                 break;
             default:
-                top = rect.top - 100;
+                top = rect.top - tooltipHeight - 20;
                 left = rect.left;
         }
         
+        top = Math.max(20, Math.min(top, window.innerHeight - tooltipHeight - 20));
+        left = Math.max(20, Math.min(left, window.innerWidth - tooltipWidth - 20));
+        
         tooltip.style.cssText = `
             position: fixed;
-            top: ${Math.max(10, top)}px;
-            left: ${Math.max(10, left)}px;
-            width: 300px;
+            top: ${top}px;
+            left: ${left}px;
+            width: ${tooltipWidth}px;
             background: var(--card-bg);
-            border-radius: 16px;
+            border-radius: 20px;
             border: 1px solid var(--accent);
-            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
-            z-index: 10000;
-            animation: fadeInScale 0.3s ease;
-            backdrop-filter: blur(12px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            z-index: 10001;
+            animation: fadeInScale 0.3s cubic-bezier(0.34, 1.2, 0.64, 1);
+            backdrop-filter: blur(20px);
+            overflow: hidden;
         `;
         
-        // Подсветка элемента
         element.style.outline = '3px solid var(--accent)';
         element.style.outlineOffset = '4px';
         element.style.transition = 'all 0.2s';
@@ -349,13 +300,11 @@ class OnboardingManager {
     }
     
     showStep(index) {
-        // Удаляем предыдущий тултип
         if (this.tooltip) {
             this.tooltip.remove();
             this.tooltip = null;
         }
         
-        // Снимаем подсветку с предыдущего элемента
         if (this.currentElement) {
             this.currentElement.style.outline = '';
         }
@@ -372,14 +321,11 @@ class OnboardingManager {
         
         this.currentElement = element;
         
-        // Прокручиваем к элементу
         element.scrollIntoView({ behavior: 'smooth', block: 'center' });
         
-        // Создаем тултип
         this.tooltip = this.createTooltip(element, step);
         document.body.appendChild(this.tooltip);
         
-        // Добавляем обработчики
         const nextBtn = this.tooltip.querySelector('.onboarding-next');
         const prevBtn = this.tooltip.querySelector('.onboarding-prev');
         
@@ -407,23 +353,7 @@ class OnboardingManager {
         const skipBtn = document.createElement('button');
         skipBtn.className = 'onboarding-skip';
         skipBtn.innerHTML = 'Пропустить обучение';
-        skipBtn.style.cssText = `
-            position: fixed;
-            bottom: 20px;
-            left: 20px;
-            background: rgba(0,0,0,0.6);
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 40px;
-            cursor: pointer;
-            z-index: 10001;
-            font-size: 0.8rem;
-            transition: all 0.2s;
-        `;
         skipBtn.onclick = () => this.endOnboarding();
-        skipBtn.onmouseenter = () => skipBtn.style.transform = 'translateY(-2px)';
-        skipBtn.onmouseleave = () => skipBtn.style.transform = 'translateY(0)';
         
         document.body.appendChild(skipBtn);
         this.skipButton = skipBtn;
@@ -432,35 +362,26 @@ class OnboardingManager {
     endOnboarding() {
         this.isActive = false;
         
-        // Удаляем элементы
         if (this.overlay) this.overlay.remove();
         if (this.tooltip) this.tooltip.remove();
         if (this.skipButton) this.skipButton.remove();
         
-        // Снимаем подсветку
         if (this.currentElement) {
             this.currentElement.style.outline = '';
         }
         
-        // Сохраняем, что обучение пройдено
         localStorage.setItem('crm_onboarding_seen', 'true');
         
-        this.showToast('Обучение завершено! 🎉', 'success');
+        if (window.animations) {
+            window.animations.showToast('🎉 Обучение завершено!', 'success');
+        }
         
         console.log('[Onboarding] Тур завершён');
     }
-    
-    showToast(message, type = 'info') {
-        if (window.animations) {
-            window.animations.showToast(message, type);
-        }
-    }
 }
 
-// Создаем глобальный объект
 window.OnboardingManager = OnboardingManager;
 
-// Инициализация
 let onboardingManager = null;
 
 if (document.readyState === 'loading') {
