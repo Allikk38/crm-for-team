@@ -19,7 +19,7 @@
 // Используем let вместо var, чтобы избежать конфликтов с глобальными переменными
 let counterpartiesData = [];
 let dealsData = [];
-let currentUserData = null;
+//let currentUserData = null;
 
 // Типы контрагентов
 const COUNTERPARTY_TYPES = {
