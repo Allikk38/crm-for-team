@@ -2,11 +2,18 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>Вход в CRM</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/animations.css">
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
         body {
             font-family: 'Inter', sans-serif;
             background: radial-gradient(ellipse at 20% 30%, #0a0a1a, #050510);
@@ -15,7 +22,33 @@
             align-items: center;
             justify-content: center;
             color: white;
+            position: relative;
+            overflow: hidden;
         }
+        
+        /* Анимированный фон */
+        body::before {
+            content: '';
+            position: absolute;
+            width: 200%;
+            height: 200%;
+            top: -50%;
+            left: -50%;
+            background: radial-gradient(circle, rgba(108, 108, 255, 0.1) 1px, transparent 1px);
+            background-size: 40px 40px;
+            animation: backgroundMove 20s linear infinite;
+            pointer-events: none;
+        }
+        
+        @keyframes backgroundMove {
+            0% {
+                transform: translate(0, 0);
+            }
+            100% {
+                transform: translate(40px, 40px);
+            }
+        }
+        
         .container {
             text-align: center;
             background: rgba(15, 15, 35, 0.7);
@@ -23,31 +56,216 @@
             border-radius: 32px;
             padding: 48px;
             border: 1px solid rgba(108, 108, 255, 0.3);
+            max-width: 480px;
+            margin: 20px;
+            transition: all 0.3s ease;
+            animation: fadeInScale 0.5s ease;
+            position: relative;
+            z-index: 1;
         }
+        
+        .container:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            border-color: rgba(108, 108, 255, 0.5);
+        }
+        
         .icon {
             font-size: 4rem;
-            margin-bottom: 20px;
-            color: #6c6cff;
+            margin-bottom: 24px;
+            transition: all 0.3s ease;
         }
-        .spinner {
+        
+        .icon i {
+            transition: all 0.3s ease;
+        }
+        
+        .icon i.fa-spinner {
             animation: spin 1s linear infinite;
         }
+        
         @keyframes spin {
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
         }
-        .error {
+        
+        /* Анимация для успешного входа */
+        @keyframes checkBounce {
+            0% {
+                transform: scale(0);
+                opacity: 0;
+            }
+            50% {
+                transform: scale(1.2);
+            }
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+        
+        .icon i.fa-check-circle {
+            animation: checkBounce 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            color: #4caf50;
+        }
+        
+        /* Анимация для ошибки */
+        @keyframes shakeIcon {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-8px); }
+            75% { transform: translateX(8px); }
+        }
+        
+        .icon i.fa-times-circle {
+            animation: shakeIcon 0.4s ease;
             color: #ff6b6b;
+        }
+        
+        h2 {
+            font-size: 1.8rem;
+            margin-bottom: 12px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        
+        p {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.95rem;
+            transition: all 0.3s ease;
+        }
+        
+        /* Анимация для сообщения об ошибке */
+        .error-message {
+            animation: fadeInUp 0.3s ease;
+        }
+        
+        /* Прогресс-бар */
+        .progress-bar {
+            width: 100%;
+            height: 2px;
+            background: rgba(108, 108, 255, 0.2);
+            border-radius: 2px;
+            margin-top: 24px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, var(--accent), var(--accent-hover));
+            border-radius: 2px;
+            transition: width 0.3s ease;
+            animation: progressPulse 1s infinite;
+        }
+        
+        @keyframes progressPulse {
+            0% { opacity: 0.5; }
+            50% { opacity: 1; }
+            100% { opacity: 0.5; }
+        }
+        
+        /* Анимация для перенаправления */
+        @keyframes redirectPulse {
+            0% { opacity: 0.7; transform: scale(1); }
+            100% { opacity: 1; transform: scale(1.05); }
+        }
+        
+        .redirecting {
+            animation: redirectPulse 0.5s ease infinite alternate;
+        }
+        
+        /* Кнопка ручного перехода */
+        .manual-link {
+            margin-top: 20px;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.5);
+            transition: all 0.2s ease;
+        }
+        
+        .manual-link a {
+            color: var(--accent);
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+        
+        .manual-link a:hover {
+            text-decoration: underline;
+            color: var(--accent-hover);
+        }
+        
+        /* Анимация частиц */
+        .particle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: rgba(108, 108, 255, 0.5);
+            border-radius: 50%;
+            pointer-events: none;
+            animation: floatUp 3s ease-in-out infinite;
+        }
+        
+        @keyframes floatUp {
+            0% {
+                transform: translateY(100vh) scale(0);
+                opacity: 0;
+            }
+            10% {
+                opacity: 0.5;
+            }
+            90% {
+                opacity: 0.5;
+            }
+            100% {
+                transform: translateY(-100px) scale(1);
+                opacity: 0;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 32px 24px;
+                margin: 16px;
+            }
+            
+            h2 {
+                font-size: 1.4rem;
+            }
+            
+            .icon {
+                font-size: 3rem;
+            }
+        }
+        
+        /* Уважение к настройкам reduced motion */
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
         }
     </style>
 </head>
 <body>
+    <!-- Анимированные частицы фона -->
+    <div id="particles"></div>
+    
     <div class="container">
         <div class="icon" id="icon">
             <i class="fas fa-spinner fa-pulse"></i>
         </div>
         <h2 id="title">Выполняется вход...</h2>
         <p id="message">Пожалуйста, подождите</p>
+        <div class="progress-bar" id="progressBar">
+            <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <div class="manual-link" id="manualLink" style="display: none;">
+            <i class="fas fa-arrow-right"></i> 
+            <a href="auth.html">Перейти на страницу входа</a>
+        </div>
     </div>
     
     <!-- 1. Утилиты (не зависят ни от чего) -->
@@ -59,15 +277,115 @@
     <script src="js/core/auth.js"></script>
     
     <script>
+        let progressInterval;
+        
+        // Функция для анимации прогресс-бара
+        function startProgressAnimation(duration, onComplete) {
+            const progressFill = document.getElementById('progressFill');
+            const startTime = Date.now();
+            const endTime = startTime + duration;
+            
+            progressInterval = setInterval(() => {
+                const now = Date.now();
+                const elapsed = now - startTime;
+                const progress = Math.min(100, (elapsed / duration) * 100);
+                progressFill.style.width = progress + '%';
+                
+                if (now >= endTime) {
+                    clearInterval(progressInterval);
+                    if (onComplete) onComplete();
+                }
+            }, 16);
+        }
+        
+        // Функция для создания анимированных частиц
+        function createParticles() {
+            const particlesContainer = document.getElementById('particles');
+            if (!particlesContainer) return;
+            
+            for (let i = 0; i < 30; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.animationDelay = Math.random() * 5 + 's';
+                particle.style.animationDuration = 2 + Math.random() * 3 + 's';
+                particle.style.width = 2 + Math.random() * 4 + 'px';
+                particle.style.height = particle.style.width;
+                particlesContainer.appendChild(particle);
+            }
+        }
+        
+        // Функция для отображения успеха
+        function showSuccess() {
+            const icon = document.getElementById('icon');
+            const title = document.getElementById('title');
+            const message = document.getElementById('message');
+            const progressBar = document.getElementById('progressBar');
+            
+            icon.innerHTML = '<i class="fas fa-check-circle"></i>';
+            title.innerHTML = 'Вход выполнен! 🎉';
+            message.innerHTML = 'Перенаправление на главную страницу...';
+            message.classList.add('redirecting');
+            
+            if (progressBar) {
+                progressBar.style.opacity = '0.5';
+            }
+            
+            // Запускаем прогресс-бар для перенаправления
+            startProgressAnimation(1500, () => {
+                window.location.href = 'index.html';
+            });
+        }
+        
+        // Функция для отображения ошибки
+        function showError(errorMessage) {
+            const icon = document.getElementById('icon');
+            const title = document.getElementById('title');
+            const message = document.getElementById('message');
+            const progressBar = document.getElementById('progressBar');
+            const manualLink = document.getElementById('manualLink');
+            
+            clearInterval(progressInterval);
+            
+            icon.innerHTML = '<i class="fas fa-times-circle error"></i>';
+            title.innerHTML = 'Ошибка входа';
+            message.innerHTML = errorMessage;
+            message.classList.add('error-message');
+            
+            if (progressBar) {
+                progressBar.style.opacity = '0.3';
+                progressFill.style.width = '100%';
+                progressFill.style.background = '#ff6b6b';
+            }
+            
+            // Показываем ручную ссылку через 1 секунду
+            setTimeout(() => {
+                manualLink.style.display = 'block';
+                manualLink.style.animation = 'fadeInUp 0.3s ease';
+            }, 1000);
+            
+            // Запускаем прогресс-бар для перенаправления
+            startProgressAnimation(3000, () => {
+                window.location.href = 'auth.html';
+            });
+        }
+        
         async function handleCallback() {
             const urlParams = new URLSearchParams(window.location.search);
             const token = urlParams.get('token');
             
+            // Создаем анимированные частицы фона
+            createParticles();
+            
+            // Запускаем анимацию прогресс-бара (максимум 5 секунд)
+            startProgressAnimation(5000, () => {
+                if (!window.auth?.getCurrentUser()) {
+                    showError('Время ожидания истекло');
+                }
+            });
+            
             if (!token) {
-                document.getElementById('icon').innerHTML = '<i class="fas fa-times-circle"></i>';
-                document.getElementById('title').innerHTML = 'Ошибка входа';
-                document.getElementById('message').innerHTML = 'Недействительная ссылка';
-                setTimeout(() => { window.location.href = 'auth.html'; }, 3000);
+                showError('Недействительная ссылка входа');
                 return;
             }
             
@@ -76,20 +394,35 @@
                 
                 if (user) {
                     window.auth.saveSession(user, 7);
-                    document.getElementById('icon').innerHTML = '<i class="fas fa-check-circle"></i>';
-                    document.getElementById('title').innerHTML = 'Вход выполнен!';
-                    document.getElementById('message').innerHTML = 'Перенаправление...';
-                    setTimeout(() => { window.location.href = 'index.html'; }, 1500);
+                    showSuccess();
                 } else {
                     throw new Error('Недействительный токен');
                 }
             } catch (error) {
-                document.getElementById('icon').innerHTML = '<i class="fas fa-times-circle error"></i>';
-                document.getElementById('title').innerHTML = 'Ошибка входа';
-                document.getElementById('message').innerHTML = 'Ссылка недействительна или истекла';
-                setTimeout(() => { window.location.href = 'auth.html'; }, 3000);
+                console.error('Magic link error:', error);
+                let errorMsg = 'Ссылка недействительна или истекла';
+                
+                if (error.message === 'Token expired') {
+                    errorMsg = 'Ссылка истекла (действительна 30 минут)';
+                } else if (error.message === 'Invalid token') {
+                    errorMsg = 'Недействительная ссылка входа';
+                }
+                
+                showError(errorMsg);
             }
         }
+        
+        // Добавляем обработчик для ручного перехода
+        document.addEventListener('DOMContentLoaded', () => {
+            const manualLink = document.getElementById('manualLink');
+            if (manualLink) {
+                manualLink.addEventListener('click', (e) => {
+                    if (window.animations) {
+                        window.animations.showToast('Переход на страницу входа', 'info');
+                    }
+                });
+            }
+        });
         
         handleCallback();
     </script>
