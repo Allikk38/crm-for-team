@@ -9,16 +9,16 @@
     ФАЙЛ: calendar.html
     РОЛЬ: Календарь задач с возможностью drag-and-drop
     СВЯЗИ:
-      - CSS: base.css, theme.css, components.css, calendar.css, modal.css, responsive.css
-      - JS: js/core/*, js/utils/*, theme.js, layout.js, notifications.js, calendar.js
+      - CSS: base.css, theme.css, components.css, calendar.css, modal.css, responsive.css, animations.css
+      - JS: js/core/*, js/utils/*, js/ui/*, layout.js, notifications.js, calendar.js
       - Данные: data/tasks.csv, data/users.csv
     МЕХАНИКА:
       1. Боковая панель с навигацией (можно сворачивать)
       2. Навигация генерируется централизованно из layout.js
       3. Кликабельный профиль в правом верхнем углу
-      4. Отображение задач на календаре
+      4. Отображение задач на календаре с анимациями
       5. Drag-and-drop для изменения дедлайнов
-      6. Навигация по месяцам
+      6. Навигация по месяцам с анимацией
       7. Кнопка "Сегодня" для быстрого перехода
     ============================================
     -->
@@ -55,6 +55,7 @@
     <link rel="stylesheet" href="css/calendar.css">
     <link rel="stylesheet" href="css/modal.css">
     <link rel="stylesheet" href="css/responsive.css">
+    <link rel="stylesheet" href="css/animations.css">
     
     <style>
         .calendar-container {
@@ -64,6 +65,13 @@
             border: 1px solid var(--card-border);
             padding: 24px;
             overflow-x: auto;
+            transition: all 0.3s ease;
+            animation: fadeInUp 0.4s ease;
+        }
+        
+        .calendar-container:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
         }
         
         .calendar-header {
@@ -78,6 +86,7 @@
         .current-month {
             font-size: 1.3rem;
             font-weight: 600;
+            transition: all 0.2s ease;
         }
         
         .calendar-nav {
@@ -92,11 +101,36 @@
             border-radius: 40px;
             color: var(--text-primary);
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .calendar-nav button::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(108, 108, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.4s ease, height 0.4s ease;
+        }
+        
+        .calendar-nav button:active::before {
+            width: 200px;
+            height: 200px;
         }
         
         .calendar-nav button:hover {
             background: rgba(108, 108, 255, 0.3);
+            transform: translateY(-2px);
+        }
+        
+        .calendar-nav button:active {
+            transform: translateY(0px) scale(0.98);
         }
         
         .calendar-weekdays {
@@ -109,6 +143,16 @@
             border-radius: 16px;
             font-weight: 500;
             font-size: 0.85rem;
+            animation: fadeInDown 0.3s ease;
+        }
+        
+        .calendar-weekdays span {
+            transition: all 0.2s ease;
+        }
+        
+        .calendar-weekdays span:hover {
+            transform: scale(1.05);
+            color: var(--accent);
         }
         
         .calendar-days {
@@ -122,13 +166,23 @@
             background: var(--input-bg);
             border-radius: 16px;
             padding: 8px;
-            transition: all 0.2s;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
             cursor: pointer;
+            animation: fadeInScale 0.3s ease backwards;
+        }
+        
+        .calendar-day:nth-child(n) {
+            animation-delay: calc(var(--index, 0) * 0.01s);
         }
         
         .calendar-day:hover {
             background: rgba(108, 108, 255, 0.15);
-            transform: scale(0.98);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        
+        .calendar-day:active {
+            transform: translateY(0px) scale(0.98);
         }
         
         .calendar-day.other-month {
@@ -137,12 +191,37 @@
         
         .calendar-day.today {
             border: 2px solid var(--accent);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .calendar-day.today::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(108, 108, 255, 0.2), transparent);
+            animation: shine 3s infinite;
+        }
+        
+        @keyframes shine {
+            0% { left: -100%; }
+            20% { left: 100%; }
+            100% { left: 100%; }
         }
         
         .day-number {
             font-weight: 600;
             font-size: 0.9rem;
             margin-bottom: 8px;
+            transition: all 0.2s ease;
+        }
+        
+        .calendar-day:hover .day-number {
+            transform: scale(1.05);
+            color: var(--accent);
         }
         
         .day-tasks {
@@ -153,12 +232,20 @@
         
         .calendar-task {
             font-size: 0.7rem;
-            padding: 2px 6px;
+            padding: 4px 8px;
             border-radius: 12px;
             background: rgba(108, 108, 255, 0.2);
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            cursor: grab;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+        }
+        
+        .calendar-task:hover {
+            background: rgba(108, 108, 255, 0.4);
+            transform: translateX(4px) scale(1.02);
             cursor: grab;
         }
         
@@ -166,14 +253,55 @@
             cursor: grabbing;
         }
         
+        .calendar-task.dragging {
+            opacity: 0.5;
+            transform: scale(0.95);
+            cursor: grabbing;
+        }
+        
         .calendar-task.overdue {
             background: rgba(255, 107, 107, 0.2);
             color: #ff6b6b;
+            animation: pulseWarning 2s infinite;
+        }
+        
+        @keyframes pulseWarning {
+            0% { box-shadow: 0 0 0 0 rgba(255, 107, 107, 0.4); }
+            70% { box-shadow: 0 0 0 4px rgba(255, 107, 107, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 107, 107, 0); }
         }
         
         .calendar-task.done {
             text-decoration: line-through;
             opacity: 0.6;
+        }
+        
+        /* Анимация удаления задачи */
+        .task-removing {
+            animation: fadeOutScale 0.2s ease forwards;
+        }
+        
+        /* Анимация добавления задачи */
+        .task-added {
+            animation: fadeInScale 0.3s ease;
+        }
+        
+        /* Анимация изменения даты */
+        @keyframes dateChanged {
+            0% { transform: scale(1); background: rgba(108, 108, 255, 0.5); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); background: rgba(108, 108, 255, 0.2); }
+        }
+        
+        .task-date-changed {
+            animation: dateChanged 0.4s ease;
+        }
+        
+        /* Drag-over эффект для ячеек */
+        .calendar-day.drag-over {
+            background: rgba(108, 108, 255, 0.3);
+            border: 2px dashed var(--accent);
+            transform: scale(0.98);
         }
         
         .info-panel-calendar {
@@ -183,6 +311,37 @@
             padding: 16px 20px;
             border: 1px solid var(--card-border);
             font-size: 0.85rem;
+            transition: all 0.2s ease;
+            animation: fadeInUp 0.4s ease 0.2s backwards;
+        }
+        
+        .info-panel-calendar:hover {
+            transform: translateY(-2px);
+            border-color: var(--accent);
+        }
+        
+        /* Анимация переключения месяца */
+        @keyframes monthChange {
+            0% { opacity: 0; transform: translateX(20px); }
+            100% { opacity: 1; transform: translateX(0); }
+        }
+        
+        .month-changing {
+            animation: monthChange 0.3s ease;
+        }
+        
+        /* Скелетон загрузки */
+        .skeleton-day {
+            background: linear-gradient(90deg, var(--card-border) 25%, var(--card-hover) 50%, var(--card-border) 75%);
+            background-size: 200% 100%;
+            animation: skeletonLoading 1.5s infinite;
+            min-height: 100px;
+            border-radius: 16px;
+        }
+        
+        @keyframes skeletonLoading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
         }
         
         @media (max-width: 768px) {
@@ -192,6 +351,11 @@
             
             .calendar-task {
                 font-size: 0.6rem;
+                padding: 2px 4px;
+            }
+            
+            .calendar-container:hover {
+                transform: translateY(-1px);
             }
         }
     </style>
@@ -247,7 +411,16 @@
                 <div class="calendar-weekdays">
                     <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Вс</span>
                 </div>
-                <div id="calendarDays" class="calendar-days"></div>
+                <div id="calendarDays" class="calendar-days">
+                    <!-- Скелетон загрузки -->
+                    <div class="skeleton-day"></div>
+                    <div class="skeleton-day"></div>
+                    <div class="skeleton-day"></div>
+                    <div class="skeleton-day"></div>
+                    <div class="skeleton-day"></div>
+                    <div class="skeleton-day"></div>
+                    <div class="skeleton-day"></div>
+                </div>
             </div>
             
             <div class="info-panel-calendar">
@@ -268,6 +441,7 @@
     
     <!-- 3. UI компоненты (зависят от ядра) -->
     <script src="js/ui/theme.js"></script>
+    <script src="js/ui/animations.js"></script>
     <script src="layout.js"></script>
     <script src="notifications.js"></script>
     
@@ -303,12 +477,65 @@
             }
         }
         
+        // Анимация при переключении месяца (будет использоваться в calendar.js)
+        window.animateMonthChange = function() {
+            const container = document.querySelector('.calendar-container');
+            if (container) {
+                container.classList.add('month-changing');
+                setTimeout(() => {
+                    container.classList.remove('month-changing');
+                }, 300);
+            }
+        };
+        
+        // Анимация drag-over для ячеек
+        window.addDragOverAnimation = function(dayElement) {
+            dayElement.classList.add('drag-over');
+            setTimeout(() => {
+                dayElement.classList.remove('drag-over');
+            }, 200);
+        };
+        
+        // Анимация изменения даты задачи
+        window.animateTaskDateChange = function(taskElement) {
+            taskElement.classList.add('task-date-changed');
+            setTimeout(() => {
+                taskElement.classList.remove('task-date-changed');
+            }, 400);
+        };
+        
+        // Анимация удаления задачи
+        window.animateTaskRemove = function(taskElement, callback) {
+            taskElement.classList.add('task-removing');
+            setTimeout(() => {
+                if (callback) callback();
+            }, 200);
+        };
+        
+        // Анимация добавления задачи
+        window.animateTaskAdd = function(taskElement) {
+            taskElement.classList.add('task-added');
+            setTimeout(() => {
+                taskElement.classList.remove('task-added');
+            }, 300);
+        };
+        
         // Инициализация
         document.addEventListener('DOMContentLoaded', function() {
             setTimeout(updateUserProfile, 500);
             
             if (window.sidebar) {
                 window.sidebar.initSidebar();
+            }
+            
+            // Анимация для кнопки "Сегодня"
+            const todayBtn = document.getElementById('todayBtn');
+            if (todayBtn) {
+                todayBtn.addEventListener('click', function() {
+                    if (window.animations) {
+                        window.animations.showToast('Переход к текущей дате', 'info');
+                    }
+                });
             }
         });
     </script>
