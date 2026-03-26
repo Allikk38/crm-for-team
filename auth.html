@@ -349,12 +349,13 @@
     <script src="theme.js"></script>
     
     <!-- 4. Логика страницы (встроена в HTML) -->
+    <script>
         let usersList = [];
         let pendingUser = null;
         
         async function loadUsersForSelect() {
             try {
-                usersList = await loadCSV('data/users.csv');
+                usersList = await window.loadCSV('data/users.csv');
                 const select = document.getElementById('userSelect');
                 if (select && usersList && usersList.length > 0) {
                     select.innerHTML = '<option value="">Выберите сотрудника</option>';
@@ -528,43 +529,46 @@
             document.getElementById('confirmPin').value = '';
         }
         
-        // Переключение вкладок
-        document.querySelectorAll('.login-tab').forEach(tab => {
-            tab.addEventListener('click', () => {
-                document.querySelectorAll('.login-tab').forEach(t => t.classList.remove('active'));
-                tab.classList.add('active');
-                
-                const panelId = tab.dataset.tab + 'Panel';
-                document.querySelectorAll('.login-panel').forEach(p => p.classList.remove('active'));
-                document.getElementById(panelId).classList.add('active');
+        // Инициализация
+        document.addEventListener('DOMContentLoaded', () => {
+            // Переключение вкладок
+            document.querySelectorAll('.login-tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('.login-tab').forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    
+                    const panelId = tab.dataset.tab + 'Panel';
+                    document.querySelectorAll('.login-panel').forEach(p => p.classList.remove('active'));
+                    document.getElementById(panelId).classList.add('active');
+                });
             });
-        });
-        
-        // Обработчики
-        document.getElementById('quickLoginBtn').addEventListener('click', quickLogin);
-        document.getElementById('magicLinkBtn').addEventListener('click', sendMagicLink);
-        document.getElementById('saveNewPinBtn').addEventListener('click', saveNewPin);
-        
-        // Enter в поле пин-кода
-        document.getElementById('pinCode').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') quickLogin();
-        });
-        
-        // Закрытие модального окна по клику вне
-        window.onclick = function(event) {
-            const modal = document.getElementById('changePinModal');
-            if (event.target === modal) {
-                closeChangePinModal();
+            
+            // Обработчики
+            document.getElementById('quickLoginBtn').addEventListener('click', quickLogin);
+            document.getElementById('magicLinkBtn').addEventListener('click', sendMagicLink);
+            document.getElementById('saveNewPinBtn').addEventListener('click', saveNewPin);
+            
+            // Enter в поле пин-кода
+            document.getElementById('pinCode').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') quickLogin();
+            });
+            
+            // Закрытие модального окна по клику вне
+            window.onclick = function(event) {
+                const modal = document.getElementById('changePinModal');
+                if (event.target === modal) {
+                    closeChangePinModal();
+                }
+            };
+            
+            // Загрузка списка пользователей
+            loadUsersForSelect();
+            
+            // Проверка сессии
+            if (window.auth && window.auth.checkSession()) {
+                window.location.href = 'index.html';
             }
-        };
-        
-        // Загрузка списка пользователей
-        loadUsersForSelect();
-        
-        // Проверка сессии
-        if (window.auth && window.auth.checkSession()) {
-            window.location.href = 'index.html';
-        }
+        });
     </script>
 </body>
 </html>
