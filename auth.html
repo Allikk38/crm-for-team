@@ -337,10 +337,18 @@
         </div>
     </div>
     
-    <script src="core.js"></script>
+    <!-- 1. Утилиты (не зависят ни от чего) -->
+    <script src="js/utils/constants.js"></script>
+    <script src="js/utils/helpers.js"></script>
+    
+    <!-- 2. Ядро (зависит от утилит) -->
+    <script src="js/core/api.js"></script>
+    <script src="js/core/auth.js"></script>
+    
+    <!-- 3. UI компоненты -->
     <script src="theme.js"></script>
-    <script src="auth.js"></script>
-    <script>
+    
+    <!-- 4. Логика страницы (встроена в HTML) -->
         let usersList = [];
         let pendingUser = null;
         
