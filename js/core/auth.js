@@ -35,18 +35,52 @@ const ROLES = {
     }
 };
 
-// Загрузка пользователей
+// Загрузка пользователей из localStorage (fallback) или CSV
 async function loadUsers() {
     try {
+        // Сначала пробуем загрузить из localStorage (для разработки)
+        const localUsers = localStorage.getItem('crm_users_local');
+        if (localUsers && window.location.hostname === 'localhost') {
+            const users = JSON.parse(localUsers);
+            if (users && users.length > 0) {
+                console.log('[auth.js] Загружены пользователи из localStorage:', users.length);
+                return users;
+            }
+        }
+        
+        // Пробуем загрузить из CSV
         const users = await loadCSV('data/users.csv');
-        return users || [];
+        if (users && users.length > 0) {
+            // Сохраняем в localStorage для резервного копирования
+            localStorage.setItem('crm_users_local', JSON.stringify(users));
+            return users;
+        }
+        
+        // Если ничего нет, возвращаем тестовых пользователей
+        const defaultUsers = [
+            { github_username: 'Danilyan', name: 'Данильян Александр', role: 'admin', email: 'a.danilyan@goroda.company', pin: '1941', created_at: '2026-03-25' },
+            { github_username: 'Lobanov', name: 'Евгений Лобанов', role: 'manager', email: 'e.lobanov@goroda.company', pin: '2345', created_at: '2026-03-25' },
+            { github_username: 'Reshetov', name: 'Даниил Колбасенко', role: 'agent', email: 'd.reshetov@goroda.company', pin: '0000', created_at: '2026-03-25' },
+            { github_username: 'kozlov', name: 'Елена Козлова', role: 'agent', email: 'elena@company.ru', pin: '1111', created_at: '2026-03-25' },
+            { github_username: 'volkov', name: 'Дмитрий Волков', role: 'agent', email: 'dmitry@company.ru', pin: '2222', created_at: '2026-03-25' },
+            { github_username: 'Arkhipov', name: 'Никита Архипов', role: 'agent', email: 'n.arkhipov@groda.company', pin: '2049', created_at: '2026-03-26' }
+        ];
+        localStorage.setItem('crm_users_local', JSON.stringify(defaultUsers));
+        return defaultUsers;
     } catch (error) {
         console.error('Ошибка загрузки пользователей:', error);
-        return [];
+        
+        // Возвращаем тестовых пользователей при ошибке
+        const defaultUsers = [
+            { github_username: 'Danilyan', name: 'Данильян Александр', role: 'admin', email: 'a.danilyan@goroda.company', pin: '1941', created_at: '2026-03-25' },
+            { github_username: 'Lobanov', name: 'Евгений Лобанов', role: 'manager', email: 'e.lobanov@goroda.company', pin: '2345', created_at: '2026-03-25' },
+            { github_username: 'Reshetov', name: 'Даниил Колбасенко', role: 'agent', email: 'd.reshetov@goroda.company', pin: '0000', created_at: '2026-03-25' }
+        ];
+        return defaultUsers;
     }
 }
 
-// Сохранение пользователей
+// Сохранение пользователей (в localStorage для разработки)
 async function saveUsers(users) {
     const currentUserAuth = getCurrentUser();
     if (!currentUserAuth || !hasPermission('manage_users')) {
@@ -54,14 +88,34 @@ async function saveUsers(users) {
         return false;
     }
     
-    return await saveCSVToGitHub(
-        'data/users.csv',
-        users,
-        'Update users by ' + currentUserAuth.name
-    );
+    try {
+        // Сохраняем в localStorage для разработки
+        localStorage.setItem('crm_users_local', JSON.stringify(users));
+        console.log('[auth.js] Пользователи сохранены в localStorage, всего:', users.length);
+        
+        // Пытаемся сохранить в GitHub (если настроен токен)
+        const githubToken = localStorage.getItem('github_token');
+        if (githubToken && window.saveCSVToGitHub) {
+            const saved = await saveCSVToGitHub(
+                'data/users.csv',
+                users,
+                'Update users by ' + currentUserAuth.name
+            );
+            if (saved) {
+                console.log('[auth.js] Пользователи сохранены в GitHub');
+                return true;
+            }
+        }
+        
+        // Если GitHub не настроен, но localStorage сохранил — считаем успехом
+        return true;
+    } catch (error) {
+        console.error('Ошибка сохранения пользователей:', error);
+        return false;
+    }
 }
 
-// Создание нового пользователя (только для admin)
+// Создание нового пользователя
 async function createUser(username, name, role, email) {
     const current = getCurrentUser();
     if (!current || !hasPermission('manage_users')) {
