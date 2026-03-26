@@ -10,7 +10,7 @@
     РОЛЬ: Календарь задач с возможностью drag-and-drop
     СВЯЗИ:
       - CSS: base.css, theme.css, components.css, calendar.css, modal.css, responsive.css
-      - JS: core.js, auth.js, theme.js, layout.js, calendar.js
+      - JS: js/core/*, js/utils/*, theme.js, layout.js, notifications.js, calendar.js
       - Данные: data/tasks.csv, data/users.csv
     МЕХАНИКА:
       1. Боковая панель с навигацией (можно сворачивать)
@@ -258,16 +258,26 @@
         </main>
     </div>
     
-    <script src="core.js"></script>
-    <script src="auth.js"></script>
+    <!-- 1. Утилиты (не зависят ни от чего) -->
+    <script src="js/utils/constants.js"></script>
+    <script src="js/utils/helpers.js"></script>
+    
+    <!-- 2. Ядро (зависит от утилит) -->
+    <script src="js/core/api.js"></script>
+    <script src="js/core/auth.js"></script>
+    
+    <!-- 3. UI компоненты (зависят от ядра) -->
     <script src="theme.js"></script>
     <script src="layout.js"></script>
+    <script src="notifications.js"></script>
+    
+    <!-- 4. Модуль страницы -->
     <script src="calendar.js"></script>
     
     <script>
         // Обновление информации о пользователе
         function updateUserProfile() {
-            var user = auth.getCurrentUser();
+            var user = window.auth.getCurrentUser();
             if (!user) return;
             
             var userNameSpan = document.getElementById('userName');
@@ -293,11 +303,14 @@
             }
         }
         
-        setTimeout(updateUserProfile, 500);
-        
-        if (window.sidebar) {
-            window.sidebar.initSidebar();
-        }
+        // Инициализация
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(updateUserProfile, 500);
+            
+            if (window.sidebar) {
+                window.sidebar.initSidebar();
+            }
+        });
     </script>
 </body>
 </html>
