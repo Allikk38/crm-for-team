@@ -921,3 +921,25 @@ async function init() {
         userAvatar.innerHTML = initials || '<i class="fas fa-user"></i>';
     }
     
+    var addBtns = document.querySelectorAll('.add-task-btn');
+    for (var i = 0; i < addBtns.length; i++) {
+        var btn = addBtns[i];
+        btn.addEventListener('click', function() {
+            var status = this.getAttribute('data-status');
+            document.getElementById('taskStatus').value = status;
+            openModal();
+        });
+    }
+    
+    var addTaskBtn = document.getElementById('addTaskBtn');
+    if (addTaskBtn) addTaskBtn.addEventListener('click', function() { openModal(); });
+    
+    if (window.theme) window.theme.initTheme();
+    if (window.sidebar) window.sidebar.initSidebar();
+    
+    if (window.notifications) window.notifications.updateBadge();
+    
+    log('=== ИНИЦИАЛИЗАЦИЯ tasks.js ЗАВЕРШЕНА ===');
+}
+
+document.addEventListener('DOMContentLoaded', init);
