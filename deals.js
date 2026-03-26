@@ -22,7 +22,7 @@ let dealsData = [];
 let counterpartiesData = [];
 let complexesData = [];
 let usersData = [];
-let currentUserData = null;
+//let currentUserData = null;
 let draggedDeal = null;
 
 // Статусы заявок (порядок важен для Kanban)
