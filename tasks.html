@@ -4,23 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     
-    <!-- 
-    ============================================
-    ФАЙЛ: tasks.html
-    РОЛЬ: Доска задач (Kanban) с боковой панелью
-    СВЯЗИ:
-      - CSS: base.css, theme.css, components.css, kanban.css, modal.css, responsive.css
-      - JS: core.js, auth.js, theme.js, layout.js, notifications.js, tasks.js
-      - Данные: data/tasks.csv, data/users.csv, data/complexes.csv, data/comments.csv
-    МЕХАНИКА:
-      1. Боковая панель с навигацией (можно сворачивать)
-      2. Кликабельный профиль в правом верхнем углу
-      3. Kanban-доска с тремя статусами
-      4. Модальное окно задачи с комментариями и приватностью
-      5. Push-уведомления
-    ============================================
-    -->
-    
     <script>
         (function() {
             try {
@@ -53,7 +36,6 @@
     <link rel="stylesheet" href="css/responsive.css">
     
     <style>
-        /* Дополнительные стили для комментариев */
         .comments-section {
             margin-top: 20px;
             padding-top: 16px;
@@ -197,7 +179,6 @@
 </head>
 <body>
     <div class="app-layout">
-        <!-- Боковая панель навигации -->
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-logo">
                 <i class="fas fa-chart-line"></i>
@@ -233,10 +214,6 @@
                     <i class="fas fa-users-cog"></i>
                     <span>Управление</span>
                 </a>
-                <a href="admin.html" class="nav-item" data-role="admin">
-                    <i class="fas fa-users-cog"></i>
-                    <span>Управление</span>
-                </a>
             </nav>
             
             <div class="sidebar-footer">
@@ -251,7 +228,6 @@
             </div>
         </aside>
         
-        <!-- Основной контент -->
         <main class="main-content">
             <div class="top-bar">
                 <div class="top-bar-actions">
@@ -307,7 +283,6 @@
         </main>
     </div>
     
-    <!-- Модальное окно задачи с комментариями -->
     <div id="taskModal" class="modal">
         <div class="modal-content">
             <h3 id="modalTitle"><i class="fas fa-tasks"></i> Создать задачу</h3>
@@ -321,18 +296,17 @@
                 <option value="">Привязать к объекту</option>
             </select>
             <select id="taskPriority">
-                <option value="low"><i class="fas fa-arrow-down"></i> Низкий приоритет</option>
-                <option value="medium"><i class="fas fa-minus"></i> Средний приоритет</option>
-                <option value="high"><i class="fas fa-arrow-up"></i> Высокий приоритет</option>
+                <option value="low">Низкий приоритет</option>
+                <option value="medium" selected>Средний приоритет</option>
+                <option value="high">Высокий приоритет</option>
             </select>
             <input type="date" id="taskDueDate">
             <select id="taskStatus">
-                <option value="todo"><i class="fas fa-circle"></i> To Do</option>
-                <option value="in_progress"><i class="fas fa-spinner"></i> В работе</option>
-                <option value="done"><i class="fas fa-check-circle"></i> Готово</option>
+                <option value="todo">To Do</option>
+                <option value="in_progress">В работе</option>
+                <option value="done">Готово</option>
             </select>
             
-            <!-- Чекбокс приватности -->
             <div class="private-checkbox-wrapper" id="privateCheckboxGroup">
                 <label>
                     <input type="checkbox" id="taskPrivate">
@@ -340,7 +314,6 @@
                 </label>
             </div>
             
-            <!-- Блок комментариев -->
             <div class="comments-section">
                 <div class="comments-header">
                     <i class="fas fa-comments"></i> Комментарии (<span id="commentsCount">0</span>)
@@ -369,7 +342,6 @@
     <script src="tasks.js"></script>
     
     <script>
-        // Обновление информации о пользователе
         function updateUserProfile() {
             var user = auth.getCurrentUser();
             if (!user) return;
@@ -378,10 +350,7 @@
             var userRoleSpan = document.getElementById('userRole');
             var userAvatar = document.getElementById('userAvatar');
             
-            if (userNameSpan) {
-                userNameSpan.textContent = user.name;
-            }
-            
+            if (userNameSpan) userNameSpan.textContent = user.name;
             if (userRoleSpan) {
                 var roleLabel = '';
                 if (user.role === 'admin') roleLabel = 'Администратор';
@@ -390,14 +359,12 @@
                 else roleLabel = 'Наблюдатель';
                 userRoleSpan.textContent = roleLabel;
             }
-            
             if (userAvatar) {
                 var initials = user.name.split(' ').map(function(n) { return n[0]; }).join('').toUpperCase();
                 userAvatar.innerHTML = initials || '<i class="fas fa-user"></i>';
             }
         }
         
-        // Обновление счётчика уведомлений
         function updateNotificationBadge() {
             var notifications = JSON.parse(localStorage.getItem('crm_notifications_center') || '[]');
             var unread = 0;
@@ -415,28 +382,18 @@
             }
         }
         
-        // Запрос разрешения на уведомления
         if (window.notifications && window.notifications.requestPermission) {
             window.notifications.requestPermission();
         }
         
-        // Обновляем бейдж при загрузке
         updateNotificationBadge();
-        
-        // Обновляем профиль
         setTimeout(updateUserProfile, 500);
         
-        // Слушаем изменения в localStorage
         window.addEventListener('storage', function(e) {
-            if (e.key === 'crm_notifications_center') {
-                updateNotificationBadge();
-            }
+            if (e.key === 'crm_notifications_center') updateNotificationBadge();
         });
         
-        // Инициализация боковой панели
-        if (window.sidebar) {
-            window.sidebar.initSidebar();
-        }
+        if (window.sidebar) window.sidebar.initSidebar();
     </script>
 </body>
 </html>
