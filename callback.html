@@ -50,8 +50,14 @@
         <p id="message">Пожалуйста, подождите</p>
     </div>
     
-    <script src="core.js"></script>
-    <script src="auth.js"></script>
+    <!-- 1. Утилиты (не зависят ни от чего) -->
+    <script src="js/utils/constants.js"></script>
+    <script src="js/utils/helpers.js"></script>
+    
+    <!-- 2. Ядро (зависит от утилит) -->
+    <script src="js/core/api.js"></script>
+    <script src="js/core/auth.js"></script>
+    
     <script>
         async function handleCallback() {
             const urlParams = new URLSearchParams(window.location.search);
