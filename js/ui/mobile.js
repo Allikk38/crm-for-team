@@ -1,10 +1,7 @@
 /**
  * ============================================
  * ФАЙЛ: js/ui/mobile.js
- * РОЛЬ: Мобильная адаптация и жесты
- * ЗАВИСИМОСТИ:
- *   - js/ui/animations.js
- * ИСПОЛЬЗУЕТСЯ В: всех страницах
+ * РОЛЬ: Мобильная адаптация
  * ============================================
  */
 
@@ -18,14 +15,13 @@ class MobileManager {
     
     init() {
         this.createMenuToggle();
-        this.setupGestures();
         this.setupResizeHandler();
         this.optimizeForMobile();
         
         console.log('[MobileManager] Инициализирован, isMobile:', this.isMobile);
     }
     
-    // Создание кнопки бургер-меню
+    // Создание кнопки бургер-меню (три палочки)
     createMenuToggle() {
         if (!this.isMobile) return;
         
@@ -38,6 +34,7 @@ class MobileManager {
         this.menuToggle.className = 'mobile-menu-toggle';
         this.menuToggle.innerHTML = '<i class="fas fa-bars"></i>';
         this.menuToggle.setAttribute('aria-label', 'Открыть меню');
+        this.menuToggle.setAttribute('title', 'Меню');
         
         this.menuToggle.addEventListener('click', () => this.toggleSidebar());
         document.body.appendChild(this.menuToggle);
@@ -67,10 +64,6 @@ class MobileManager {
         this.menuToggle.innerHTML = '<i class="fas fa-times"></i>';
         this.menuToggle.classList.add('active');
         document.body.style.overflow = 'hidden';
-        
-        if (window.animations) {
-            window.animations.showToast('Меню открыто', 'info');
-        }
     }
     
     closeSidebar() {
@@ -78,47 +71,6 @@ class MobileManager {
         this.menuToggle.innerHTML = '<i class="fas fa-bars"></i>';
         this.menuToggle.classList.remove('active');
         document.body.style.overflow = '';
-    }
-    
-    // Настройка свайп-жестов
-    setupGestures() {
-        if (!this.isMobile) return;
-        
-        let touchStartX = 0;
-        let touchStartY = 0;
-        let touchEndX = 0;
-        let touchEndY = 0;
-        
-        document.addEventListener('touchstart', (e) => {
-            touchStartX = e.changedTouches[0].screenX;
-            touchStartY = e.changedTouches[0].screenY;
-        });
-        
-        document.addEventListener('touchend', (e) => {
-            touchEndX = e.changedTouches[0].screenX;
-            touchEndY = e.changedTouches[0].screenY;
-            this.handleSwipe(touchStartX, touchEndX, touchStartY, touchEndY);
-        });
-    }
-    
-    handleSwipe(startX, endX, startY, endY) {
-        const diffX = endX - startX;
-        const diffY = endY - startY;
-        
-        // Горизонтальный свайп (влево/вправо)
-        if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 50) {
-            if (diffX > 0) {
-                // Свайп вправо - открыть меню
-                if (this.sidebar && !this.sidebar.classList.contains('mobile-open')) {
-                    this.openSidebar();
-                }
-            } else {
-                // Свайп влево - закрыть меню
-                if (this.sidebar && this.sidebar.classList.contains('mobile-open')) {
-                    this.closeSidebar();
-                }
-            }
-        }
     }
     
     // Оптимизация для мобильных устройств
@@ -153,7 +105,7 @@ class MobileManager {
             });
         }
         
-        // Убираем hover-эффекты на мобильных (заменяем на tap)
+        // Убираем hover-эффекты на мобильных
         const hoverElements = document.querySelectorAll('.card, .kanban-column, .task-card');
         hoverElements.forEach(el => {
             el.addEventListener('touchstart', () => {
@@ -163,7 +115,6 @@ class MobileManager {
         });
     }
     
-    // Обработчик изменения размера окна
     setupResizeHandler() {
         let resizeTimeout;
         window.addEventListener('resize', () => {
@@ -173,17 +124,15 @@ class MobileManager {
                 this.isMobile = window.innerWidth <= 768;
                 
                 if (wasMobile !== this.isMobile) {
-                    location.reload(); // Перезагружаем для применения новых стилей
+                    location.reload();
                 }
             }, 250);
         });
     }
 }
 
-// Создаем глобальный объект
 window.MobileManager = MobileManager;
 
-// Инициализация
 let mobileManager = null;
 
 if (document.readyState === 'loading') {
