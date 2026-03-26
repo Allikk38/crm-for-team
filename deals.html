@@ -9,18 +9,16 @@
     ФАЙЛ: deals.html
     РОЛЬ: Управление заявками на покупку/продажу недвижимости
     СВЯЗИ:
-      - CSS: base.css, theme.css, components.css, deals.css, modal.css, responsive.css
-      - JS: js/core/*, js/utils/*, theme.js, layout.js, notifications.js, deals.js
+      - CSS: base.css, theme.css, components.css, deals.css, modal.css, responsive.css, animations.css
+      - JS: js/core/*, js/utils/*, js/ui/*, layout.js, notifications.js, deals.js
       - Данные: data/deals.csv, data/counterparties.csv, data/complexes.csv, data/users.csv
     МЕХАНИКА:
       1. Боковая панель с навигацией (можно сворачивать)
       2. Навигация генерируется централизованно из layout.js
       3. Кликабельный профиль в правом верхнем углу
-      4. Kanban-доска заявок по статусам (9 статусов)
+      4. Kanban-доска заявок по статусам (9 статусов) с анимациями
       5. Drag-and-drop для изменения статуса заявки
       6. Модальное окно создания/редактирования заявки
-      7. Фильтрация по роли пользователя (админ/менеджер видят всё, агент — свои)
-      8. Интеграция с объектами и контрагентами
     ============================================
     -->
     
@@ -54,6 +52,7 @@
     <link rel="stylesheet" href="css/calendar.css">
     <link rel="stylesheet" href="css/modal.css">
     <link rel="stylesheet" href="css/responsive.css">
+    <link rel="stylesheet" href="css/animations.css">
     
     <style>
         /* Стили для страницы заявок */
@@ -64,6 +63,7 @@
             margin-bottom: 24px;
             flex-wrap: wrap;
             gap: 16px;
+            animation: fadeInUp 0.4s ease;
         }
         
         .deals-filters {
@@ -80,6 +80,19 @@
             border: 1px solid var(--card-border);
             border-radius: 40px;
             color: var(--text-primary);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .deals-filters input:focus,
+        .deals-filters select:focus {
+            outline: none;
+            border-color: var(--accent);
+            transform: scale(1.02);
+        }
+        
+        .deals-filters input:hover,
+        .deals-filters select:hover {
+            border-color: var(--accent);
         }
         
         .add-deal-btn {
@@ -89,11 +102,31 @@
             border-radius: 40px;
             color: white;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             display: inline-flex;
             align-items: center;
             gap: 8px;
             font-weight: 500;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .add-deal-btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.4s ease, height 0.4s ease;
+        }
+        
+        .add-deal-btn:active::before {
+            width: 200px;
+            height: 200px;
         }
         
         .add-deal-btn:hover {
@@ -120,6 +153,24 @@
             display: flex;
             flex-direction: column;
             max-height: calc(100vh - 200px);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            animation: fadeInUp 0.4s ease backwards;
+        }
+        
+        .deal-column:nth-child(1) { animation-delay: 0.03s; }
+        .deal-column:nth-child(2) { animation-delay: 0.06s; }
+        .deal-column:nth-child(3) { animation-delay: 0.09s; }
+        .deal-column:nth-child(4) { animation-delay: 0.12s; }
+        .deal-column:nth-child(5) { animation-delay: 0.15s; }
+        .deal-column:nth-child(6) { animation-delay: 0.18s; }
+        .deal-column:nth-child(7) { animation-delay: 0.21s; }
+        .deal-column:nth-child(8) { animation-delay: 0.24s; }
+        .deal-column:nth-child(9) { animation-delay: 0.27s; }
+        
+        .deal-column:hover {
+            transform: translateY(-4px);
+            border-color: var(--accent);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
         }
         
         .deal-column-header {
@@ -130,10 +181,16 @@
             align-items: center;
             font-weight: 600;
             border-radius: 24px 24px 0 0;
+            transition: all 0.2s ease;
         }
         
         .deal-column-header .status-icon {
             font-size: 1.1rem;
+            transition: transform 0.2s ease;
+        }
+        
+        .deal-column:hover .deal-column-header .status-icon {
+            transform: scale(1.1);
         }
         
         .deal-column-header .count {
@@ -141,6 +198,12 @@
             padding: 2px 8px;
             border-radius: 20px;
             font-size: 0.75rem;
+            transition: all 0.2s ease;
+        }
+        
+        .deal-column:hover .deal-column-header .count {
+            background: rgba(108, 108, 255, 0.4);
+            transform: scale(1.05);
         }
         
         .deals-container {
@@ -156,17 +219,25 @@
             padding: 12px;
             margin-bottom: 12px;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
             border-left: 3px solid var(--accent);
+            animation: fadeInScale 0.3s ease backwards;
         }
         
+        .deal-card:nth-child(1) { animation-delay: 0.02s; }
+        .deal-card:nth-child(2) { animation-delay: 0.04s; }
+        .deal-card:nth-child(3) { animation-delay: 0.06s; }
+        
         .deal-card:hover {
-            transform: translateX(4px);
-            background: rgba(108, 108, 255, 0.1);
+            transform: translateX(6px) translateY(-2px);
+            background: rgba(108, 108, 255, 0.15);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         }
         
         .deal-card.dragging {
             opacity: 0.5;
+            transform: scale(0.98);
+            cursor: grabbing;
         }
         
         .deal-title {
@@ -180,6 +251,11 @@
         .deal-number {
             color: var(--accent);
             font-size: 0.7rem;
+            transition: all 0.2s ease;
+        }
+        
+        .deal-card:hover .deal-number {
+            transform: scale(1.05);
         }
         
         .deal-participants {
@@ -191,10 +267,23 @@
             flex-wrap: wrap;
         }
         
+        .deal-participants span {
+            transition: all 0.2s ease;
+        }
+        
+        .deal-card:hover .deal-participants span {
+            transform: translateX(2px);
+        }
+        
         .deal-price {
             font-weight: 600;
             font-size: 0.9rem;
             margin-bottom: 8px;
+            transition: color 0.2s ease;
+        }
+        
+        .deal-card:hover .deal-price {
+            color: var(--accent);
         }
         
         .deal-meta {
@@ -209,6 +298,11 @@
             padding: 2px 6px;
             border-radius: 12px;
             font-size: 0.6rem;
+            transition: all 0.2s ease;
+        }
+        
+        .deal-type:hover {
+            transform: scale(1.05);
         }
         
         .type-primary { background: rgba(76, 175, 80, 0.2); color: #4caf50; }
@@ -226,6 +320,19 @@
             text-align: center;
             color: var(--text-muted);
             padding: 40px 20px;
+            animation: fadeInUp 0.3s ease;
+        }
+        
+        /* Анимация для drag-over */
+        .drag-over {
+            background: rgba(108, 108, 255, 0.1);
+            border: 2px dashed var(--accent);
+            transition: all 0.2s ease;
+        }
+        
+        /* Анимация удаления карточки */
+        .card-removing {
+            animation: fadeOutScale 0.2s ease forwards;
         }
         
         /* Цвета статусов для заголовков колонок */
@@ -248,6 +355,7 @@
         /* Модальное окно заявки */
         .deal-modal-content {
             max-width: 700px;
+            animation: fadeInScale 0.3s ease;
         }
         
         .form-row {
@@ -259,6 +367,62 @@
         .form-row .input-group {
             flex: 1;
             margin-bottom: 0;
+            animation: slideInFromLeft 0.3s ease backwards;
+        }
+        
+        .form-row .input-group:nth-child(1) { animation-delay: 0.05s; }
+        .form-row .input-group:nth-child(2) { animation-delay: 0.1s; }
+        
+        .input-group {
+            margin-bottom: 16px;
+        }
+        
+        .input-group label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            transition: color 0.2s ease;
+        }
+        
+        .input-group:focus-within label {
+            color: var(--accent);
+        }
+        
+        .input-group input,
+        .input-group select,
+        .input-group textarea {
+            width: 100%;
+            padding: 10px 14px;
+            background: var(--input-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            color: var(--text-primary);
+            transition: all 0.2s ease;
+        }
+        
+        .input-group input:focus,
+        .input-group select:focus,
+        .input-group textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+            transform: scale(1.02);
+        }
+        
+        .small-btn {
+            background: rgba(108, 108, 255, 0.15);
+            border: 1px solid var(--card-border);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-top: 4px;
+        }
+        
+        .small-btn:hover {
+            background: rgba(108, 108, 255, 0.3);
+            transform: translateY(-1px);
         }
         
         .price-input-group {
@@ -269,6 +433,24 @@
         
         .price-input-group input {
             flex: 1;
+        }
+        
+        .loading-state {
+            text-align: center;
+            padding: 60px;
+            color: var(--text-muted);
+            animation: fadeInUp 0.3s ease;
+        }
+        
+        .loading-state i {
+            font-size: 2rem;
+            margin-bottom: 16px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
         }
         
         @media (max-width: 768px) {
@@ -328,13 +510,13 @@
             
             <div class="deals-header">
                 <div class="deals-filters">
-                    <input type="text" id="searchInput" placeholder="Поиск по №, объекту, участникам">
+                    <input type="text" id="searchInput" placeholder="🔍 Поиск по №, объекту, участникам">
                     <select id="typeFilter">
                         <option value="all">Все типы</option>
-                        <option value="primary">Первичка</option>
-                        <option value="secondary">Вторичка</option>
-                        <option value="exchange">Альтернатива</option>
-                        <option value="urgent">Срочный выкуп</option>
+                        <option value="primary">🏗️ Первичка</option>
+                        <option value="secondary">🏠 Вторичка</option>
+                        <option value="exchange">🔄 Альтернатива</option>
+                        <option value="urgent">⚡ Срочный выкуп</option>
                     </select>
                     <select id="agentFilter">
                         <option value="all">Все агенты</option>
@@ -484,6 +666,7 @@
     
     <!-- 3. UI компоненты (зависят от ядра) -->
     <script src="js/ui/theme.js"></script>
+    <script src="js/ui/animations.js"></script>
     <script src="layout.js"></script>
     <script src="notifications.js"></script>
     
@@ -514,6 +697,22 @@
                 userAvatar.innerHTML = initials || '<i class="fas fa-user"></i>';
             }
         }
+        
+        // Функции для анимаций карточек
+        window.animateCardRemove = function(cardElement, callback) {
+            cardElement.classList.add('card-removing');
+            setTimeout(() => {
+                if (callback) callback();
+            }, 200);
+        };
+        
+        // Функция для drag-over анимации
+        window.addDragOverAnimation = function(columnElement) {
+            columnElement.classList.add('drag-over');
+            setTimeout(() => {
+                columnElement.classList.remove('drag-over');
+            }, 200);
+        };
         
         // Инициализация
         document.addEventListener('DOMContentLoaded', function() {
