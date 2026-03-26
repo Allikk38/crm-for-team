@@ -45,6 +45,7 @@
             border-radius: 5px;
             cursor: pointer;
             margin: 5px;
+            font-size: 14px;
         }
         button:hover {
             background: #0056b3;
@@ -62,7 +63,9 @@
         }
         .log-line {
             margin: 2px 0;
+            padding: 2px;
             border-bottom: 1px solid #333;
+            white-space: pre-wrap;
         }
         .log-success {
             color: #4caf50;
@@ -92,19 +95,24 @@
     </div>
 
     <script>
-        // Простая функция логирования
+        // Функция для добавления лога
         function addLog(message, isError) {
             var logDiv = document.getElementById('log');
             var line = document.createElement('div');
             line.className = 'log-line';
             if (isError) {
-                line.className += ' log-error';
+                line.className = line.className + ' log-error';
             } else {
-                line.className += ' log-success';
+                line.className = line.className + ' log-success';
             }
-            var time = new Date().toLocaleTimeString();
+            var now = new Date();
+            var time = now.getHours().toString().padStart(2,'0') + ':' + 
+                       now.getMinutes().toString().padStart(2,'0') + ':' + 
+                       now.getSeconds().toString().padStart(2,'0');
             line.textContent = '[' + time + '] ' + message;
             logDiv.appendChild(line);
+            
+            // Автоскролл
             line.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             
             // Ограничиваем количество строк
@@ -121,14 +129,15 @@
         
         // Функция загрузки скрипта
         function loadScript(src, callback) {
+            addLog('Загрузка: ' + src, false);
             var script = document.createElement('script');
             script.src = src;
             script.onload = function() {
-                addLog('OK: ' + src, false);
+                addLog('Успешно: ' + src, false);
                 if (callback) callback(true);
             };
             script.onerror = function() {
-                addLog('ERROR: ' + src + ' - файл не найден', true);
+                addLog('ОШИБКА: ' + src + ' - файл не найден', true);
                 if (callback) callback(false);
             };
             document.head.appendChild(script);
@@ -136,17 +145,16 @@
         
         // Загрузка всех модулей
         function loadAllModules() {
-            addLog('Загрузка constants.js...', false);
+            addLog('Начинаем загрузку модулей...', false);
             loadScript('js/utils/constants.js', function(success1) {
-                addLog('Загрузка helpers.js...', false);
                 loadScript('js/utils/helpers.js', function(success2) {
                     var statusDiv = document.getElementById('status');
                     if (success1 && success2) {
-                        statusDiv.innerHTML = '✓ Все модули загружены успешно!';
+                        statusDiv.innerHTML = 'УСПЕХ: Все модули загружены';
                         statusDiv.className = 'status success';
-                        addLog('Все модули загружены', false);
+                        addLog('Все модули загружены успешно', false);
                     } else {
-                        statusDiv.innerHTML = '✗ Ошибка загрузки модулей';
+                        statusDiv.innerHTML = 'ОШИБКА: Не все модули загружены';
                         statusDiv.className = 'status error';
                         addLog('Не все модули загружены', true);
                     }
@@ -158,15 +166,15 @@
             addLog('=== ТЕСТ constants.js ===', false);
             
             if (window.CRM && window.CRM.constants) {
-                addLog('✓ constants.js загружен', false);
+                addLog('OK: constants.js загружен', false);
                 var c = window.CRM.constants;
-                addLog('- Роли: ' + Object.keys(c.ROLES).length, false);
-                addLog('- Статусы заявок: ' + c.DEAL_STATUSES.length, false);
-                addLog('- Пункты меню: ' + c.NAVIGATION_ITEMS.length, false);
-                addLog('✅ Тест constants.js пройден', false);
+                addLog(' - Ролей: ' + Object.keys(c.ROLES).length, false);
+                addLog(' - Статусов заявок: ' + c.DEAL_STATUSES.length, false);
+                addLog(' - Пунктов меню: ' + c.NAVIGATION_ITEMS.length, false);
+                addLog('Тест constants.js ПРОЙДЕН', false);
             } else {
-                addLog('❌ constants.js НЕ загружен', true);
-                addLog('Проверьте: существует ли файл js/utils/constants.js', true);
+                addLog('ОШИБКА: constants.js НЕ загружен', true);
+                addLog('Проверьте наличие файла: js/utils/constants.js', true);
             }
         }
         
@@ -174,48 +182,54 @@
             addLog('=== ТЕСТ helpers.js ===', false);
             
             if (window.CRM && window.CRM.helpers) {
-                addLog('✓ helpers.js загружен', false);
+                addLog('OK: helpers.js загружен', false);
                 var h = window.CRM.helpers;
                 
-                // Тест escapeHtml
-                var testHtml = '<script>alert("xss")</script>';
-                var escaped = h.escapeHtml(testHtml);
-                addLog('- escapeHtml: работает', false);
-                
-                // Тест formatDate
-                var formatted = h.formatDate('2026-03-26');
-                addLog('- formatDate: ' + formatted, false);
-                
-                // Тест getInitials
-                var initials = h.getInitials('Иван Петров');
-                addLog('- getInitials: ' + initials, false);
-                
-                // Тест isOverdue
-                var overdue = h.isOverdue('2026-03-25');
-                addLog('- isOverdue: ' + overdue, false);
-                
-                // Тест formatPrice
-                var price = h.formatPrice(15000000);
-                addLog('- formatPrice: ' + price, false);
-                
-                // Тест generateId
-                var newId = h.generateId();
-                addLog('- generateId: ' + newId, false);
-                
-                // Тест showToast
-                h.showToast('success', 'Тестовое уведомление');
-                addLog('- showToast: уведомление отправлено', false);
-                
-                addLog('✅ Тест helpers.js пройден', false);
+                try {
+                    // Тест escapeHtml
+                    var testHtml = '<script>alert("xss")</script>';
+                    var escaped = h.escapeHtml(testHtml);
+                    addLog(' - escapeHtml: работает', false);
+                    
+                    // Тест formatDate
+                    var formatted = h.formatDate('2026-03-26');
+                    addLog(' - formatDate: ' + formatted, false);
+                    
+                    // Тест getInitials
+                    var initials = h.getInitials('Иван Петров');
+                    addLog(' - getInitials: ' + initials, false);
+                    
+                    // Тест isOverdue
+                    var overdue = h.isOverdue('2026-03-25');
+                    addLog(' - isOverdue: ' + overdue, false);
+                    
+                    // Тест formatPrice
+                    var price = h.formatPrice(15000000);
+                    addLog(' - formatPrice: ' + price, false);
+                    
+                    // Тест generateId
+                    var newId = h.generateId();
+                    addLog(' - generateId: ' + newId, false);
+                    
+                    // Тест showToast
+                    h.showToast('success', 'Тестовое уведомление');
+                    addLog(' - showToast: уведомление отправлено', false);
+                    
+                    addLog('Тест helpers.js ПРОЙДЕН', false);
+                } catch(e) {
+                    addLog('ОШИБКА в тесте: ' + e.message, true);
+                }
             } else {
-                addLog('❌ helpers.js НЕ загружен', true);
-                addLog('Проверьте: существует ли файл js/utils/helpers.js', true);
+                addLog('ОШИБКА: helpers.js НЕ загружен', true);
+                addLog('Проверьте наличие файла: js/utils/helpers.js', true);
             }
         }
         
-        // Запускаем загрузку
-        addLog('Страница загружена, начинаем загрузку модулей...', false);
-        loadAllModules();
+        // Запускаем загрузку после загрузки страницы
+        window.addEventListener('DOMContentLoaded', function() {
+            addLog('Страница загружена, начинаем загрузку модулей...', false);
+            loadAllModules();
+        });
     </script>
 </body>
 </html>
