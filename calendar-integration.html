@@ -9,8 +9,8 @@
     ФАЙЛ: calendar-integration.html
     РОЛЬ: Настройка интеграции с внешними календарями (Google, Apple, Outlook)
     СВЯЗИ:
-      - CSS: base.css, theme.css, components.css, modal.css, responsive.css
-      - JS: js/core/*, js/utils/*, theme.js, layout.js, notifications.js, calendar-integration.js
+      - CSS: base.css, theme.css, components.css, modal.css, responsive.css, animations.css
+      - JS: js/core/*, js/utils/*, js/ui/*, layout.js, notifications.js, calendar-integration.js
       - Данные: data/user_settings.csv (хранение настроек интеграции)
     МЕХАНИКА:
       1. Боковая панель с навигацией (можно сворачивать)
@@ -51,6 +51,7 @@
     <link rel="stylesheet" href="css/calendar.css">
     <link rel="stylesheet" href="css/modal.css">
     <link rel="stylesheet" href="css/responsive.css">
+    <link rel="stylesheet" href="css/animations.css">
     
     <style>
         .integration-container {
@@ -65,6 +66,20 @@
             border: 1px solid var(--card-border);
             padding: 28px;
             margin-bottom: 24px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            animation: fadeInUp 0.4s ease backwards;
+        }
+        
+        .integration-card:nth-child(1) { animation-delay: 0.05s; }
+        .integration-card:nth-child(2) { animation-delay: 0.1s; }
+        .integration-card:nth-child(3) { animation-delay: 0.15s; }
+        .integration-card:nth-child(4) { animation-delay: 0.2s; }
+        .integration-card:nth-child(5) { animation-delay: 0.25s; }
+        
+        .integration-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.2);
+            border-color: var(--accent);
         }
         
         .integration-header {
@@ -85,6 +100,12 @@
             align-items: center;
             justify-content: center;
             font-size: 1.5rem;
+            transition: all 0.3s ease;
+        }
+        
+        .integration-card:hover .integration-icon {
+            transform: scale(1.05) rotate(5deg);
+            background: rgba(108, 108, 255, 0.25);
         }
         
         .integration-title {
@@ -107,6 +128,7 @@
             font-size: 0.7rem;
             background: rgba(76, 175, 80, 0.2);
             color: #4caf50;
+            transition: all 0.2s ease;
         }
         
         .integration-status.disabled {
@@ -114,11 +136,21 @@
             color: #9e9e9e;
         }
         
+        .integration-status:hover {
+            transform: scale(1.05);
+        }
+        
         .ical-url-box {
             background: var(--input-bg);
             border-radius: 16px;
             padding: 16px;
             margin: 20px 0;
+            transition: all 0.2s ease;
+        }
+        
+        .ical-url-box:hover {
+            transform: translateX(4px);
+            background: rgba(108, 108, 255, 0.1);
         }
         
         .ical-url {
@@ -127,6 +159,7 @@
             font-size: 0.85rem;
             margin-bottom: 12px;
             color: var(--accent);
+            animation: fadeIn 0.3s ease;
         }
         
         .copy-btn {
@@ -136,11 +169,36 @@
             border-radius: 40px;
             color: var(--text-primary);
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .copy-btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(108, 108, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.4s ease, height 0.4s ease;
+        }
+        
+        .copy-btn:active::before {
+            width: 200px;
+            height: 200px;
         }
         
         .copy-btn:hover {
             background: rgba(108, 108, 255, 0.3);
+            transform: translateY(-2px);
+        }
+        
+        .copy-btn:active {
+            transform: translateY(0px) scale(0.98);
         }
         
         .instruction-steps {
@@ -154,6 +212,17 @@
             display: flex;
             gap: 16px;
             align-items: flex-start;
+            transition: all 0.2s ease;
+            animation: slideInFromLeft 0.3s ease backwards;
+        }
+        
+        .step:nth-child(1) { animation-delay: 0.1s; }
+        .step:nth-child(2) { animation-delay: 0.2s; }
+        .step:nth-child(3) { animation-delay: 0.3s; }
+        .step:nth-child(4) { animation-delay: 0.4s; }
+        
+        .step:hover {
+            transform: translateX(8px);
         }
         
         .step-number {
@@ -167,6 +236,12 @@
             font-weight: 600;
             font-size: 0.9rem;
             flex-shrink: 0;
+            transition: all 0.2s ease;
+        }
+        
+        .step:hover .step-number {
+            transform: scale(1.1);
+            box-shadow: 0 0 0 4px rgba(108, 108, 255, 0.3);
         }
         
         .step-content {
@@ -190,6 +265,12 @@
             margin-top: 8px;
             font-family: monospace;
             font-size: 0.7rem;
+            transition: all 0.2s ease;
+        }
+        
+        .step-image:hover {
+            background: rgba(108, 108, 255, 0.1);
+            transform: scale(1.02);
         }
         
         .export-buttons {
@@ -207,15 +288,40 @@
             border-radius: 40px;
             color: var(--text-primary);
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 8px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .export-btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(108, 108, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.4s ease, height 0.4s ease;
+        }
+        
+        .export-btn:active::before {
+            width: 200px;
+            height: 200px;
         }
         
         .export-btn:hover {
             background: rgba(108, 108, 255, 0.3);
+            transform: translateY(-2px);
+        }
+        
+        .export-btn:active {
+            transform: translateY(0px) scale(0.98);
         }
         
         .calendar-list {
@@ -228,6 +334,19 @@
             justify-content: space-between;
             padding: 12px 0;
             border-bottom: 1px solid var(--card-border);
+            transition: all 0.2s ease;
+            animation: slideInFromLeft 0.3s ease backwards;
+        }
+        
+        .calendar-item:nth-child(1) { animation-delay: 0.05s; }
+        .calendar-item:nth-child(2) { animation-delay: 0.1s; }
+        .calendar-item:nth-child(3) { animation-delay: 0.15s; }
+        .calendar-item:nth-child(4) { animation-delay: 0.2s; }
+        
+        .calendar-item:hover {
+            background: rgba(108, 108, 255, 0.05);
+            padding-left: 8px;
+            border-radius: 12px;
         }
         
         .calendar-item:last-child {
@@ -246,6 +365,12 @@
             color: var(--accent);
             cursor: pointer;
             margin-left: 8px;
+            transition: all 0.2s ease;
+        }
+        
+        .calendar-item-actions button:hover {
+            transform: scale(1.1);
+            color: var(--accent-hover);
         }
         
         .toggle-switch-small {
@@ -253,6 +378,11 @@
             display: inline-block;
             width: 40px;
             height: 20px;
+            transition: all 0.2s ease;
+        }
+        
+        .toggle-switch-small:hover {
+            transform: scale(1.05);
         }
         
         .toggle-switch-small input {
@@ -299,6 +429,39 @@
             background: rgba(108, 108, 255, 0.1);
             border-radius: 16px;
             text-align: center;
+            transition: all 0.2s ease;
+        }
+        
+        .test-notification:hover {
+            background: rgba(108, 108, 255, 0.15);
+            transform: translateY(-2px);
+        }
+        
+        /* Анимация успешного копирования */
+        @keyframes copySuccess {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        
+        .copy-success {
+            animation: copySuccess 0.3s ease;
+            background: rgba(76, 175, 80, 0.3) !important;
+        }
+        
+        /* Скелетон загрузки */
+        .skeleton-text {
+            background: linear-gradient(90deg, var(--card-border) 25%, var(--card-hover) 50%, var(--card-border) 75%);
+            background-size: 200% 100%;
+            animation: skeletonLoading 1.5s infinite;
+            border-radius: 8px;
+            height: 20px;
+            margin: 8px 0;
+        }
+        
+        @keyframes skeletonLoading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
         }
         
         @media (max-width: 768px) {
@@ -312,6 +475,10 @@
             
             .step-number {
                 margin-bottom: 8px;
+            }
+            
+            .integration-card:hover {
+                transform: translateY(-2px);
             }
         }
     </style>
@@ -532,7 +699,9 @@
                     
                     <div class="calendar-list" id="recentTasksExport">
                         <div style="text-align: center; color: var(--text-muted); padding: 20px;">
-                            <i class="fas fa-spinner fa-pulse"></i> Загрузка задач...
+                            <div class="skeleton-text" style="width: 80%; margin: 10px auto;"></div>
+                            <div class="skeleton-text" style="width: 60%; margin: 10px auto;"></div>
+                            <div class="skeleton-text" style="width: 70%; margin: 10px auto;"></div>
                         </div>
                     </div>
                 </div>
@@ -610,6 +779,7 @@
     
     <!-- 3. UI компоненты (зависят от ядра) -->
     <script src="js/ui/theme.js"></script>
+    <script src="js/ui/animations.js"></script>
     <script src="layout.js"></script>
     <script src="notifications.js"></script>
     
@@ -645,12 +815,119 @@
             }
         }
         
+        // Функция копирования с анимацией
+        window.copyIcalUrl = function() {
+            const urlElement = document.getElementById('icalUrl');
+            const url = urlElement.textContent;
+            
+            navigator.clipboard.writeText(url).then(() => {
+                const btn = event.target.closest('.copy-btn');
+                const originalText = btn.innerHTML;
+                
+                btn.innerHTML = '<i class="fas fa-check"></i> Скопировано!';
+                btn.classList.add('copy-success');
+                
+                if (window.animations) {
+                    window.animations.showToast('Ссылка скопирована в буфер обмена', 'success');
+                }
+                
+                setTimeout(() => {
+                    btn.innerHTML = originalText;
+                    btn.classList.remove('copy-success');
+                }, 2000);
+            }).catch(() => {
+                if (window.animations) {
+                    window.animations.showToast('Не удалось скопировать ссылку', 'error');
+                }
+            });
+        };
+        
+        // Функция тестового уведомления с анимацией
+        window.testGoogleCalendar = function() {
+            const btn = event.target.closest('.copy-btn');
+            btn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Отправка...';
+            btn.disabled = true;
+            
+            setTimeout(() => {
+                btn.innerHTML = '<i class="fas fa-envelope"></i> Отправить тестовое событие';
+                btn.disabled = false;
+                
+                if (window.animations) {
+                    window.animations.showToast('Тестовое событие отправлено!', 'success');
+                } else {
+                    alert('Тестовое событие отправлено!');
+                }
+            }, 1000);
+        };
+        
+        // Функция сохранения настроек с анимацией
+        window.saveNotificationSettings = function() {
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            
+            btn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Сохранение...';
+            btn.disabled = true;
+            
+            setTimeout(() => {
+                btn.innerHTML = '<i class="fas fa-check"></i> Сохранено!';
+                
+                if (window.animations) {
+                    window.animations.showToast('Настройки сохранены', 'success');
+                }
+                
+                setTimeout(() => {
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                }, 2000);
+            }, 500);
+        };
+        
+        // Заглушки для экспорта (будут переопределены в calendar-integration.js)
+        window.exportAllTasks = function() {
+            if (window.animations) {
+                window.animations.showToast('Экспорт всех задач...', 'info');
+            }
+        };
+        
+        window.exportMyTasks = function() {
+            if (window.animations) {
+                window.animations.showToast('Экспорт моих задач...', 'info');
+            }
+        };
+        
+        window.exportCurrentMonth = function() {
+            if (window.animations) {
+                window.animations.showToast('Экспорт задач за месяц...', 'info');
+            }
+        };
+        
+        window.exportAllToGoogleCalendar = function() {
+            if (window.animations) {
+                window.animations.showToast('Добавление в Google Календарь...', 'info');
+            }
+        };
+        
+        window.exportMyToGoogleCalendar = function() {
+            if (window.animations) {
+                window.animations.showToast('Добавление моих задач в Google...', 'info');
+            }
+        };
+        
         // Инициализация
         document.addEventListener('DOMContentLoaded', function() {
             setTimeout(updateUserProfile, 500);
             
             if (window.sidebar) {
                 window.sidebar.initSidebar();
+            }
+            
+            // Анимация появления iCal ссылки
+            const icalUrl = document.getElementById('icalUrl');
+            if (icalUrl && window.auth.getCurrentUser()) {
+                const user = window.auth.getCurrentUser();
+                const mockUrl = `https://crm-team.vercel.app/ical/${user.github_username}.ics`;
+                icalUrl.textContent = mockUrl;
+                icalUrl.style.animation = 'fadeInUp 0.3s ease';
             }
         });
     </script>
