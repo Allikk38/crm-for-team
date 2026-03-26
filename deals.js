@@ -17,33 +17,33 @@
  * ============================================
  */
 
-// Глобальные переменные
-let deals = [];
-let counterparties = [];
-let complexes = [];
-let users = [];
-let currentUser = null;
+// Глобальные переменные модуля
+let dealsData = [];
+let counterpartiesData = [];
+let complexesData = [];
+let usersData = [];
+let currentUserData = null;
 let draggedDeal = null;
 
 // Статусы заявок (порядок важен для Kanban)
 const DEAL_STATUSES = [
-    { id: 'new', name: 'Новая', icon: '🆕', color: '#9e9e9e' },
-    { id: 'showing', name: 'Показ', icon: '👁️', color: '#2196f3' },
-    { id: 'negotiation', name: 'Торг', icon: '💰', color: '#ffc107' },
-    { id: 'deposit', name: 'Задаток', icon: '💎', color: '#9c27b0' },
-    { id: 'documents', name: 'Документы', icon: '📋', color: '#ff9800' },
-    { id: 'contract', name: 'Договор', icon: '✍️', color: '#f44336' },
-    { id: 'payment', name: 'Расчёт', icon: '💵', color: '#4caf50' },
-    { id: 'closed', name: 'Закрыта', icon: '✅', color: '#607d8b' },
-    { id: 'cancelled', name: 'Отказ', icon: '❌', color: '#9e9e9e' }
+    { id: 'new', name: 'Новая', icon: 'N', color: '#9e9e9e' },
+    { id: 'showing', name: 'Показ', icon: 'V', color: '#2196f3' },
+    { id: 'negotiation', name: 'Торг', icon: 'R', color: '#ffc107' },
+    { id: 'deposit', name: 'Задаток', icon: 'D', color: '#9c27b0' },
+    { id: 'documents', name: 'Документы', icon: 'P', color: '#ff9800' },
+    { id: 'contract', name: 'Договор', icon: 'S', color: '#f44336' },
+    { id: 'payment', name: 'Расчёт', icon: 'M', color: '#4caf50' },
+    { id: 'closed', name: 'Закрыта', icon: 'C', color: '#607d8b' },
+    { id: 'cancelled', name: 'Отказ', icon: 'X', color: '#9e9e9e' }
 ];
 
 // Типы сделок
 const DEAL_TYPES = {
-    primary: { name: 'Первичка', icon: '🏗️', class: 'type-primary' },
-    secondary: { name: 'Вторичка', icon: '🏠', class: 'type-secondary' },
-    exchange: { name: 'Альтернатива', icon: '🔄', class: 'type-exchange' },
-    urgent: { name: 'Срочный выкуп', icon: '⚡', class: 'type-urgent' }
+    primary: { name: 'Первичка', icon: 'P', class: 'type-primary' },
+    secondary: { name: 'Вторичка', icon: 'S', class: 'type-secondary' },
+    exchange: { name: 'Альтернатива', icon: 'A', class: 'type-exchange' },
+    urgent: { name: 'Срочный выкуп', icon: 'U', class: 'type-urgent' }
 };
 
 // ========== ЗАГРУЗКА ДАННЫХ ==========
@@ -51,20 +51,19 @@ const DEAL_TYPES = {
 async function loadDeals() {
     console.log('[deals.js] Загрузка заявок...');
     try {
-        const dealsData = await loadCSV('data/deals.csv');
+        const dealsCsv = await loadCSV('data/deals.csv');
         
-        // Проверяем, есть ли данные
-        if (!dealsData || dealsData.length === 0) {
+        if (!dealsCsv || dealsCsv.length === 0) {
             console.warn('[deals.js] Файл deals.csv пуст или не найден, создаём пустой массив');
-            deals = [];
+            dealsData = [];
             renderKanban();
             return;
         }
         
-        deals = [];
-        for (let i = 0; i < dealsData.length; i++) {
-            const d = dealsData[i];
-            deals.push({
+        dealsData = [];
+        for (let i = 0; i < dealsCsv.length; i++) {
+            const d = dealsCsv[i];
+            dealsData.push({
                 id: parseInt(d.id),
                 complex_id: parseInt(d.complex_id) || null,
                 apartment: d.apartment || '',
@@ -85,22 +84,19 @@ async function loadDeals() {
             });
         }
         
-        console.log('[deals.js] Загружено заявок:', deals.length);
+        console.log('[deals.js] Загружено заявок:', dealsData.length);
         
-        // Проверяем дедлайны для уведомлений
         if (window.notifications && window.notifications.checkDeadlines) {
-            console.log('[deals.js] Проверка дедлайнов...');
-            window.notifications.checkDeadlines(deals);
+            window.notifications.checkDeadlines(dealsData);
         }
         
         renderKanban();
         
     } catch (error) {
         console.error('[deals.js] Ошибка загрузки заявок:', error);
-        deals = [];
+        dealsData = [];
         renderKanban();
         
-        // Показываем пользователю понятное сообщение
         const board = document.getElementById('kanbanBoard');
         if (board) {
             board.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Ошибка загрузки заявок</p><p style="font-size: 0.8rem;">Проверьте наличие файла data/deals.csv</p></div>';
@@ -108,15 +104,15 @@ async function loadDeals() {
     }
 }
 
-async function loadCounterparties() {
+async function loadCounterpartiesForDeals() {
     console.log('[deals.js] Загрузка контрагентов...');
     try {
         const data = await loadCSV('data/counterparties.csv');
-        counterparties = [];
+        counterpartiesData = [];
         if (data && data.length > 0) {
             for (let i = 0; i < data.length; i++) {
                 const c = data[i];
-                counterparties.push({
+                counterpartiesData.push({
                     id: parseInt(c.id),
                     type: c.type || 'seller',
                     person_type: c.person_type || 'individual',
@@ -128,25 +124,24 @@ async function loadCounterparties() {
                 });
             }
         }
-        console.log('[deals.js] Загружено контрагентов:', counterparties.length);
+        console.log('[deals.js] Загружено контрагентов:', counterpartiesData.length);
     } catch (error) {
         console.error('[deals.js] Ошибка загрузки контрагентов:', error);
-        counterparties = [];
+        counterpartiesData = [];
     }
 }
 
 async function loadComplexesForDeals() {
     console.log('[deals.js] Загрузка объектов...');
     try {
-        complexes = await loadCSV('data/complexes.csv');
-        console.log('[deals.js] Загружено объектов:', complexes.length);
+        complexesData = await loadCSV('data/complexes.csv');
+        console.log('[deals.js] Загружено объектов:', complexesData.length);
         
-        // Заполняем выпадающий список объектов в модальном окне
         const complexSelect = document.getElementById('dealComplex');
         if (complexSelect) {
             complexSelect.innerHTML = '<option value="">Выберите объект</option>';
-            for (let i = 0; i < complexes.length; i++) {
-                const c = complexes[i];
+            for (let i = 0; i < complexesData.length; i++) {
+                const c = complexesData[i];
                 const option = document.createElement('option');
                 option.value = c.id;
                 option.textContent = c.title + ' (' + c.address + ')';
@@ -155,22 +150,21 @@ async function loadComplexesForDeals() {
         }
     } catch (error) {
         console.error('[deals.js] Ошибка загрузки объектов:', error);
-        complexes = [];
+        complexesData = [];
     }
 }
 
 async function loadUsersForDeals() {
     console.log('[deals.js] Загрузка пользователей...');
     try {
-        users = await loadCSV('data/users.csv');
-        console.log('[deals.js] Загружено пользователей:', users.length);
+        usersData = await loadCSV('data/users.csv');
+        console.log('[deals.js] Загружено пользователей:', usersData.length);
         
-        // Заполняем выпадающий список агентов
         const agentSelect = document.getElementById('dealAgent');
         if (agentSelect) {
             agentSelect.innerHTML = '<option value="">Выберите агента</option>';
-            for (let i = 0; i < users.length; i++) {
-                const u = users[i];
+            for (let i = 0; i < usersData.length; i++) {
+                const u = usersData[i];
                 if (u.role === 'agent' || u.role === 'manager' || u.role === 'admin') {
                     const option = document.createElement('option');
                     option.value = u.github_username;
@@ -180,11 +174,10 @@ async function loadUsersForDeals() {
             }
         }
         
-        // Заполняем выпадающие списки продавцов и покупателей
         updateCounterpartySelects();
     } catch (error) {
         console.error('[deals.js] Ошибка загрузки пользователей:', error);
-        users = [];
+        usersData = [];
     }
 }
 
@@ -194,8 +187,8 @@ function updateCounterpartySelects() {
     
     if (sellerSelect) {
         sellerSelect.innerHTML = '<option value="">Выберите продавца</option>';
-        for (let i = 0; i < counterparties.length; i++) {
-            const c = counterparties[i];
+        for (let i = 0; i < counterpartiesData.length; i++) {
+            const c = counterpartiesData[i];
             if (c.type === 'seller' || c.type === 'developer') {
                 const option = document.createElement('option');
                 option.value = c.id;
@@ -207,8 +200,8 @@ function updateCounterpartySelects() {
     
     if (buyerSelect) {
         buyerSelect.innerHTML = '<option value="">Выберите покупателя</option>';
-        for (let i = 0; i < counterparties.length; i++) {
-            const c = counterparties[i];
+        for (let i = 0; i < counterpartiesData.length; i++) {
+            const c = counterpartiesData[i];
             if (c.type === 'buyer' || c.type === 'investor') {
                 const option = document.createElement('option');
                 option.value = c.id;
@@ -222,25 +215,22 @@ function updateCounterpartySelects() {
 // ========== ФИЛЬТРАЦИЯ ПО РОЛИ ==========
 
 function filterDealsByRole() {
-    if (!currentUser) return [];
+    if (!currentUserData) return [];
     
-    // Админ и менеджер видят всё
-    if (currentUser.role === 'admin' || currentUser.role === 'manager') {
-        console.log('[deals.js] Фильтрация: admin/manager, показываем все заявки:', deals.length);
-        return deals;
+    if (currentUserData.role === 'admin' || currentUserData.role === 'manager') {
+        console.log('[deals.js] Фильтрация: admin/manager, показываем все заявки:', dealsData.length);
+        return dealsData;
     }
     
-    // Агент видит только свои заявки
-    if (currentUser.role === 'agent') {
-        const filtered = deals.filter(function(deal) {
-            return deal.agent_id === currentUser.github_username;
+    if (currentUserData.role === 'agent') {
+        const filtered = dealsData.filter(function(deal) {
+            return deal.agent_id === currentUserData.github_username;
         });
         console.log('[deals.js] Фильтрация: agent, своих заявок:', filtered.length);
         return filtered;
     }
     
-    // Наблюдатель видит только закрытые и открытые (но не может редактировать)
-    const filtered = deals.filter(function(deal) {
+    const filtered = dealsData.filter(function(deal) {
         return deal.status === 'closed' || deal.status === 'cancelled';
     });
     console.log('[deals.js] Фильтрация: viewer, закрытых заявок:', filtered.length);
@@ -259,7 +249,6 @@ function renderKanban() {
     const typeFilter = document.getElementById('typeFilter')?.value || 'all';
     const agentFilter = document.getElementById('agentFilter')?.value || 'all';
     
-    // Фильтрация
     const displayDeals = filteredDeals.filter(function(deal) {
         const complex = getComplexById(deal.complex_id);
         const seller = getCounterpartyById(deal.seller_id);
@@ -279,7 +268,6 @@ function renderKanban() {
     
     console.log('[deals.js] После фильтрации заявок:', displayDeals.length);
     
-    // Группировка по статусам
     const dealsByStatus = {};
     for (let i = 0; i < DEAL_STATUSES.length; i++) {
         dealsByStatus[DEAL_STATUSES[i].id] = [];
@@ -294,7 +282,6 @@ function renderKanban() {
         }
     }
     
-    // Построение HTML
     let html = '';
     for (let i = 0; i < DEAL_STATUSES.length; i++) {
         const status = DEAL_STATUSES[i];
@@ -320,10 +307,8 @@ function renderKanban() {
     
     board.innerHTML = html;
     
-    // Добавляем обработчики drag-and-drop
     setupDragAndDrop();
     
-    // Добавляем обработчики кликов на карточки
     document.querySelectorAll('.deal-card').forEach(function(card) {
         card.addEventListener('click', function(e) {
             if (!e.target.closest('.delete-deal')) {
@@ -333,7 +318,6 @@ function renderKanban() {
         });
     });
     
-    // Обновляем фильтр агентов
     updateAgentFilter();
     
     console.log('[deals.js] Рендеринг завершён');
@@ -358,17 +342,17 @@ function createDealCard(deal) {
     
     return '<div class="deal-card" data-deal-id="' + deal.id + '" draggable="' + canEdit + '">' +
         '<div class="deal-title">' +
-            '<span>Заявка №' + deal.id + '</span>' +
+            '<span>Заявка N' + deal.id + '</span>' +
             '<span class="deal-number">' + (complex ? complex.title : '—') + '</span>' +
         '</div>' +
         '<div class="deal-participants">' +
-            '<span title="Продавец">🏠 ' + (seller ? escapeHtml(seller.name) : '—') + '</span>' +
+            '<span title="Продавец">S: ' + (seller ? escapeHtml(seller.name) : '—') + '</span>' +
             '<span>→</span>' +
-            '<span title="Покупатель">👤 ' + (buyer ? escapeHtml(buyer.name) : '—') + '</span>' +
+            '<span title="Покупатель">B: ' + (buyer ? escapeHtml(buyer.name) : '—') + '</span>' +
         '</div>' +
         '<div class="deal-price">' +
             '<span class="deal-type ' + dealType.class + '">' + dealType.icon + ' ' + dealType.name + '</span>' +
-            '<span>' + priceFormatted + ' ₽</span>' +
+            '<span>' + priceFormatted + ' RUB</span>' +
         '</div>' +
         '<div class="deal-meta">' +
             '<span><i class="fas fa-user-tie"></i> ' + (deal.agent_id || '—') + '</span>' +
@@ -380,16 +364,16 @@ function createDealCard(deal) {
 
 function getComplexById(id) {
     if (!id) return null;
-    for (let i = 0; i < complexes.length; i++) {
-        if (complexes[i].id == id) return complexes[i];
+    for (let i = 0; i < complexesData.length; i++) {
+        if (complexesData[i].id == id) return complexesData[i];
     }
     return null;
 }
 
 function getCounterpartyById(id) {
     if (!id) return null;
-    for (let i = 0; i < counterparties.length; i++) {
-        if (counterparties[i].id == id) return counterparties[i];
+    for (let i = 0; i < counterpartiesData.length; i++) {
+        if (counterpartiesData[i].id == id) return counterpartiesData[i];
     }
     return null;
 }
@@ -450,9 +434,9 @@ async function handleDrop(e) {
 async function updateDealStatus(dealId, newStatus) {
     console.log('[deals.js] Обновление статуса заявки', dealId, '->', newStatus);
     let deal = null;
-    for (let i = 0; i < deals.length; i++) {
-        if (deals[i].id === dealId) {
-            deal = deals[i];
+    for (let i = 0; i < dealsData.length; i++) {
+        if (dealsData[i].id === dealId) {
+            deal = dealsData[i];
             break;
         }
     }
@@ -473,7 +457,7 @@ async function updateDealStatus(dealId, newStatus) {
         deal.updated_at = new Date().toISOString().split('T')[0];
         await saveDealsToGitHub();
         renderKanban();
-        showToast('success', 'Статус заявки №' + dealId + ' изменён на "' + getStatusName(newStatus) + '"');
+        showToast('success', 'Статус заявки N' + dealId + ' изменён на "' + getStatusName(newStatus) + '"');
         console.log('[deals.js] Статус заявки обновлён:', dealId, newStatus);
     }
 }
@@ -488,11 +472,11 @@ function getStatusName(statusId) {
 // ========== CRUD ЗАЯВОК ==========
 
 function canEditDeal(deal) {
-    if (!currentUser) return false;
-    if (currentUser.role === 'admin') return true;
-    if (currentUser.role === 'manager') return true;
-    if (currentUser.role === 'agent') {
-        return deal.agent_id === currentUser.github_username;
+    if (!currentUserData) return false;
+    if (currentUserData.role === 'admin') return true;
+    if (currentUserData.role === 'manager') return true;
+    if (currentUserData.role === 'agent') {
+        return deal.agent_id === currentUserData.github_username;
     }
     return false;
 }
@@ -505,9 +489,9 @@ function openDealModal(dealId) {
     if (dealId) {
         modalTitle.textContent = 'Редактировать заявку';
         let deal = null;
-        for (let i = 0; i < deals.length; i++) {
-            if (deals[i].id === dealId) {
-                deal = deals[i];
+        for (let i = 0; i < dealsData.length; i++) {
+            if (dealsData[i].id === dealId) {
+                deal = dealsData[i];
                 break;
             }
         }
@@ -535,7 +519,7 @@ function openDealModal(dealId) {
         document.getElementById('dealSeller').value = '';
         document.getElementById('dealBuyer').value = '';
         document.getElementById('dealType').value = 'secondary';
-        document.getElementById('dealAgent').value = currentUser?.github_username || '';
+        document.getElementById('dealAgent').value = currentUserData?.github_username || '';
         document.getElementById('dealPriceInitial').value = '';
         document.getElementById('dealPriceCurrent').value = '';
         document.getElementById('dealCommission').value = '3';
@@ -588,14 +572,14 @@ async function saveDeal() {
 
 async function createDeal(dealData) {
     console.log('[deals.js] Создание новой заявки...');
-    if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'manager' && currentUser.role !== 'agent')) {
+    if (!currentUserData || (currentUserData.role !== 'admin' && currentUserData.role !== 'manager' && currentUserData.role !== 'agent')) {
         showToast('error', 'У вас нет прав на создание заявок');
         return;
     }
     
     let maxId = 0;
-    for (let i = 0; i < deals.length; i++) {
-        if (deals[i].id > maxId) maxId = deals[i].id;
+    for (let i = 0; i < dealsData.length; i++) {
+        if (dealsData[i].id > maxId) maxId = dealsData[i].id;
     }
     const newId = maxId + 1;
     
@@ -605,7 +589,7 @@ async function createDeal(dealData) {
         apartment: dealData.apartment,
         seller_id: dealData.seller_id,
         buyer_id: dealData.buyer_id,
-        agent_id: dealData.agent_id || currentUser.github_username,
+        agent_id: dealData.agent_id || currentUserData.github_username,
         type: dealData.type,
         status: 'new',
         price_initial: dealData.price_initial,
@@ -619,32 +603,32 @@ async function createDeal(dealData) {
         updated_at: new Date().toISOString().split('T')[0]
     };
     
-    deals.push(newDeal);
+    dealsData.push(newDeal);
     await saveDealsToGitHub();
     renderKanban();
-    showToast('success', 'Заявка №' + newId + ' создана');
+    showToast('success', 'Заявка N' + newId + ' создана');
     console.log('[deals.js] Заявка создана:', newId);
 }
 
 async function updateDeal(dealId, dealData) {
     console.log('[deals.js] Обновление заявки:', dealId);
     let dealIndex = -1;
-    for (let i = 0; i < deals.length; i++) {
-        if (deals[i].id === dealId) {
+    for (let i = 0; i < dealsData.length; i++) {
+        if (dealsData[i].id === dealId) {
             dealIndex = i;
             break;
         }
     }
     
     if (dealIndex !== -1) {
-        const deal = deals[dealIndex];
+        const deal = dealsData[dealIndex];
         
         if (!canEditDeal(deal)) {
             showToast('error', 'У вас нет прав на редактирование этой заявки');
             return;
         }
         
-        deals[dealIndex] = {
+        dealsData[dealIndex] = {
             ...deal,
             complex_id: dealData.complex_id,
             apartment: dealData.apartment,
@@ -664,7 +648,7 @@ async function updateDeal(dealId, dealData) {
         
         await saveDealsToGitHub();
         renderKanban();
-        showToast('success', 'Заявка №' + dealId + ' обновлена');
+        showToast('success', 'Заявка N' + dealId + ' обновлена');
         console.log('[deals.js] Заявка обновлена:', dealId);
     }
 }
@@ -672,9 +656,9 @@ async function updateDeal(dealId, dealData) {
 async function deleteDeal(dealId) {
     console.log('[deals.js] Удаление заявки:', dealId);
     let deal = null;
-    for (let i = 0; i < deals.length; i++) {
-        if (deals[i].id === dealId) {
-            deal = deals[i];
+    for (let i = 0; i < dealsData.length; i++) {
+        if (dealsData[i].id === dealId) {
+            deal = dealsData[i];
             break;
         }
     }
@@ -686,26 +670,26 @@ async function deleteDeal(dealId) {
         return;
     }
     
-    if (confirm('Вы уверены, что хотите удалить заявку №' + dealId + '?')) {
+    if (confirm('Вы уверены, что хотите удалить заявку N' + dealId + '?')) {
         const newDeals = [];
-        for (let i = 0; i < deals.length; i++) {
-            if (deals[i].id !== dealId) newDeals.push(deals[i]);
+        for (let i = 0; i < dealsData.length; i++) {
+            if (dealsData[i].id !== dealId) newDeals.push(dealsData[i]);
         }
-        deals = newDeals;
+        dealsData = newDeals;
         await saveDealsToGitHub();
         renderKanban();
-        showToast('success', 'Заявка №' + dealId + ' удалена');
+        showToast('success', 'Заявка N' + dealId + ' удалена');
         console.log('[deals.js] Заявка удалена:', dealId);
     }
 }
 
 async function saveDealsToGitHub() {
     console.log('[deals.js] Сохранение заявок в GitHub...');
-    if (!currentUser) return false;
+    if (!currentUserData) return false;
     
     const dealsToSave = [];
-    for (let i = 0; i < deals.length; i++) {
-        const d = deals[i];
+    for (let i = 0; i < dealsData.length; i++) {
+        const d = dealsData[i];
         dealsToSave.push({
             id: d.id,
             complex_id: d.complex_id || '',
@@ -730,7 +714,7 @@ async function saveDealsToGitHub() {
     const result = await window.utils.saveCSVToGitHub(
         'data/deals.csv',
         dealsToSave,
-        'Update deals by ' + currentUser.name
+        'Update deals by ' + currentUserData.name
     );
     
     if (result) {
@@ -775,8 +759,8 @@ async function saveCounterparty() {
     }
     
     let maxId = 0;
-    for (let i = 0; i < counterparties.length; i++) {
-        if (counterparties[i].id > maxId) maxId = counterparties[i].id;
+    for (let i = 0; i < counterpartiesData.length; i++) {
+        if (counterpartiesData[i].id > maxId) maxId = counterpartiesData[i].id;
     }
     const newId = maxId + 1;
     
@@ -791,7 +775,7 @@ async function saveCounterparty() {
         created_at: new Date().toISOString().split('T')[0]
     };
     
-    counterparties.push(newCounterparty);
+    counterpartiesData.push(newCounterparty);
     await saveCounterpartiesToGitHub();
     updateCounterpartySelects();
     closeCounterpartyModal();
@@ -802,8 +786,8 @@ async function saveCounterparty() {
 async function saveCounterpartiesToGitHub() {
     console.log('[deals.js] Сохранение контрагентов в GitHub...');
     const dataToSave = [];
-    for (let i = 0; i < counterparties.length; i++) {
-        const c = counterparties[i];
+    for (let i = 0; i < counterpartiesData.length; i++) {
+        const c = counterpartiesData[i];
         dataToSave.push({
             id: c.id,
             type: c.type,
@@ -819,7 +803,7 @@ async function saveCounterpartiesToGitHub() {
     return await window.utils.saveCSVToGitHub(
         'data/counterparties.csv',
         dataToSave,
-        'Update counterparties by ' + (currentUser ? currentUser.name : 'system')
+        'Update counterparties by ' + (currentUserData ? currentUserData.name : 'system')
     );
 }
 
@@ -830,8 +814,8 @@ function updateAgentFilter() {
     if (!agentSelect) return;
     
     agentSelect.innerHTML = '<option value="all">Все агенты</option>';
-    for (let i = 0; i < users.length; i++) {
-        const u = users[i];
+    for (let i = 0; i < usersData.length; i++) {
+        const u = usersData[i];
         if (u.role === 'agent' || u.role === 'manager' || u.role === 'admin') {
             const option = document.createElement('option');
             option.value = u.github_username;
@@ -868,21 +852,20 @@ async function init() {
     console.log('[deals.js] === ИНИЦИАЛИЗАЦИЯ ===');
     
     await auth.initAuth();
-    currentUser = auth.getCurrentUser();
-    console.log('[deals.js] Пользователь:', currentUser ? currentUser.name + ' (' + currentUser.role + ')' : 'не авторизован');
+    currentUserData = auth.getCurrentUser();
+    console.log('[deals.js] Пользователь:', currentUserData ? currentUserData.name + ' (' + currentUserData.role + ')' : 'не авторизован');
     
-    if (!currentUser) {
+    if (!currentUserData) {
         window.location.href = 'auth.html';
         return;
     }
     
     await loadComplexesForDeals();
-    await loadCounterparties();
+    await loadCounterpartiesForDeals();
     await loadUsersForDeals();
     await loadDeals();
     renderKanban();
     
-    // Обработчики фильтров
     const searchInput = document.getElementById('searchInput');
     if (searchInput) searchInput.addEventListener('input', renderKanban);
     
