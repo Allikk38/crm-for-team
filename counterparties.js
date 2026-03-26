@@ -16,12 +16,13 @@
  * ============================================
  */
 
-var counterparties = [];
-var deals = [];
-var currentUser = null;
+// Используем let вместо var, чтобы избежать конфликтов с глобальными переменными
+let counterpartiesData = [];
+let dealsData = [];
+let currentUserData = null;
 
 // Типы контрагентов
-var COUNTERPARTY_TYPES = {
+const COUNTERPARTY_TYPES = {
     seller: { name: 'Продавец', icon: '🏠', class: 'type-seller' },
     buyer: { name: 'Покупатель', icon: '👤', class: 'type-buyer' },
     developer: { name: 'Застройщик', icon: '🏗️', class: 'type-developer' },
@@ -33,20 +34,20 @@ var COUNTERPARTY_TYPES = {
 async function loadCounterparties() {
     console.log('[counterparties.js] Загрузка контрагентов...');
     try {
-        var data = await loadCSV('data/counterparties.csv');
+        const data = await loadCSV('data/counterparties.csv');
         
         // Проверяем, есть ли данные
         if (!data || data.length === 0) {
             console.warn('[counterparties.js] Файл counterparties.csv пуст или не найден, создаём пустой массив');
-            counterparties = [];
+            counterpartiesData = [];
             renderCounterparties();
             return;
         }
         
-        counterparties = [];
-        for (var i = 0; i < data.length; i++) {
-            var c = data[i];
-            counterparties.push({
+        counterpartiesData = [];
+        for (let i = 0; i < data.length; i++) {
+            const c = data[i];
+            counterpartiesData.push({
                 id: parseInt(c.id),
                 type: c.type || 'seller',
                 person_type: c.person_type || 'individual',
@@ -61,16 +62,16 @@ async function loadCounterparties() {
             });
         }
         
-        console.log('[counterparties.js] Загружено контрагентов:', counterparties.length);
+        console.log('[counterparties.js] Загружено контрагентов:', counterpartiesData.length);
         renderCounterparties();
         
     } catch (error) {
         console.error('[counterparties.js] Ошибка загрузки контрагентов:', error);
-        counterparties = [];
+        counterpartiesData = [];
         renderCounterparties();
         
         // Показываем пользователю понятное сообщение
-        var grid = document.getElementById('counterpartiesGrid');
+        const grid = document.getElementById('counterpartiesGrid');
         if (grid) {
             grid.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Ошибка загрузки контрагентов</p><p style="font-size: 0.8rem;">Проверьте наличие файла data/counterparties.csv</p></div>';
         }
@@ -80,53 +81,54 @@ async function loadCounterparties() {
 async function loadDealsForCounterparties() {
     console.log('[counterparties.js] Загрузка сделок...');
     try {
-        var data = await loadCSV('data/deals.csv');
-        deals = [];
+        const data = await loadCSV('data/deals.csv');
+        dealsData = [];
         if (data && data.length > 0) {
-            for (var i = 0; i < data.length; i++) {
-                var d = data[i];
-                deals.push({
+            for (let i = 0; i < data.length; i++) {
+                const d = data[i];
+                dealsData.push({
                     id: parseInt(d.id),
                     seller_id: parseInt(d.seller_id) || null,
                     buyer_id: parseInt(d.buyer_id) || null,
+                    agent_id: d.agent_id || null,
                     status: d.status || 'new',
                     price_current: parseInt(d.price_current) || 0,
                     created_at: d.created_at || ''
                 });
             }
         }
-        console.log('[counterparties.js] Загружено сделок:', deals.length);
+        console.log('[counterparties.js] Загружено сделок:', dealsData.length);
     } catch (error) {
         console.error('[counterparties.js] Ошибка загрузки сделок:', error);
-        deals = [];
+        dealsData = [];
     }
 }
 
 // ========== ФИЛЬТРАЦИЯ ПО РОЛИ ==========
 
 function filterCounterpartiesByRole() {
-    if (!currentUser) return [];
+    if (!currentUserData) return [];
     
     // Админ и менеджер видят всё
-    if (currentUser.role === 'admin' || currentUser.role === 'manager') {
-        return counterparties;
+    if (currentUserData.role === 'admin' || currentUserData.role === 'manager') {
+        return counterpartiesData;
     }
     
     // Агент видит только своих клиентов (через сделки)
-    if (currentUser.role === 'agent') {
+    if (currentUserData.role === 'agent') {
         // Находим сделки агента
-        var agentDeals = deals.filter(function(d) {
-            return d.agent_id === currentUser.github_username;
+        const agentDeals = dealsData.filter(function(d) {
+            return d.agent_id === currentUserData.github_username;
         });
         
         // Собираем ID контрагентов из сделок агента
-        var counterpartyIds = [];
-        for (var i = 0; i < agentDeals.length; i++) {
+        const counterpartyIds = [];
+        for (let i = 0; i < agentDeals.length; i++) {
             if (agentDeals[i].seller_id) counterpartyIds.push(agentDeals[i].seller_id);
             if (agentDeals[i].buyer_id) counterpartyIds.push(agentDeals[i].buyer_id);
         }
         
-        return counterparties.filter(function(c) {
+        return counterpartiesData.filter(function(c) {
             return counterpartyIds.indexOf(c.id) !== -1;
         });
     }
@@ -139,23 +141,23 @@ function filterCounterpartiesByRole() {
 
 function renderCounterparties() {
     console.log('[counterparties.js] Рендеринг контрагентов...');
-    var grid = document.getElementById('counterpartiesGrid');
+    const grid = document.getElementById('counterpartiesGrid');
     if (!grid) return;
     
-    var filtered = filterCounterpartiesByRole();
-    var searchText = document.getElementById('searchInput')?.value.toLowerCase() || '';
-    var typeFilter = document.getElementById('typeFilter')?.value || 'all';
-    var personTypeFilter = document.getElementById('personTypeFilter')?.value || 'all';
+    const filtered = filterCounterpartiesByRole();
+    const searchText = document.getElementById('searchInput')?.value.toLowerCase() || '';
+    const typeFilter = document.getElementById('typeFilter')?.value || 'all';
+    const personTypeFilter = document.getElementById('personTypeFilter')?.value || 'all';
     
     // Фильтрация
-    var displayList = filtered.filter(function(c) {
-        var matchSearch = searchText === '' ||
+    const displayList = filtered.filter(function(c) {
+        const matchSearch = searchText === '' ||
             c.name.toLowerCase().includes(searchText) ||
             (c.phone && c.phone.includes(searchText)) ||
             (c.email && c.email.toLowerCase().includes(searchText));
         
-        var matchType = typeFilter === 'all' || c.type === typeFilter;
-        var matchPersonType = personTypeFilter === 'all' || c.person_type === personTypeFilter;
+        const matchType = typeFilter === 'all' || c.type === typeFilter;
+        const matchPersonType = personTypeFilter === 'all' || c.person_type === personTypeFilter;
         
         return matchSearch && matchType && matchPersonType;
     });
@@ -165,20 +167,20 @@ function renderCounterparties() {
         return;
     }
     
-    var html = '';
-    for (var i = 0; i < displayList.length; i++) {
-        var c = displayList[i];
-        var typeInfo = COUNTERPARTY_TYPES[c.type] || COUNTERPARTY_TYPES.seller;
+    let html = '';
+    for (let i = 0; i < displayList.length; i++) {
+        const c = displayList[i];
+        const typeInfo = COUNTERPARTY_TYPES[c.type] || COUNTERPARTY_TYPES.seller;
         
         // Получаем связанные сделки
-        var relatedDeals = getDealsByCounterparty(c.id);
-        var dealsCount = relatedDeals.length;
-        var activeDeals = relatedDeals.filter(function(d) {
+        const relatedDeals = getDealsByCounterparty(c.id);
+        const dealsCount = relatedDeals.length;
+        const activeDeals = relatedDeals.filter(function(d) {
             return d.status !== 'closed' && d.status !== 'cancelled';
         }).length;
         
         // Аватар (инициалы или иконка)
-        var avatarText = getInitials(c.name);
+        const avatarText = getInitials(c.name);
         
         html += '<div class="counterparty-card" onclick="openCounterpartyModal(' + c.id + ')">' +
             '<div class="counterparty-card-header">' +
@@ -217,7 +219,7 @@ function renderCounterparties() {
 
 function getInitials(name) {
     if (!name) return '?';
-    var parts = name.split(' ');
+    const parts = name.split(' ');
     if (parts.length >= 2) {
         return (parts[0][0] + parts[1][0]).toUpperCase();
     }
@@ -225,7 +227,7 @@ function getInitials(name) {
 }
 
 function getDealsByCounterparty(counterpartyId) {
-    return deals.filter(function(d) {
+    return dealsData.filter(function(d) {
         return d.seller_id === counterpartyId || d.buyer_id === counterpartyId;
     });
 }
@@ -233,16 +235,16 @@ function getDealsByCounterparty(counterpartyId) {
 // ========== CRUD КОНТРАГЕНТОВ ==========
 
 function openCounterpartyModal(counterpartyId) {
-    var modal = document.getElementById('counterpartyModal');
-    var modalTitle = document.getElementById('modalTitle');
-    var relatedDealsSection = document.getElementById('relatedDealsSection');
+    const modal = document.getElementById('counterpartyModal');
+    const modalTitle = document.getElementById('modalTitle');
+    const relatedDealsSection = document.getElementById('relatedDealsSection');
     
     if (counterpartyId) {
         modalTitle.innerHTML = '<i class="fas fa-user-edit"></i> Редактировать контрагента';
-        var counterparty = null;
-        for (var i = 0; i < counterparties.length; i++) {
-            if (counterparties[i].id === counterpartyId) {
-                counterparty = counterparties[i];
+        let counterparty = null;
+        for (let i = 0; i < counterpartiesData.length; i++) {
+            if (counterpartiesData[i].id === counterpartyId) {
+                counterparty = counterpartiesData[i];
                 break;
             }
         }
@@ -258,7 +260,7 @@ function openCounterpartyModal(counterpartyId) {
             document.getElementById('counterpartyNotes').value = counterparty.notes || '';
             
             // Показываем связанные сделки
-            var relatedDeals = getDealsByCounterparty(counterpartyId);
+            const relatedDeals = getDealsByCounterparty(counterpartyId);
             if (relatedDeals.length > 0) {
                 relatedDealsSection.style.display = 'block';
                 renderRelatedDeals(relatedDeals);
@@ -288,10 +290,10 @@ function closeCounterpartyFormModal() {
 }
 
 function renderRelatedDeals(relatedDeals) {
-    var container = document.getElementById('relatedDealsList');
+    const container = document.getElementById('relatedDealsList');
     if (!container) return;
     
-    var statusLabels = {
+    const statusLabels = {
         new: '🆕 Новая',
         showing: '👁️ Показ',
         negotiation: '💰 Торг',
@@ -303,10 +305,10 @@ function renderRelatedDeals(relatedDeals) {
         cancelled: '❌ Отказ'
     };
     
-    var html = '';
-    for (var i = 0; i < relatedDeals.length; i++) {
-        var d = relatedDeals[i];
-        var statusText = statusLabels[d.status] || d.status;
+    let html = '';
+    for (let i = 0; i < relatedDeals.length; i++) {
+        const d = relatedDeals[i];
+        const statusText = statusLabels[d.status] || d.status;
         html += '<div class="deal-item" onclick="goToDeal(' + d.id + ')">' +
             '<span>Сделка №' + d.id + '</span>' +
             '<span class="deal-status">' + statusText + '</span>' +
@@ -318,8 +320,8 @@ function renderRelatedDeals(relatedDeals) {
 }
 
 async function saveCounterparty() {
-    var id = document.getElementById('counterpartyId').value;
-    var counterpartyData = {
+    const id = document.getElementById('counterpartyId').value;
+    const counterpartyData = {
         type: document.getElementById('counterpartyType').value,
         person_type: document.getElementById('counterpartyPersonType').value,
         name: document.getElementById('counterpartyName').value.trim(),
@@ -345,18 +347,18 @@ async function saveCounterparty() {
 }
 
 async function createCounterparty(data) {
-    if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'manager')) {
+    if (!currentUserData || (currentUserData.role !== 'admin' && currentUserData.role !== 'manager')) {
         showToast('error', 'У вас нет прав на создание контрагентов');
         return;
     }
     
-    var maxId = 0;
-    for (var i = 0; i < counterparties.length; i++) {
-        if (counterparties[i].id > maxId) maxId = counterparties[i].id;
+    let maxId = 0;
+    for (let i = 0; i < counterpartiesData.length; i++) {
+        if (counterpartiesData[i].id > maxId) maxId = counterpartiesData[i].id;
     }
-    var newId = maxId + 1;
+    const newId = maxId + 1;
     
-    var newCounterparty = {
+    const newCounterparty = {
         id: newId,
         type: data.type,
         person_type: data.person_type,
@@ -370,24 +372,24 @@ async function createCounterparty(data) {
         updated_at: new Date().toISOString().split('T')[0]
     };
     
-    counterparties.push(newCounterparty);
+    counterpartiesData.push(newCounterparty);
     await saveCounterpartiesToGitHub();
     renderCounterparties();
     showToast('success', 'Контрагент добавлен');
 }
 
 async function updateCounterparty(id, data) {
-    var index = -1;
-    for (var i = 0; i < counterparties.length; i++) {
-        if (counterparties[i].id === id) {
+    let index = -1;
+    for (let i = 0; i < counterpartiesData.length; i++) {
+        if (counterpartiesData[i].id === id) {
             index = i;
             break;
         }
     }
     
     if (index !== -1) {
-        counterparties[index] = {
-            ...counterparties[index],
+        counterpartiesData[index] = {
+            ...counterpartiesData[index],
             type: data.type,
             person_type: data.person_type,
             name: data.name,
@@ -410,10 +412,10 @@ function editCounterparty(id) {
 }
 
 async function deleteCounterparty(id) {
-    var counterparty = null;
-    for (var i = 0; i < counterparties.length; i++) {
-        if (counterparties[i].id === id) {
-            counterparty = counterparties[i];
+    let counterparty = null;
+    for (let i = 0; i < counterpartiesData.length; i++) {
+        if (counterpartiesData[i].id === id) {
+            counterparty = counterpartiesData[i];
             break;
         }
     }
@@ -424,22 +426,22 @@ async function deleteCounterparty(id) {
         return;
     }
     
-    var newList = [];
-    for (var i = 0; i < counterparties.length; i++) {
-        if (counterparties[i].id !== id) newList.push(counterparties[i]);
+    const newList = [];
+    for (let i = 0; i < counterpartiesData.length; i++) {
+        if (counterpartiesData[i].id !== id) newList.push(counterpartiesData[i]);
     }
-    counterparties = newList;
+    counterpartiesData = newList;
     await saveCounterpartiesToGitHub();
     renderCounterparties();
     showToast('success', 'Контрагент удалён');
 }
 
 async function saveCounterpartiesToGitHub() {
-    if (!currentUser) return false;
+    if (!currentUserData) return false;
     
-    var dataToSave = [];
-    for (var i = 0; i < counterparties.length; i++) {
-        var c = counterparties[i];
+    const dataToSave = [];
+    for (let i = 0; i < counterpartiesData.length; i++) {
+        const c = counterpartiesData[i];
         dataToSave.push({
             id: c.id,
             type: c.type,
@@ -458,7 +460,7 @@ async function saveCounterpartiesToGitHub() {
     return await window.utils.saveCSVToGitHub(
         'data/counterparties.csv',
         dataToSave,
-        'Update counterparties by ' + currentUser.name
+        'Update counterparties by ' + currentUserData.name
     );
 }
 
@@ -466,7 +468,7 @@ async function saveCounterpartiesToGitHub() {
 
 function createDealForCounterparty(counterpartyId, type) {
     // Перенаправляем на страницу создания заявки с предзаполненным полем
-    var url = 'deals.html?';
+    let url = 'deals.html?';
     if (type === 'seller') {
         url += 'seller=' + counterpartyId;
     } else if (type === 'buyer') {
@@ -480,8 +482,8 @@ function goToDeal(dealId) {
 }
 
 function exportCounterparties() {
-    var filtered = filterCounterpartiesByRole();
-    var dataToExport = filtered.map(function(c) {
+    const filtered = filterCounterpartiesByRole();
+    const dataToExport = filtered.map(function(c) {
         return {
             'Тип': COUNTERPARTY_TYPES[c.type]?.name || c.type,
             'Имя': c.name,
@@ -494,10 +496,10 @@ function exportCounterparties() {
         };
     });
     
-    var csv = arrayToCSV(dataToExport);
-    var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    var link = document.createElement('a');
-    var url = URL.createObjectURL(blob);
+    const csv = arrayToCSV(dataToExport);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
     link.href = url;
     link.setAttribute('download', 'counterparties.csv');
     document.body.appendChild(link);
@@ -509,11 +511,11 @@ function exportCounterparties() {
 
 function arrayToCSV(data) {
     if (!data || data.length === 0) return '';
-    var headers = Object.keys(data[0]);
-    var rows = [
+    const headers = Object.keys(data[0]);
+    const rows = [
         headers.join(','),
         ...data.map(obj => headers.map(header => {
-            var value = obj[header] || '';
+            let value = obj[header] || '';
             if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
                 return '"' + value.replace(/"/g, '""') + '"';
             }
@@ -524,7 +526,7 @@ function arrayToCSV(data) {
 }
 
 function showToast(type, message) {
-    var toast = document.createElement('div');
+    const toast = document.createElement('div');
     toast.className = 'toast toast-' + type;
     toast.innerHTML = '<i class="fas ' + (type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle') + '"></i><span>' + escapeHtml(message) + '</span>';
     document.body.appendChild(toast);
@@ -536,7 +538,7 @@ function showToast(type, message) {
 
 function escapeHtml(text) {
     if (!text) return '';
-    var div = document.createElement('div');
+    const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
 }
@@ -546,11 +548,18 @@ function escapeHtml(text) {
 async function init() {
     console.log('[counterparties.js] === ИНИЦИАЛИЗАЦИЯ ===');
     
-    await auth.initAuth();
-    currentUser = auth.getCurrentUser();
-    console.log('[counterparties.js] Пользователь:', currentUser ? currentUser.name + ' (' + currentUser.role + ')' : 'не авторизован');
+    // Получаем текущего пользователя из глобального объекта auth
+    if (window.auth && typeof window.auth.getCurrentUser === 'function') {
+        await window.auth.initAuth();
+        currentUserData = window.auth.getCurrentUser();
+    } else {
+        console.error('[counterparties.js] Auth модуль не найден');
+        currentUserData = null;
+    }
     
-    if (!currentUser) {
+    console.log('[counterparties.js] Пользователь:', currentUserData ? currentUserData.name + ' (' + currentUserData.role + ')' : 'не авторизован');
+    
+    if (!currentUserData) {
         window.location.href = 'auth.html';
         return;
     }
@@ -560,22 +569,27 @@ async function init() {
     renderCounterparties();
     
     // Обработчики фильтров
-    var searchInput = document.getElementById('searchInput');
+    const searchInput = document.getElementById('searchInput');
     if (searchInput) searchInput.addEventListener('input', renderCounterparties);
     
-    var typeFilter = document.getElementById('typeFilter');
+    const typeFilter = document.getElementById('typeFilter');
     if (typeFilter) typeFilter.addEventListener('change', renderCounterparties);
     
-    var personTypeFilter = document.getElementById('personTypeFilter');
+    const personTypeFilter = document.getElementById('personTypeFilter');
     if (personTypeFilter) personTypeFilter.addEventListener('change', renderCounterparties);
     
-    var addBtn = document.getElementById('addCounterpartyBtn');
+    const addBtn = document.getElementById('addCounterpartyBtn');
     if (addBtn) addBtn.addEventListener('click', function() { openCounterpartyModal(); });
     
-    if (window.theme) window.theme.initTheme();
-    if (window.sidebar) window.sidebar.initSidebar();
+    if (window.theme && typeof window.theme.initTheme === 'function') window.theme.initTheme();
+    if (window.sidebar && typeof window.sidebar.initSidebar === 'function') window.sidebar.initSidebar();
     
     console.log('[counterparties.js] === ИНИЦИАЛИЗАЦИЯ ЗАВЕРШЕНА ===');
 }
 
-document.addEventListener('DOMContentLoaded', init);
+// Запускаем инициализацию после загрузки DOM
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+} else {
+    init();
+}
