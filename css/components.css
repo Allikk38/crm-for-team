@@ -522,3 +522,62 @@ h1 {
 .sidebar.collapsed .sidebar-footer .logout-btn i {
     margin: 0;
 }
+/* Кнопки в боковой панели */
+.sidebar-footer {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+}
+
+.sidebar-footer .collapse-btn,
+.sidebar-footer .theme-btn,
+.sidebar-footer .logout-btn {
+    width: 100%;
+    background: rgba(108, 108, 255, 0.15);
+    border: 1px solid var(--card-border);
+    padding: 10px 16px;
+    border-radius: 40px;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 0.85rem;
+}
+
+.sidebar-footer .collapse-btn:hover,
+.sidebar-footer .theme-btn:hover,
+.sidebar-footer .logout-btn:hover {
+    background: rgba(108, 108, 255, 0.3);
+    transform: translateY(-2px);
+}
+
+.sidebar-footer .theme-btn i {
+    color: #ffc107;
+}
+
+.sidebar-footer .logout-btn i {
+    color: #ff6b6b;
+}
+
+/* Свёрнутая боковая панель */
+.sidebar.collapsed .sidebar-footer .collapse-btn span,
+.sidebar.collapsed .sidebar-footer .theme-btn span,
+.sidebar.collapsed .sidebar-footer .logout-btn span {
+    display: none;
+}
+
+.sidebar.collapsed .sidebar-footer .collapse-btn,
+.sidebar.collapsed .sidebar-footer .theme-btn,
+.sidebar.collapsed .sidebar-footer .logout-btn {
+    justify-content: center;
+    padding: 10px;
+}
+
+.sidebar.collapsed .sidebar-footer .collapse-btn i,
+.sidebar.collapsed .sidebar-footer .theme-btn i,
+.sidebar.collapsed .sidebar-footer .logout-btn i {
+    margin: 0;
+}
