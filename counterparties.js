@@ -76,12 +76,6 @@ async function loadCounterparties() {
         }
     }
 }
-        console.log('[counterparties.js] Загружено контрагентов:', counterparties.length);
-    } catch (error) {
-        console.error('[counterparties.js] Ошибка загрузки контрагентов:', error);
-        counterparties = [];
-    }
-}
 
 async function loadDealsForCounterparties() {
     console.log('[counterparties.js] Загрузка сделок...');
