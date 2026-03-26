@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест новых модулей</title>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 { color: #333; }
+        .status {
+            background: #f0f0f0;
+            padding: 10px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+        .success { color: green; }
+        .error { color: red; }
+        button {
+            background: #4caf50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #45a049; }
+        pre {
+            background: #f4f4f4;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Тестовая страница новых модулей</h1>
+        <div class="status" id="status">
+            Загрузка модулей...
+        </div>
+        
+        <h3>Тесты:</h3>
+        <button onclick="testConstants()">Тест constants.js</button>
+        <button onclick="testHelpers()">Тест helpers.js</button>
+        <button onclick="clearLogs()">Очистить логи</button>
+        
+        <h3>Результаты:</h3>
+        <pre id="output">Ожидание действий...</pre>
+    </div>
+
+    <script src="js/loader.js"></script>
+    <script>
+        function log(message, isError = false) {
+            const output = document.getElementById('output');
+            const timestamp = new Date().toLocaleTimeString();
+            const formattedMessage = `[${timestamp}] ${message}\n`;
+            output.textContent += formattedMessage;
+            output.scrollTop = output.scrollHeight;
+            
+            if (isError) {
+                console.error(message);
+            } else {
+                console.log(message);
+            }
+        }
+        
+        function clearLogs() {
+            document.getElementById('output').textContent = '';
+            log('Логи очищены');
+        }
+        
+        function testConstants() {
+            log('=== Тест constants.js ===');
+            
+            if (window.CRM && window.CRM.constants) {
+                log('✓ constants.js загружен');
+                
+                const { ROLES, DEAL_STATUSES, NAVIGATION_ITEMS } = window.CRM.constants;
+                
+                log(`- ROLES: ${Object.keys(ROLES).length} ролей`);
+                log(`- DEAL_STATUSES: ${DEAL_STATUSES.length} статусов`);
+                log(`- NAVIGATION_ITEMS: ${NAVIGATION_ITEMS.length} пунктов меню`);
+                
+                log('✓ Тест constants.js пройден');
+            } else {
+                log('✗ constants.js НЕ загружен', true);
+            }
+        }
+        
+        function testHelpers() {
+            log('=== Тест helpers.js ===');
+            
+            if (window.CRM && window.CRM.helpers) {
+                log('✓ helpers.js загружен');
+                
+                const { escapeHtml, formatDate, formatPrice, showToast } = window.CRM.helpers;
+                
+                // Тест escapeHtml
+                const testHtml = '<script>alert("test")</script>';
+                const escaped = escapeHtml(testHtml);
+                log(`- escapeHtml: "${testHtml}" -> "${escaped}"`);
+                
+                // Тест formatDate
+                const testDate = '2026-03-26';
+                const formatted = formatDate(testDate);
+                log(`- formatDate: ${testDate} -> ${formatted}`);
+                
+                // Тест formatPrice
+                const testPrice = 15000000;
+                const priceFormatted = formatPrice(testPrice);
+                log(`- formatPrice: ${testPrice} -> ${priceFormatted}`);
+                
+                // Тест showToast
+                showToast('success', 'Тестовое уведомление');
+                log('- showToast: уведомление отправлено');
+                
+                log('✓ Тест helpers.js пройден');
+            } else {
+                log('✗ helpers.js НЕ загружен', true);
+            }
+        }
+        
+        // Проверка загрузки после инициализации
+        setTimeout(() => {
+            if (window.CRM) {
+                document.getElementById('status').innerHTML = `
+                    <strong>✓ Модули загружены успешно</strong><br>
+                    - constants.js: ${window.CRM.constants ? 'есть' : 'нет'}<br>
+                    - helpers.js: ${window.CRM.helpers ? 'есть' : 'нет'}
+                `;
+                document.getElementById('status').classList.add('success');
+                log('Система модулей инициализирована');
+            } else {
+                document.getElementById('status').innerHTML = '<strong class="error">✗ Ошибка загрузки модулей</strong>';
+                log('Ошибка: CRM объект не создан', true);
+            }
+        }, 500);
+    </script>
+</body>
+</html>
