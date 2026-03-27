@@ -632,22 +632,20 @@
         // ========== СОЗДАНИЕ КАРТОЧКИ ==========
         
         function createDealCardWithData(deal) {
-            // Подробная отладка
+            // Сравнение без учета регистра
             const isAdmin = currentUser?.role === 'admin';
             const isManager = currentUser?.role === 'manager';
-            const isAgentMatch = deal.agent_id === currentUser?.github_username;
+            const isAgentMatch = deal.agent_id?.toLowerCase() === currentUser?.github_username?.toLowerCase();
             
-            console.log(`[deals] Детали карточки ${deal.id}:`, {
-                'deal.agent_id': deal.agent_id,
-                'currentUser.github_username': currentUser?.github_username,
-                'isAdmin': isAdmin,
-                'isManager': isManager,
-                'isAgentMatch': isAgentMatch
-            });
+            console.log(`=== ДЕТАЛИ КАРТОЧКИ ${deal.id} ===`);
+            console.log(`deal.agent_id = "${deal.agent_id}"`);
+            console.log(`currentUser.github_username = "${currentUser?.github_username}"`);
+            console.log(`совпадают (без учета регистра)? ${isAgentMatch}`);
             
             const canEdit = (isAdmin || isManager || isAgentMatch) === true;
             
-            console.log(`[deals] Карточка ${deal.id}, canEdit: ${canEdit}, роль: ${currentUser?.role}`);
+            console.log(`canEdit = ${canEdit}`);
+            console.log(`========================`);
             
             const dealWithNames = {
                 ...deal,
