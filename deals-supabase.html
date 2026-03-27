@@ -606,6 +606,10 @@
         // ========== РЕНДЕРИНГ КАНБАНА ==========
         
         function createDealCardWithData(deal) {
+            const canEdit = currentUser?.role === 'admin' || 
+                           currentUser?.role === 'manager' || 
+                           deal.agent_id === currentUser?.github_username;
+            
             // Подготавливаем данные для компонента
             const dealWithNames = {
                 ...deal,
@@ -616,11 +620,11 @@
                 deadline: deal.deadline
             };
             
-            const canEdit = currentUser?.role === 'admin' || 
-                           currentUser?.role === 'manager' || 
-                           deal.agent_id === currentUser?.github_username;
+            const card = window.CRM.Kanban.createDealCard(dealWithNames, { 
+                canEdit: canEdit,
+                onDelete: (id) => window.deleteDeal(id)
+            });
             
-            const card = window.CRM.Kanban.createDealCard(dealWithNames, { canEdit });
             card.setAttribute('data-deal-id', deal.id);
             
             // Добавляем обработчик клика для редактирования
@@ -631,20 +635,17 @@
                 }
             });
             
-            // Добавляем кнопку удаления если есть права
-            if (canEdit) {
-                const deleteBtn = card.querySelector('.delete-deal');
-                if (deleteBtn) {
-                    deleteBtn.onclick = (e) => {
-                        e.stopPropagation();
-                        window.deleteDeal(deal.id);
-                    };
-                }
+            // Добавляем обработчик удаления
+            const deleteBtn = card.querySelector('.delete-deal');
+            if (deleteBtn) {
+                deleteBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    window.deleteDeal(deal.id);
+                };
             }
             
             return card;
-        }
-        
+        }        
         function renderKanban() {
             const board = document.getElementById('kanbanBoard');
             if (!board) return;
