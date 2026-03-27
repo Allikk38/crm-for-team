@@ -35,22 +35,20 @@ let sidebarCollapsed = false;
  * }
  */
 const NAVIGATION_ITEMS = [
-    // Базовые пункты (видят все)
-    { href: "index.html", icon: "fa-home", label: "Дашборд", roles: null },
-    { href: "tasks.html", icon: "fa-tasks", label: "Доска задач", roles: null },
-    { href: "complexes.html", icon: "fa-building", label: "Объекты", roles: null },
-    { href: "deals.html", icon: "fa-handshake", label: "Заявки", roles: null },
-    { href: "counterparties.html", icon: "fa-users", label: "Контрагенты", roles: null },
-    { href: "calendar.html", icon: "fa-calendar-alt", label: "Календарь", roles: null },
-    { href: "calendar-integration.html", icon: "fa-plug", label: "Подключить календарь", roles: null },
+    // Базовые пункты (видят все) - теперь supabase версии
+    { href: "index-supabase.html", icon: "fa-home", label: "Дашборд", roles: null },
+    { href: "tasks-supabase.html", icon: "fa-tasks", label: "Доска задач", roles: null },
+    { href: "complexes-supabase.html", icon: "fa-building", label: "Объекты", roles: null },
+    { href: "deals-supabase.html", icon: "fa-handshake", label: "Заявки", roles: null },
+    { href: "counterparties-supabase.html", icon: "fa-users", label: "Контрагенты", roles: null },
+    { href: "calendar-supabase.html", icon: "fa-calendar-alt", label: "Календарь", roles: null },
     
     // Пункты для админов и менеджеров
-    { href: "manager.html", icon: "fa-chart-simple", label: "Панель менеджера", roles: ["admin", "manager"] },
+    { href: "manager-supabase.html", icon: "fa-chart-simple", label: "Панель менеджера", roles: ["admin", "manager"] },
     
     // Пункты только для админов
-    { href: "admin.html", icon: "fa-users-cog", label: "Управление", roles: ["admin"] }
+    { href: "admin-supabase.html", icon: "fa-users-cog", label: "Управление", roles: ["admin"] }
 ];
-
 /**
  * Рендеринг навигации на основе роли пользователя
  */
