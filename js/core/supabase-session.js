@@ -19,6 +19,31 @@ import { supabase } from './supabase.js';
 let currentSupabaseUser = null;
 
 /**
+ * Загрузить профиль пользователя из таблицы profiles
+ * @param {string} userId - ID пользователя
+ * @returns {Promise<Object|null>}
+ */
+async function loadUserProfile(userId) {
+    try {
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', userId)
+            .single();
+        
+        if (error) {
+            console.error('[supabase-session] Ошибка загрузки профиля:', error);
+            return null;
+        }
+        
+        return data;
+    } catch (error) {
+        console.error('[supabase-session] Ошибка загрузки профиля:', error);
+        return null;
+    }
+}
+
+/**
  * Проверить текущую сессию Supabase
  * @returns {Promise<Object|null>} Пользователь или null
  */
@@ -27,13 +52,23 @@ export async function checkSupabaseSession() {
         const { data: { user } } = await supabase.auth.getUser();
         
         if (user) {
+            // Загружаем профиль из таблицы profiles
+            const profile = await loadUserProfile(user.id);
+            
             currentSupabaseUser = {
                 id: user.id,
                 email: user.email,
-                name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Пользователь',
-                role: 'agent', // По умолчанию, можно расширить позже
-                github_username: user.email?.split('@')[0] || user.id
+                name: profile?.name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Пользователь',
+                role: profile?.role || 'agent',
+                github_username: profile?.github_username || user.email?.split('@')[0] || user.id
             };
+            
+            console.log('[supabase-session] Пользователь загружен:', {
+                name: currentSupabaseUser.name,
+                role: currentSupabaseUser.role,
+                github_username: currentSupabaseUser.github_username
+            });
+            
             return currentSupabaseUser;
         }
         
@@ -101,7 +136,12 @@ export function updateSupabaseUserInterface() {
     }
     
     if (userRoleSpan) {
-        userRoleSpan.textContent = user.role === 'admin' ? 'Администратор' : 'Сотрудник';
+        let roleLabel = '';
+        if (user.role === 'admin') roleLabel = 'Администратор';
+        else if (user.role === 'manager') roleLabel = 'Менеджер';
+        else if (user.role === 'agent') roleLabel = 'Агент';
+        else roleLabel = 'Сотрудник';
+        userRoleSpan.textContent = roleLabel;
     }
     
     if (userAvatar) {
