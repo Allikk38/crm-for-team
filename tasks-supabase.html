@@ -81,10 +81,49 @@
         .comment-item {
             transition: all 0.2s ease;
             animation: fadeInScale 0.3s ease backwards;
+            padding: 12px;
+            border-radius: 12px;
+            margin-bottom: 8px;
+            background: var(--input-bg);
         }
         .comment-item:hover {
             transform: translateX(4px);
             background: rgba(108, 108, 255, 0.1);
+        }
+        
+        .comment-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 0.75rem;
+        }
+        
+        .comment-author {
+            font-weight: 600;
+            color: var(--accent);
+        }
+        
+        .comment-date {
+            color: var(--text-muted);
+            font-size: 0.65rem;
+        }
+        
+        .comment-text {
+            font-size: 0.85rem;
+            line-height: 1.4;
+            word-wrap: break-word;
+        }
+        
+        .delete-comment {
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .delete-comment:hover {
+            color: #ff6b6b;
+            transform: scale(1.1);
         }
         
         .add-task-btn-header {
@@ -126,6 +165,43 @@
             100% { background-position: -200% 0; }
         }
         
+        .comments-section {
+            margin-top: 20px;
+            padding-top: 16px;
+            border-top: 1px solid var(--card-border);
+        }
+        
+        .comments-header {
+            font-weight: 600;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .comments-list {
+            max-height: 300px;
+            overflow-y: auto;
+            margin-bottom: 12px;
+        }
+        
+        .comment-empty {
+            text-align: center;
+            color: var(--text-muted);
+            padding: 20px;
+            font-size: 0.85rem;
+        }
+        
+        .add-comment textarea {
+            width: 100%;
+            padding: 10px;
+            background: var(--input-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            color: var(--text-primary);
+            resize: vertical;
+        }
+        
         @media (max-width: 768px) {
             .task-card:hover {
                 transform: translateX(3px) translateY(-1px);
@@ -142,11 +218,11 @@
             </div>
             <nav class="sidebar-nav" id="sidebar-nav"></nav>
             <div class="sidebar-footer">
-                <button class="collapse-btn" onclick="toggleSidebar()">
+                <button class="collapse-btn" onclick="window.sidebar?.toggleSidebar()">
                     <i class="fas fa-chevron-left"></i>
                     <span>Свернуть</span>
                 </button>
-                <button class="logout-btn" onclick="handleLogout()" style="margin-top: 12px; width: 100%; padding: 10px; background: rgba(255, 107, 107, 0.2); border: none; border-radius: 12px; color: #ff6b6b; cursor: pointer;">
+                <button class="logout-btn" onclick="window.sidebar?.logout()" style="margin-top: 12px; width: 100%; padding: 10px; background: rgba(255, 107, 107, 0.2); border: none; border-radius: 12px; color: #ff6b6b; cursor: pointer;">
                     <i class="fas fa-sign-out-alt"></i> Выйти
                 </button>
             </div>
@@ -159,7 +235,7 @@
                         <i class="fas fa-plus"></i> Новая задача
                     </button>
                 </div>
-                <div class="user-profile" onclick="goToProfile()">
+                <div class="user-profile" onclick="window.sidebar?.goToProfile()">
                     <div class="user-info">
                         <div class="user-name" id="userName">Загрузка...</div>
                         <div class="user-role" id="userRole">—</div>
@@ -242,13 +318,13 @@
                 </div>
                 <div class="add-comment">
                     <textarea id="newComment" placeholder="Написать комментарий..." rows="2"></textarea>
-                    <button class="primary" onclick="addComment()" style="margin-top: 8px; width: 100%;"><i class="fas fa-paper-plane"></i> Отправить</button>
+                    <button class="primary" onclick="window.addComment()" style="margin-top: 8px; width: 100%;"><i class="fas fa-paper-plane"></i> Отправить</button>
                 </div>
             </div>
             
             <div class="modal-buttons">
-                <button onclick="closeModal()"><i class="fas fa-times"></i> Отмена</button>
-                <button class="primary" onclick="saveTask()"><i class="fas fa-save"></i> Сохранить</button>
+                <button onclick="window.closeModal()"><i class="fas fa-times"></i> Отмена</button>
+                <button class="primary" onclick="window.saveTask()"><i class="fas fa-save"></i> Сохранить</button>
             </div>
         </div>
     </div>
@@ -256,6 +332,7 @@
     <!-- Подключаем утилиты и компоненты -->
     <script src="js/utils/helpers.js"></script>
     <script src="js/components/kanban.js"></script>
+    <script src="js/ui/animations.js"></script>
     
     <script type="module">
         // Импорт из Supabase модулей
@@ -267,7 +344,6 @@
             logoutFromSupabase 
         } from './js/core/supabase-session.js';
         
-        // Импорт сервисов (переименовываем чтобы не конфликтовало с локальной функцией)
         import { 
             getTasks as getTasksFromDB, 
             createTask as createTaskInDB, 
@@ -281,31 +357,89 @@
         let users = [];
         let complexes = [];
         let currentUser = null;
+        let currentTaskComments = [];
         
-        // ========== ГЛОБАЛЬНЫЕ ФУНКЦИИ ==========
+        // ========== ФУНКЦИИ КОММЕНТАРИЕВ ==========
         
-        window.toggleSidebar = function() {
-            const sidebar = document.getElementById('sidebar');
-            if (sidebar) sidebar.classList.toggle('collapsed');
-        };
-        
-        window.goToProfile = function() {
-            window.location.href = 'profile-supabase.html';
-        };
-        
-        window.handleLogout = async function() {
-            if (confirm('Вы уверены, что хотите выйти?')) {
-                await logoutFromSupabase();
+        async function loadComments(taskId) {
+            if (!taskId) return;
+            
+            try {
+                const { data, error } = await supabase
+                    .from('comments')
+                    .select('*')
+                    .eq('task_id', parseInt(taskId))
+                    .order('created_at', { ascending: true });
+                
+                if (error) throw error;
+                currentTaskComments = data || [];
+                renderComments();
+            } catch (error) {
+                console.error('[tasks] Ошибка загрузки комментариев:', error);
+                currentTaskComments = [];
+                renderComments();
             }
-        };
+        }
         
-        window.closeModal = function() {
-            document.getElementById('taskModal').classList.remove('active');
-        };
+        function renderComments() {
+            const container = document.getElementById('commentsList');
+            const countSpan = document.getElementById('commentsCount');
+            
+            if (!container) return;
+            
+            if (!currentTaskComments || currentTaskComments.length === 0) {
+                container.innerHTML = '<div class="comment-empty">Нет комментариев</div>';
+                if (countSpan) countSpan.textContent = '0';
+                return;
+            }
+            
+            if (countSpan) countSpan.textContent = currentTaskComments.length;
+            
+            container.innerHTML = currentTaskComments.map(comment => `
+                <div class="comment-item" data-comment-id="${comment.id}">
+                    <div class="comment-header">
+                        <span class="comment-author">
+                            <i class="fas fa-user-circle"></i> ${escapeHtml(comment.author || 'Пользователь')}
+                        </span>
+                        <span class="comment-date">
+                            ${formatDate(comment.created_at)}
+                            ${canDeleteComment(comment) ? `<i class="fas fa-trash-alt delete-comment" onclick="window.deleteComment(${comment.id})"></i>` : ''}
+                        </span>
+                    </div>
+                    <div class="comment-text">${escapeHtml(comment.text || '')}</div>
+                </div>
+            `).join('');
+        }
+        
+        function canDeleteComment(comment) {
+            if (!currentUser) return false;
+            return comment.author === currentUser.name || currentUser.role === 'admin';
+        }
+        
+        function formatDate(dateStr) {
+            if (!dateStr) return '';
+            const date = new Date(dateStr);
+            return date.toLocaleString('ru-RU', {
+                day: '2-digit',
+                month: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+        
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
         
         window.addComment = async function() {
             const taskId = document.getElementById('taskId').value;
-            if (!taskId) return;
+            if (!taskId) {
+                alert('Сначала сохраните задачу');
+                return;
+            }
             
             const commentText = document.getElementById('newComment').value.trim();
             if (!commentText) {
@@ -313,8 +447,60 @@
                 return;
             }
             
-            // TODO: реализовать комментарии
-            alert('Комментарии пока в разработке');
+            try {
+                const { data, error } = await supabase
+                    .from('comments')
+                    .insert([{
+                        task_id: parseInt(taskId),
+                        user_id: currentUser?.id,
+                        author: currentUser?.name || currentUser?.email,
+                        text: commentText,
+                        mentions: []
+                    }])
+                    .select();
+                
+                if (error) throw error;
+                
+                document.getElementById('newComment').value = '';
+                await loadComments(taskId);
+                
+                if (window.showToast) {
+                    window.showToast('success', 'Комментарий добавлен');
+                }
+            } catch (error) {
+                console.error('[tasks] Ошибка добавления комментария:', error);
+                alert('Ошибка добавления комментария');
+            }
+        };
+        
+        window.deleteComment = async function(commentId) {
+            if (!confirm('Удалить комментарий?')) return;
+            
+            try {
+                const { error } = await supabase
+                    .from('comments')
+                    .delete()
+                    .eq('id', commentId);
+                
+                if (error) throw error;
+                
+                const taskId = document.getElementById('taskId').value;
+                await loadComments(taskId);
+                
+                if (window.showToast) {
+                    window.showToast('success', 'Комментарий удален');
+                }
+            } catch (error) {
+                console.error('[tasks] Ошибка удаления комментария:', error);
+                alert('Ошибка удаления комментария');
+            }
+        };
+        
+        // ========== ГЛОБАЛЬНЫЕ ФУНКЦИИ ==========
+        
+        window.closeModal = function() {
+            document.getElementById('taskModal').classList.remove('active');
+            currentTaskComments = [];
         };
         
         window.saveTask = async function() {
@@ -342,8 +528,11 @@
             }
             
             if (result) {
-                closeModal();
+                window.closeModal();
                 await loadTasksData();
+                if (window.showToast) {
+                    window.showToast('success', taskId ? 'Задача обновлена' : 'Задача создана');
+                }
             } else {
                 alert('Ошибка сохранения задачи');
             }
@@ -353,16 +542,12 @@
             openModal(taskId);
         };
         
-        // ЕДИНСТВЕННАЯ функция удаления (улучшенная версия)
         window.deleteTask = async function(taskId) {
             if (confirm('Вы уверены, что хотите удалить эту задачу?')) {
                 const success = await deleteTaskFromDB(taskId);
                 if (success) {
-                    // Обновляем локальный массив
                     tasks = tasks.filter(t => t.id != taskId);
-                    // Перерисовываем доску
                     renderKanbanBoard();
-                    // Показываем уведомление
                     if (window.showToast) {
                         window.showToast('success', 'Задача удалена');
                     }
@@ -387,19 +572,16 @@
             
             let todoCount = 0, progressCount = 0, doneCount = 0;
             
-            // Проверяем что компонент загружен
             if (!window.CRM || !window.CRM.Kanban) {
                 console.error('Kanban компонент не загружен!');
                 return;
             }
             
             for (const task of tasks) {
-                // Используем компонент для создания карточки
                 const card = window.CRM.Kanban.createTaskCard(task, {
                     showDelete: true
                 });
                 
-                // Добавляем обработчик клика для редактирования
                 card.addEventListener('click', (e) => {
                     if (!e.target.classList.contains('delete-task') && 
                         !e.target.closest('.delete-task')) {
@@ -407,7 +589,6 @@
                     }
                 });
                 
-                // Создаем новую функцию удаления для этой карточки
                 const deleteBtn = card.querySelector('.delete-task');
                 if (deleteBtn) {
                     const taskId = task.id;
@@ -488,7 +669,6 @@
             const modalTitle = document.getElementById('modalTitle');
             const privateCheckbox = document.getElementById('taskPrivate');
             
-            // Загружаем пользователей и объекты для селектов
             await loadUsers();
             await loadComplexes();
             
@@ -496,7 +676,7 @@
             if (assigneeSelect && users.length) {
                 assigneeSelect.innerHTML = '<option value="">Назначить исполнителя</option>';
                 for (const user of users) {
-                    assigneeSelect.innerHTML += `<option value="${user.github_username}">${user.name}</option>`;
+                    assigneeSelect.innerHTML += `<option value="${user.github_username}">${escapeHtml(user.name)}</option>`;
                 }
             }
             
@@ -504,7 +684,7 @@
             if (complexSelect && complexes.length) {
                 complexSelect.innerHTML = '<option value="">Привязать к объекту</option>';
                 for (const complex of complexes) {
-                    complexSelect.innerHTML += `<option value="${complex.id}">${complex.name}</option>`;
+                    complexSelect.innerHTML += `<option value="${complex.id}">${escapeHtml(complex.name)}</option>`;
                 }
             }
             
@@ -521,6 +701,9 @@
                     document.getElementById('taskDueDate').value = task.due_date || '';
                     document.getElementById('taskStatus').value = task.status;
                     if (privateCheckbox) privateCheckbox.checked = task.is_private;
+                    
+                    // Загружаем комментарии
+                    await loadComments(task.id);
                 }
             } else {
                 modalTitle.textContent = 'Создать задачу';
@@ -533,6 +716,8 @@
                 document.getElementById('taskDueDate').value = '';
                 document.getElementById('taskStatus').value = 'pending';
                 if (privateCheckbox) privateCheckbox.checked = false;
+                currentTaskComments = [];
+                renderComments();
             }
             
             modal.classList.add('active');
@@ -550,7 +735,6 @@
             await loadTasksData();
             setupDropZones();
             
-            // Кнопки добавления задач
             const addTaskBtn = document.getElementById('addTaskBtn');
             if (addTaskBtn) addTaskBtn.addEventListener('click', () => openModal());
             
@@ -563,10 +747,14 @@
                 });
             });
             
-            // Восстанавливаем состояние сайдбара
             const sidebar = document.getElementById('sidebar');
             if (sidebar && localStorage.getItem('sidebar_collapsed') === 'true') {
                 sidebar.classList.add('collapsed');
+            }
+            
+            // Инициализация анимаций
+            if (window.CRM?.ui?.animations) {
+                console.log('[tasks-supabase] Анимации инициализированы');
             }
         }
         
