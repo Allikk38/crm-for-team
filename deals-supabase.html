@@ -445,8 +445,9 @@
         </div>
     </div>
     
-    <!-- Подключаем утилиты -->
+    <!-- Подключаем утилиты и компоненты -->
     <script src="js/utils/helpers.js"></script>
+    <script src="js/components/kanban.js"></script>
     
     <script type="module">
         import { supabase } from './js/core/supabase.js';
@@ -463,7 +464,6 @@
         let counterpartiesData = [];
         let usersData = [];
         let currentUser = null;
-        let draggedDealId = null;
         
         const DEAL_STATUSES = [
             { id: 'new', name: 'Новая', icon: 'N', color: '#9e9e9e' },
@@ -611,73 +611,28 @@
             }
         };
         
-        // ========== СОЗДАНИЕ КАРТОЧКИ ==========
+        // ========== СОЗДАНИЕ КАРТОЧКИ (ИСПОЛЬЗУЕМ КОМПОНЕНТ) ==========
         
-        function createDealCard(deal) {
+        function createDealCardWithData(deal) {
             const canEdit = currentUser?.role === 'admin' || 
                            currentUser?.role === 'manager' || 
                            deal.agent_id === currentUser?.github_username;
             
-            const typeLabels = {
-                primary: '🏗️ Первичка',
-                secondary: '🏠 Вторичка',
-                exchange: '🔄 Альтернатива',
-                urgent: '⚡ Срочный выкуп'
+            // Подготавливаем данные для компонента
+            const dealWithNames = {
+                ...deal,
+                complex_name: getComplexName(deal.complex_id),
+                seller_name: getCounterpartyName(deal.seller_id),
+                buyer_name: getCounterpartyName(deal.buyer_id),
+                price_current: deal.price_current || deal.price_initial,
+                deadline: deal.deadline
             };
-            const typeText = typeLabels[deal.type] || 'Вторичка';
-            const priceFormatted = (deal.price_current || deal.price_initial || 0).toLocaleString();
             
-            const card = document.createElement('div');
-            card.className = 'deal-card';
+            // Используем компонент для создания карточки
+            const card = window.CRM.Kanban.createDealCard(dealWithNames, { canEdit });
             card.setAttribute('data-deal-id', deal.id);
-            card.draggable = canEdit;
-            card.setAttribute('draggable', canEdit ? 'true' : 'false');
             
-            card.innerHTML = `
-                <div class="deal-title">
-                    <span>Заявка N${deal.id}</span>
-                    <span class="deal-number">${window.escapeHtml(getComplexName(deal.complex_id))}</span>
-                </div>
-                <div class="deal-participants">
-                    <span>S: ${window.escapeHtml(getCounterpartyName(deal.seller_id))}</span>
-                    <span>→</span>
-                    <span>B: ${window.escapeHtml(getCounterpartyName(deal.buyer_id))}</span>
-                </div>
-                <div class="deal-price">
-                    <span class="deal-type type-secondary">${typeText}</span>
-                    <span>${priceFormatted} RUB</span>
-                </div>
-                <div class="deal-meta">
-                    <span><i class="fas fa-user-tie"></i> ${window.escapeHtml(deal.agent_id || '—')}</span>
-                    <span><i class="fas fa-calendar"></i> ${deal.deadline ? window.formatDate(deal.deadline, 'DD.MM.YYYY') : '—'}</span>
-                </div>
-                ${canEdit ? `
-                <div class="deal-meta" style="margin-top: 8px;">
-                    <button class="delete-deal" data-id="${deal.id}"><i class="fas fa-trash"></i> Удалить</button>
-                </div>
-                ` : ''}
-            `;
-            
-            // Drag start
-            card.addEventListener('dragstart', (e) => {
-                if (!canEdit) {
-                    e.preventDefault();
-                    return false;
-                }
-                draggedDealId = deal.id;
-                card.classList.add('dragging');
-                e.dataTransfer.setData('text/plain', deal.id);
-                e.dataTransfer.effectAllowed = 'move';
-                // Отключаем выделение текста
-                e.dataTransfer.setDragImage(new Image(), 0, 0);
-            });
-            
-            card.addEventListener('dragend', (e) => {
-                card.classList.remove('dragging');
-                draggedDealId = null;
-            });
-            
-            // Клик для редактирования
+            // Добавляем обработчик клика для редактирования
             card.addEventListener('click', (e) => {
                 if (!e.target.classList.contains('delete-deal') && 
                     !e.target.closest('.delete-deal')) {
@@ -685,7 +640,7 @@
                 }
             });
             
-            // Удаление
+            // Добавляем обработчик удаления
             const deleteBtn = card.querySelector('.delete-deal');
             if (deleteBtn) {
                 deleteBtn.onclick = (e) => {
@@ -743,13 +698,13 @@
             }
             board.innerHTML = html;
             
-            // Заполняем контейнеры
+            // Заполняем контейнеры карточками
             for (const status of DEAL_STATUSES) {
                 const container = document.getElementById(`container-${status.id}`);
                 if (container) {
                     const statusDeals = dealsByStatus[status.id] || [];
                     for (const deal of statusDeals) {
-                        container.appendChild(createDealCard(deal));
+                        container.appendChild(createDealCardWithData(deal));
                     }
                     if (statusDeals.length === 0) {
                         container.innerHTML = '<div class="empty-deals"><i class="fas fa-inbox"></i><p>Нет заявок</p></div>';
@@ -757,40 +712,9 @@
                 }
             }
             
-            setupDragAndDrop();
-        }
-        
-        function setupDragAndDrop() {
-            const containers = document.querySelectorAll('.deals-container');
-            console.log(`[deals-supabase] Настройка drag-and-drop для ${containers.length} контейнеров`);
-            
-            containers.forEach(container => {
-                // Удаляем старые обработчики
-                const newContainer = container.cloneNode(true);
-                container.parentNode.replaceChild(newContainer, container);
-                
-                newContainer.addEventListener('dragover', (e) => {
-                    e.preventDefault();
-                    newContainer.classList.add('drag-over');
-                });
-                
-                newContainer.addEventListener('dragleave', () => {
-                    newContainer.classList.remove('drag-over');
-                });
-                
-                newContainer.addEventListener('drop', async (e) => {
-                    e.preventDefault();
-                    newContainer.classList.remove('drag-over');
-                    
-                    const dealId = e.dataTransfer.getData('text/plain');
-                    const newStatus = newContainer.getAttribute('data-status');
-                    
-                    console.log(`[deals-supabase] Drop: сделка ${dealId} → ${newStatus}`);
-                    
-                    if (dealId && newStatus) {
-                        await updateDealStatus(dealId, newStatus);
-                    }
-                });
+            // Используем компонент для настройки drag-and-drop
+            window.CRM.Kanban.setupDragAndDrop('.deals-container', async (dealId, newStatus) => {
+                await updateDealStatus(dealId, newStatus);
             });
         }
         
