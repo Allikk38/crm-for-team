@@ -253,6 +253,10 @@
         </div>
     </div>
     
+    <!-- Подключаем утилиты и компоненты -->
+    <script src="js/utils/helpers.js"></script>
+    <script src="js/components/kanban.js"></script>
+    
     <script type="module">
         // Импорт из Supabase модулей
         import { supabase } from './js/core/supabase.js';
@@ -365,11 +369,16 @@
             
             let todoCount = 0, progressCount = 0, doneCount = 0;
             
+            // Проверяем что компонент загружен
+            if (!window.CRM || !window.CRM.Kanban) {
+                console.error('Kanban компонент не загружен!');
+                return;
+            }
+            
             for (const task of tasks) {
                 // Используем компонент для создания карточки
                 const card = window.CRM.Kanban.createTaskCard(task, {
-                    showDelete: true,
-                    onDelete: (id) => deleteTask(id)
+                    showDelete: true
                 });
                 
                 // Добавляем обработчик клика для редактирования
