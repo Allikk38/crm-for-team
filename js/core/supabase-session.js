@@ -1,0 +1,111 @@
+/**
+ * ============================================
+ * ФАЙЛ: js/core/supabase-session.js
+ * РОЛЬ: Управление сессией Supabase (параллельно с существующей auth.js)
+ * ЗАВИСИМОСТИ:
+ *   - js/core/supabase.js
+ * ============================================
+ * 
+ * ВНИМАНИЕ: Этот файл НЕ заменяет существующий auth.js
+ * Он работает параллельно для новых страниц с суффиксом -supabase
+ * 
+ * Использование: импортировать в новые HTML-страницы вместо старого auth.js
+ * ============================================
+ */
+
+import { supabase } from './supabase.js';
+
+// Текущий пользователь Supabase
+let currentSupabaseUser = null;
+
+/**
+ * Проверить текущую сессию Supabase
+ * @returns {Promise<Object|null>} Пользователь или null
+ */
+export async function checkSupabaseSession() {
+    try {
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (user) {
+            currentSupabaseUser = {
+                id: user.id,
+                email: user.email,
+                name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Пользователь',
+                role: 'agent', // По умолчанию, можно расширить позже
+                github_username: user.email?.split('@')[0] || user.id
+            };
+            return currentSupabaseUser;
+        }
+        
+        return null;
+    } catch (error) {
+        console.error('[supabase-session] Ошибка проверки сессии:', error);
+        return null;
+    }
+}
+
+/**
+ * Получить текущего пользователя Supabase
+ * @returns {Object|null}
+ */
+export function getCurrentSupabaseUser() {
+    return currentSupabaseUser;
+}
+
+/**
+ * Выход из Supabase
+ */
+export async function logoutFromSupabase() {
+    try {
+        await supabase.auth.signOut();
+        currentSupabaseUser = null;
+        window.location.href = 'auth-supabase.html';
+    } catch (error) {
+        console.error('[supabase-session] Ошибка выхода:', error);
+    }
+}
+
+/**
+ * Проверить авторизацию для страницы (редирект если не авторизован)
+ * @param {string} redirectUrl - URL для редиректа
+ * @returns {Promise<boolean>}
+ */
+export async function requireSupabaseAuth(redirectUrl = 'auth-supabase.html') {
+    const user = await checkSupabaseSession();
+    
+    if (!user) {
+        const currentPath = window.location.pathname;
+        // Не редиректим если уже на странице входа
+        if (!currentPath.includes('auth-supabase')) {
+            window.location.href = redirectUrl;
+        }
+        return false;
+    }
+    
+    return true;
+}
+
+/**
+ * Обновить интерфейс пользователя в top-bar (для страниц Supabase)
+ */
+export function updateSupabaseUserInterface() {
+    const user = getCurrentSupabaseUser();
+    if (!user) return;
+    
+    const userNameSpan = document.getElementById('userName');
+    const userRoleSpan = document.getElementById('userRole');
+    const userAvatar = document.getElementById('userAvatar');
+    
+    if (userNameSpan) {
+        userNameSpan.textContent = user.name;
+    }
+    
+    if (userRoleSpan) {
+        userRoleSpan.textContent = user.role === 'admin' ? 'Администратор' : 'Сотрудник';
+    }
+    
+    if (userAvatar) {
+        const initials = user.name.split(' ').map(n => n[0]).join('').toUpperCase();
+        userAvatar.innerHTML = initials || '<i class="fas fa-user"></i>';
+    }
+}
