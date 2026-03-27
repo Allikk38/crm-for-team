@@ -15,7 +15,9 @@
       - Интеграция с объектами и контрагентами
     ЗАВИСИМОСТИ:
       - CSS: base.css, theme.css, components.css, kanban.css, modal.css, animations.css
-      - JS: js/core/supabase.js, js/core/supabase-session.js, js/components/kanban.js, js/ui/animations.js, layout.js
+      - JS: js/core/supabase.js, js/core/supabase-session.js, 
+             js/services/deals-supabase.js, js/components/kanban.js, 
+             js/ui/animations.js, layout.js
       - Таблицы: deals, complexes, counterparties, profiles
     ============================================
     -->
@@ -475,6 +477,15 @@
             logoutFromSupabase 
         } from './js/core/supabase-session.js';
         
+        // Импортируем сервис для сделок
+        import { 
+            getDeals, 
+            createDeal, 
+            updateDeal, 
+            deleteDeal, 
+            updateDealStatus 
+        } from './js/services/deals-supabase.js';
+        
         // Глобальные переменные
         let dealsData = [];
         let complexesData = [];
@@ -514,16 +525,10 @@
             }
         }
         
-        async function loadDeals() {
-            const { data, error } = await supabase
-                .from('deals')
-                .select('*')
-                .eq('user_id', currentUser?.id);
-            if (!error && data) {
-                dealsData = data;
-                console.log(`[deals-supabase] Загружено ${dealsData.length} сделок`);
-                renderKanban();
-            }
+        async function loadDealsData() {
+            dealsData = await getDeals();
+            console.log(`[deals-supabase] Загружено ${dealsData.length} сделок`);
+            renderKanban();
         }
         
         function getComplexName(complexId) {
@@ -595,19 +600,15 @@
         
         // ========== CRUD ==========
         
-        async function updateDealStatus(dealId, newStatus) {
+        async function handleUpdateDealStatus(dealId, newStatus) {
             const deal = dealsData.find(d => d.id == dealId);
             if (!deal || deal.status === newStatus) return;
             
             console.log(`[deals-supabase] Изменение статуса: ${dealId} → ${newStatus}`);
             
-            const { error } = await supabase
-                .from('deals')
-                .update({ status: newStatus, updated_at: new Date().toISOString() })
-                .eq('id', dealId);
-            
-            if (!error) {
-                await loadDeals();
+            const updated = await updateDealStatus(dealId, newStatus);
+            if (updated) {
+                await loadDealsData();
                 if (window.showToast) {
                     window.showToast('success', `Статус изменён на "${DEAL_STATUSES.find(s => s.id === newStatus)?.name}"`);
                 }
@@ -620,9 +621,9 @@
             
             if (confirm(`Удалить заявку N${deal.id}?`)) {
                 console.log(`[deals-supabase] Удаление сделки ${dealId}`);
-                const { error } = await supabase.from('deals').delete().eq('id', dealId);
-                if (!error) {
-                    await loadDeals();
+                const success = await deleteDeal(dealId);
+                if (success) {
+                    await loadDealsData();
                     if (window.showToast) window.showToast('success', 'Заявка удалена');
                 }
             }
@@ -725,7 +726,7 @@
             }
             
             window.CRM.Kanban.setupDragAndDrop('.deals-container', async (dealId, newStatus) => {
-                await updateDealStatus(dealId, newStatus);
+                await handleUpdateDealStatus(dealId, newStatus);
             });
         }
         
@@ -804,28 +805,21 @@
                 status: 'new'
             };
             
-            let error;
+            let result;
             if (dealId) {
-                const result = await supabase
-                    .from('deals')
-                    .update({ ...dealData, updated_at: new Date().toISOString() })
-                    .eq('id', dealId);
-                error = result.error;
+                result = await updateDeal(dealId, dealData);
             } else {
-                const result = await supabase
-                    .from('deals')
-                    .insert([{ ...dealData, user_id: currentUser?.id }]);
-                error = result.error;
+                result = await createDeal(dealData);
             }
             
-            if (!error) {
+            if (result) {
                 window.closeDealModal();
-                await loadDeals();
+                await loadDealsData();
                 if (window.showToast) {
                     window.showToast('success', dealId ? 'Заявка обновлена' : 'Заявка создана');
                 }
             } else {
-                console.error('[deals-supabase] Ошибка сохранения:', error);
+                console.error('[deals-supabase] Ошибка сохранения');
                 alert('Ошибка сохранения');
             }
         };
@@ -844,7 +838,7 @@
             await loadComplexes();
             await loadCounterparties();
             await loadUsers();
-            await loadDeals();
+            await loadDealsData();
             
             document.getElementById('addDealBtn').addEventListener('click', () => openDealModal());
             document.getElementById('searchInput').addEventListener('input', () => renderKanban());
