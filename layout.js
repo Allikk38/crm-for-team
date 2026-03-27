@@ -26,6 +26,7 @@ const NAVIGATION_ITEMS = [
 function getCurrentUserRole() {
     // Пробуем получить пользователя из Supabase через глобальный объект
     if (window.currentSupabaseUser) {
+        console.log('[layout] Роль из window.currentSupabaseUser:', window.currentSupabaseUser.role);
         return window.currentSupabaseUser.role;
     }
     
@@ -43,17 +44,21 @@ function getCurrentUserRole() {
     
     return null;
 }
+
 function renderNavigation() {
     const container = document.getElementById('sidebar-nav');
     if (!container) return;
     
     const userRole = getCurrentUserRole();
+    console.log('[layout] renderNavigation, userRole:', userRole);
     
     const visibleItems = NAVIGATION_ITEMS.filter(item => {
         if (!item.roles) return true;
         if (!userRole) return false;
         return item.roles.includes(userRole);
     });
+    
+    console.log('[layout] Видимые пункты:', visibleItems.map(i => i.label));
     
     const currentPath = window.location.pathname.split('/').pop() || 'index-supabase.html';
     
@@ -87,6 +92,12 @@ function initSidebar() {
     initMobileMenu();
     addSidebarButtons();
     addNotificationButtonToTopBar();
+    
+    // Подписываемся на обновление пользователя
+    window.addEventListener('userLoaded', () => {
+        console.log('[layout] Событие userLoaded, обновляем навигацию');
+        renderNavigation();
+    });
 }
 
 function toggleSidebar() {
