@@ -8,13 +8,23 @@
     ============================================
     ФАЙЛ: index-supabase.html
     РОЛЬ: Главная страница (дашборд) с Supabase
+    
     ОСОБЕННОСТИ:
-      - Использует Supabase для данных
-      - Сохранен дизайн из оригинального index.html
-      - Работает параллельно со старой системой
+      - KPI показатели с анимацией
+      - График динамики задач по дням
+      - Рейтинг агентов
+      - Прогресс проекта
+      - Приветствие пользователя
+    
     ЗАВИСИМОСТИ:
       - CSS: base.css, theme.css, components.css, dashboard.css, responsive.css, animations.css
-      - JS: js/core/supabase.js, js/core/supabase-session.js, js/services/tasks-supabase.js, js/ui/animations.js
+      - JS: js/pages/index.js, layout.js
+      - Таблицы: tasks, complexes, profiles
+    
+    ИСТОРИЯ:
+      - 27.03.2026: Создание supabase-версии дашборда
+      - 27.03.2026: Исправлены вызовы функций для window.sidebar
+      - 27.03.2026: Рефакторинг — логика вынесена в js/pages/index.js
     ============================================
     -->
     
@@ -29,9 +39,7 @@
                     if (document.documentElement) document.documentElement.classList.add('theme-dark');
                     if (document.body) document.body.classList.add('theme-dark');
                 }
-            } catch(e) {
-                console.warn('Theme initialization error:', e);
-            }
+            } catch(e) {}
         })();
     </script>
     
@@ -518,185 +526,15 @@
         </main>
     </div>
     
-    <!-- Supabase модули -->
-    <script type="module">
-        import { supabase } from './js/core/supabase.js';
-        import { checkSupabaseSession, getCurrentSupabaseUser, requireSupabaseAuth, updateSupabaseUserInterface, logoutFromSupabase } from './js/core/supabase-session.js';
-        import { getTasks, getOverdueTasks, getTodayTasks } from './js/services/tasks-supabase.js';
-        
-        // ========== АНИМАЦИИ ==========
-        
-        function animateValue(element, targetValue, suffix = '') {
-            if (!element) return;
-            let current = 0;
-            const increment = targetValue / 30;
-            const interval = setInterval(() => {
-                current += increment;
-                if (current >= targetValue) {
-                    element.textContent = targetValue + suffix;
-                    clearInterval(interval);
-                } else {
-                    element.textContent = Math.floor(current) + suffix;
-                }
-            }, 20);
-        }
-        
-        // ========== ЗАГРУЗКА ДАННЫХ ==========
-        
-        async function loadDashboardData() {
-            try {
-                const tasks = await getTasks();
-                const currentUser = getCurrentSupabaseUser();
-                
-                console.log('Загружено задач:', tasks.length);
-                
-                // Активные задачи (не завершенные)
-                const activeTasks = tasks.filter(t => t.status !== 'completed');
-                document.getElementById('tasksCount').textContent = activeTasks.length;
-                
-                // Завершенные за неделю
-                const weekAgo = new Date();
-                weekAgo.setDate(weekAgo.getDate() - 7);
-                const completedThisWeek = tasks.filter(t => {
-                    if (t.status !== 'completed') return false;
-                    if (!t.completed_at) return false;
-                    return new Date(t.completed_at) > weekAgo;
-                }).length;
-                document.getElementById('kpiCompletedWeek').textContent = completedThisWeek;
-                
-                // Просроченные
-                const today = new Date().toISOString().split('T')[0];
-                const overdueTasks = tasks.filter(t => {
-                    if (t.status === 'completed') return false;
-                    if (!t.due_date) return false;
-                    return t.due_date < today;
-                });
-                document.getElementById('kpiOverdue').textContent = overdueTasks.length;
-                
-                // Конверсия
-                const completedTasks = tasks.filter(t => t.status === 'completed').length;
-                const totalTasks = tasks.length;
-                const conversion = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-                document.getElementById('kpiConversion').textContent = conversion + '%';
-                
-                // Прогресс
-                document.getElementById('completedTasksLarge').textContent = completedTasks;
-                document.getElementById('totalTasksLarge').textContent = totalTasks;
-                const progressPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-                document.getElementById('progressPercentLarge').textContent = progressPercent + '%';
-                const progressFill = document.getElementById('progressFillLarge');
-                if (progressFill) progressFill.style.width = progressPercent + '%';
-                
-                // Недельная динамика
-                renderWeeklyChart(tasks);
-                
-                // Объекты (пока заглушка)
-                document.getElementById('complexesCount').textContent = '3';
-                
-                // Приветствие
-                if (currentUser) {
-                    const hour = new Date().getHours();
-                    let greeting = '';
-                    if (hour < 12) greeting = 'Доброе утро';
-                    else if (hour < 18) greeting = 'Добрый день';
-                    else greeting = 'Добрый вечер';
-                    document.getElementById('welcomeMessage').innerHTML = greeting + ', ' + currentUser.name + '! 👋 Рады видеть вас в CRM.';
-                }
-                
-            } catch (error) {
-                console.error('[index-supabase] Ошибка загрузки данных:', error);
-            }
-        }
-        
-        function renderWeeklyChart(tasks) {
-            const days = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
-            const today = new Date();
-            const startOfWeek = new Date(today);
-            startOfWeek.setDate(today.getDate() - today.getDay() + 1);
-            
-            const weeklyData = days.map((_, index) => {
-                const date = new Date(startOfWeek);
-                date.setDate(startOfWeek.getDate() + index);
-                const dateStr = date.toISOString().split('T')[0];
-                
-                return tasks.filter(t => {
-                    if (t.status !== 'completed') return false;
-                    if (!t.completed_at) return false;
-                    return t.completed_at.split('T')[0] === dateStr;
-                }).length;
-            });
-            
-            const maxValue = Math.max(...weeklyData, 1);
-            const barsContainer = document.getElementById('weeklyBars');
-            
-            if (barsContainer) {
-                barsContainer.innerHTML = weeklyData.map(value => {
-                    const height = (value / maxValue) * 80 + 20;
-                    return `<div class="chart-bar-mini" style="height: ${height}px;" title="${value} задач"></div>`;
-                }).join('');
-            }
-        }
-        
-        function renderAgentRankingPlaceholder() {
-            const container = document.getElementById('agentRanking');
-            if (!container) return;
-            
-            container.innerHTML = `
-                <div class="agent-ranking-item">
-                    <div class="agent-ranking-name">
-                        <div class="agent-ranking-badge">1</div>
-                        <span>Вы</span>
-                    </div>
-                    <div class="agent-ranking-value">0 задач</div>
-                </div>
-                <div class="agent-ranking-item">
-                    <div class="agent-ranking-name">
-                        <div class="agent-ranking-badge">2</div>
-                        <span>—</span>
-                    </div>
-                    <div class="agent-ranking-value">0 задач</div>
-                </div>
-                <div class="agent-ranking-item">
-                    <div class="agent-ranking-name">
-                        <div class="agent-ranking-badge">3</div>
-                        <span>—</span>
-                    </div>
-                    <div class="agent-ranking-value">0 задач</div>
-                </div>
-            `;
-        }
-        
-        // ========== ИНИЦИАЛИЗАЦИЯ ==========
-        
-        async function init() {
-            // Проверяем авторизацию
-            const isAuth = await requireSupabaseAuth('auth-supabase.html');
-            if (!isAuth) return;
-            
-            // Обновляем интерфейс пользователя
-            updateSupabaseUserInterface();
-            
-            // Загружаем данные
-            await loadDashboardData();
-            
-            // Восстанавливаем состояние сайдбара
-            const sidebar = document.getElementById('sidebar');
-            if (sidebar && localStorage.getItem('sidebar_collapsed') === 'true') {
-                sidebar.classList.add('collapsed');
-            }
-            
-            // Инициализация анимаций
-            if (window.CRM?.ui?.animations) {
-                console.log('[index-supabase] Анимации инициализированы');
-            } else {
-                console.warn('[index-supabase] AnimationManager не загружен');
-            }
-        }
-        
-        // Запуск
-        init();
-    </script>
+    <!-- Подключаем утилиты и компоненты -->
+    <script src="js/utils/helpers.js"></script>
     <script src="js/ui/animations.js"></script>
+
+    <!-- Подключаем модуль страницы (логика вынесена) -->
+    <script type="module">
+        import { initIndexPage } from './js/pages/index.js';
+        initIndexPage();
+    </script>
     <script src="layout.js"></script>
 </body>
 </html>
