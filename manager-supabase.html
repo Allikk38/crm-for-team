@@ -8,11 +8,8 @@
     ============================================
     ФАЙЛ: manager-supabase.html
     РОЛЬ: Панель менеджера для анализа работы команды (Supabase версия)
-    ВЕРСИЯ: Supabase (замена CSV)
     
     ОСОБЕННОСТИ:
-      - Использует Supabase для хранения данных
-      - Сохранен дизайн из оригинального manager.html
       - KPI показатели с анимацией
       - Нагрузка по агентам с прогресс-барами
       - Список просроченных задач
@@ -21,10 +18,8 @@
     
     ЗАВИСИМОСТИ:
       - CSS: base.css, theme.css, components.css, manager.css, responsive.css, animations.css
-      - JS: js/core/supabase.js, js/core/supabase-session.js, layout.js
-    
-    ИСТОРИЯ:
-      - 27.03.2026: Создание supabase-версии панели менеджера
+      - JS: js/core/supabase.js, js/core/supabase-session.js, js/ui/animations.js, layout.js
+      - Таблицы: tasks, profiles
     ============================================
     -->
     
@@ -39,9 +34,7 @@
                     if (document.documentElement) document.documentElement.classList.add('theme-dark');
                     if (document.body) document.body.classList.add('theme-dark');
                 }
-            } catch(e) {
-                console.warn('[manager-supabase] Theme initialization error:', e);
-            }
+            } catch(e) {}
         })();
     </script>
     
@@ -183,6 +176,8 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 12px;
+            flex-wrap: wrap;
+            gap: 8px;
         }
         
         .agent-name {
@@ -200,7 +195,6 @@
             display: flex;
             gap: 16px;
             font-size: 0.75rem;
-            margin-bottom: 12px;
         }
         
         .agent-stats span {
@@ -242,6 +236,8 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
         }
         
         .overdue-task:hover {
@@ -339,6 +335,10 @@
             .kpi-grid {
                 grid-template-columns: 1fr;
             }
+            .agent-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
         }
     </style>
 </head>
@@ -351,11 +351,11 @@
             </div>
             <nav class="sidebar-nav" id="sidebar-nav"></nav>
             <div class="sidebar-footer">
-                <button class="collapse-btn" onclick="toggleSidebar()">
+                <button class="collapse-btn" onclick="window.sidebar?.toggleSidebar()">
                     <i class="fas fa-chevron-left"></i>
                     <span>Свернуть</span>
                 </button>
-                <button class="logout-btn" onclick="handleLogout()" style="margin-top: 12px; width: 100%; padding: 10px; background: rgba(255, 107, 107, 0.2); border: none; border-radius: 12px; color: #ff6b6b; cursor: pointer;">
+                <button class="logout-btn" onclick="window.sidebar?.logout()" style="margin-top: 12px; width: 100%; padding: 10px; background: rgba(255, 107, 107, 0.2); border: none; border-radius: 12px; color: #ff6b6b; cursor: pointer;">
                     <i class="fas fa-sign-out-alt"></i> Выйти
                 </button>
             </div>
@@ -371,7 +371,7 @@
                         </select>
                     </div>
                 </div>
-                <div class="user-profile" onclick="goToProfile()">
+                <div class="user-profile" onclick="window.sidebar?.goToProfile()">
                     <div class="user-info">
                         <div class="user-name" id="userName">Загрузка...</div>
                         <div class="user-role" id="userRole">—</div>
@@ -424,17 +424,16 @@
         </main>
     </div>
     
+    <!-- Подключаем утилиты и компоненты -->
+    <script src="js/utils/helpers.js"></script>
+    <script src="js/ui/animations.js"></script>
+    
     <script type="module">
-        // ============================================
-        // МОДУЛЬ: manager-supabase.js
-        // ============================================
-        
         import { supabase } from './js/core/supabase.js';
         import { 
-            checkSupabaseSession, 
             getCurrentSupabaseUser, 
             requireSupabaseAuth, 
-            updateSupabaseUserInterface, 
+            updateSupabaseUserInterface,
             logoutFromSupabase 
         } from './js/core/supabase-session.js';
         
@@ -443,6 +442,8 @@
         let allUsers = [];
         let currentUser = null;
         let selectedUser = 'all';
+        
+        console.log('[manager-supabase] Модуль загружен');
         
         // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
         
@@ -453,25 +454,17 @@
             return div.innerHTML;
         }
         
-        function showToast(type, message) {
-            const toast = document.createElement('div');
-            toast.className = `toast toast-${type}`;
-            toast.innerHTML = `<span>${escapeHtml(message)}</span>`;
-            document.body.appendChild(toast);
-            setTimeout(() => toast.remove(), 3000);
-        }
-        
-        // ========== ЗАГРУЗКА ДАННЫХ ==========
+        // ========== ЗАГРУЗКА ДАННЫХ (БЕЗ ФИЛЬТРА ПО USER_ID ДЛЯ АДМИНА/МЕНЕДЖЕРА) ==========
         
         async function loadTasks() {
+            // Для админа и менеджера - все задачи (без фильтра по user_id)
             const { data, error } = await supabase
                 .from('tasks')
-                .select('*')
-                .eq('user_id', currentUser.id);
+                .select('*');
             
             if (!error && data) {
                 allTasks = data;
-                console.log(`[manager-supabase] Загружено ${allTasks.length} задач`);
+                console.log(`[manager-supabase] Загружено ${allTasks.length} задач (все)`);
             } else {
                 console.error('[manager-supabase] Ошибка загрузки задач:', error);
                 allTasks = [];
@@ -529,7 +522,7 @@
                 const overdueTasks = agentTasks.filter(t => t.status !== 'completed' && t.due_date && t.due_date < today).length;
                 const completedTasks = agentTasks.filter(t => t.status === 'completed').length;
                 
-                const maxLoad = 5;
+                const maxLoad = 10;
                 const loadPercent = Math.min(100, (activeTasks / maxLoad) * 100);
                 
                 result.push({
@@ -567,8 +560,6 @@
             
             let html = '';
             for (const agent of agentLoad) {
-                const nameParts = agent.name.split(' ');
-                const initials = nameParts.map(p => p[0]).join('');
                 const loadColor = agent.loadPercent > 80 ? '#ff6b6b' : (agent.loadPercent > 50 ? '#ffc107' : '#4caf50');
                 
                 html += `
@@ -581,6 +572,7 @@
                             <div class="agent-stats">
                                 <span><i class="fas fa-tasks"></i> ${agent.activeTasks} активных</span>
                                 ${agent.overdueTasks > 0 ? `<span class="overdue-badge"><i class="fas fa-exclamation-triangle"></i> ${agent.overdueTasks} просрочено</span>` : ''}
+                                <span><i class="fas fa-check-circle"></i> ${agent.completedTasks} завершено</span>
                             </div>
                         </div>
                         <div style="display: flex; align-items: center; gap: 12px;">
@@ -620,7 +612,7 @@
                                 <i class="fas fa-calendar"></i> просрочено на ${daysOverdue} дн.
                             </div>
                         </div>
-                        <button class="action-btn" onclick="goToTask('${task.id}')">Перейти →</button>
+                        <button class="action-btn" onclick="window.goToTask('${task.id}')">Перейти →</button>
                     </div>
                 `;
             }
@@ -683,38 +675,30 @@
             window.location.href = `tasks-supabase.html?task=${taskId}`;
         };
         
-        // ========== ГЛОБАЛЬНЫЕ ФУНКЦИИ ==========
-        
-        window.toggleSidebar = function() {
-            document.getElementById('sidebar').classList.toggle('collapsed');
-        };
-        
-        window.goToProfile = function() {
-            window.location.href = 'profile-supabase.html';
-        };
-        
-        window.handleLogout = async function() {
-            if (confirm('Выйти?')) await logoutFromSupabase();
-        };
-        
         // ========== ИНИЦИАЛИЗАЦИЯ ==========
         
         async function init() {
+            console.log('[manager-supabase] Инициализация...');
+            
             const isAuth = await requireSupabaseAuth('auth-supabase.html');
             if (!isAuth) return;
             
             currentUser = getCurrentSupabaseUser();
             updateSupabaseUserInterface();
             
+            console.log('[manager-supabase] Пользователь:', currentUser?.name, 'роль:', currentUser?.role);
+            
             // Проверка прав доступа (только менеджер или админ)
-            if (currentUser.role !== 'manager' && currentUser.role !== 'admin') {
+            const userRole = currentUser?.role?.toLowerCase();
+            if (userRole !== 'manager' && userRole !== 'admin') {
                 const main = document.querySelector('.main-content');
                 if (main) {
                     main.innerHTML = `
-                        <div class="info-panel" style="text-align: center;">
-                            <h2><i class="fas fa-lock"></i> Доступ ограничен</h2>
+                        <div class="info-panel" style="text-align: center; padding: 60px;">
+                            <i class="fas fa-lock" style="font-size: 3rem; margin-bottom: 20px;"></i>
+                            <h2>Доступ ограничен</h2>
                             <p>Эта страница доступна только менеджерам и администраторам.</p>
-                            <a href="index-supabase.html" class="nav-btn" style="margin-top: 20px; display: inline-block;">Вернуться на главную</a>
+                            <a href="index-supabase.html" class="nav-btn" style="margin-top: 20px; display: inline-block; padding: 10px 20px; background: var(--accent); border-radius: 40px; color: white; text-decoration: none;">Вернуться на главную</a>
                         </div>
                     `;
                 }
@@ -733,6 +717,12 @@
             if (sidebar && localStorage.getItem('sidebar_collapsed') === 'true') {
                 sidebar.classList.add('collapsed');
             }
+            
+            if (window.CRM?.ui?.animations) {
+                console.log('[manager-supabase] Анимации инициализированы');
+            }
+            
+            console.log('[manager-supabase] Инициализация завершена');
         }
         
         init();
