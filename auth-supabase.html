@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вход в CRM (Supabase)</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 400px;
+            padding: 40px;
+        }
+        
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 24px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+        }
+        
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        button {
+            width: 100%;
+            padding: 12px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        button:hover {
+            background: #5a67d8;
+        }
+        
+        .switch-mode {
+            text-align: center;
+            margin-top: 20px;
+            color: #667eea;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .switch-mode:hover {
+            text-decoration: underline;
+        }
+        
+        .message {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 14px;
+        }
+        
+        .error {
+            background: #fee;
+            color: #c33;
+        }
+        
+        .success {
+            background: #efe;
+            color: #3c6;
+        }
+        
+        .info {
+            background: #e3f2fd;
+            color: #1976d2;
+            margin-bottom: 20px;
+        }
+        
+        hr {
+            margin: 20px 0;
+            border: none;
+            border-top: 1px solid #eee;
+        }
+        
+        .back-link {
+            text-align: center;
+            margin-top: 20px;
+        }
+        
+        .back-link a {
+            color: #999;
+            text-decoration: none;
+            font-size: 12px;
+        }
+        
+        .back-link a:hover {
+            color: #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 CRM</h1>
+        
+        <div id="message" class="message info">
+            Используйте тестовые данные:<br>
+            Email: test@crm.com<br>
+            Пароль: test123456
+        </div>
+        
+        <div id="login-form">
+            <div class="form-group">
+                <label>Email</label>
+                <input type="email" id="email" placeholder="your@email.com" value="test@crm.com">
+            </div>
+            <div class="form-group">
+                <label>Пароль</label>
+                <input type="password" id="password" placeholder="••••••" value="test123456">
+            </div>
+            <button onclick="handleLogin()">Войти</button>
+            <div class="switch-mode" onclick="showRegister()">Нет аккаунта? Зарегистрироваться</div>
+        </div>
+        
+        <div id="register-form" style="display: none;">
+            <div class="form-group">
+                <label>Email</label>
+                <input type="email" id="reg-email" placeholder="your@email.com">
+            </div>
+            <div class="form-group">
+                <label>Имя</label>
+                <input type="text" id="reg-name" placeholder="Ваше имя">
+            </div>
+            <div class="form-group">
+                <label>Пароль</label>
+                <input type="password" id="reg-password" placeholder="минимум 6 символов">
+            </div>
+            <button onclick="handleRegister()">Зарегистрироваться</button>
+            <div class="switch-mode" onclick="showLogin()">Уже есть аккаунт? Войти</div>
+        </div>
+        
+        <hr>
+        
+        <div class="back-link">
+            <a href="auth.html">← Использовать старую систему входа (CSV)</a>
+        </div>
+    </div>
+
+    <script type="module">
+        import { supabase } from './js/core/supabase.js';
+        
+        const messageDiv = document.getElementById('message');
+        
+        window.handleLogin = async function() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            if (!email || !password) {
+                showMessage('Заполните все поля', 'error');
+                return;
+            }
+            
+            showMessage('Вход...', 'info');
+            
+            const { data, error } = await supabase.auth.signInWithPassword({
+                email,
+                password
+            });
+            
+            if (error) {
+                showMessage('Ошибка: ' + error.message, 'error');
+                return;
+            }
+            
+            if (data.user) {
+                showMessage('✅ Вход выполнен! Перенаправление...', 'success');
+                setTimeout(() => {
+                    window.location.href = 'test-tasks.html';
+                }, 1000);
+            }
+        };
+        
+        window.handleRegister = async function() {
+            const email = document.getElementById('reg-email').value;
+            const password = document.getElementById('reg-password').value;
+            const fullName = document.getElementById('reg-name').value;
+            
+            if (!email || !password || !fullName) {
+                showMessage('Заполните все поля', 'error');
+                return;
+            }
+            
+            if (password.length < 6) {
+                showMessage('Пароль должен быть не менее 6 символов', 'error');
+                return;
+            }
+            
+            showMessage('Регистрация...', 'info');
+            
+            const { data, error } = await supabase.auth.signUp({
+                email,
+                password,
+                options: {
+                    data: { full_name: fullName }
+                }
+            });
+            
+            if (error) {
+                showMessage('Ошибка: ' + error.message, 'error');
+                return;
+            }
+            
+            if (data.user) {
+                showMessage('✅ Регистрация успешна! Теперь войдите.', 'success');
+                setTimeout(() => {
+                    showLogin();
+                }, 2000);
+            }
+        };
+        
+        window.showRegister = function() {
+            document.getElementById('login-form').style.display = 'none';
+            document.getElementById('register-form').style.display = 'block';
+            messageDiv.style.display = 'block';
+            messageDiv.className = 'message info';
+            messageDiv.innerHTML = 'Зарегистрируйтесь для доступа к системе';
+        };
+        
+        window.showLogin = function() {
+            document.getElementById('login-form').style.display = 'block';
+            document.getElementById('register-form').style.display = 'none';
+            messageDiv.style.display = 'block';
+            messageDiv.className = 'message info';
+            messageDiv.innerHTML = 'Используйте тестовые данные:<br>Email: test@crm.com<br>Пароль: test123456';
+        };
+        
+        function showMessage(text, type) {
+            messageDiv.style.display = 'block';
+            messageDiv.className = 'message ' + type;
+            messageDiv.innerHTML = text;
+        }
+        
+        // Проверяем, если уже авторизован
+        async function checkExistingSession() {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                showMessage(`✅ Вы уже авторизованы как ${user.email}. Перенаправление...`, 'success');
+                setTimeout(() => {
+                    window.location.href = 'test-tasks.html';
+                }, 1000);
+            }
+        }
+        
+        checkExistingSession();
+    </script>
+</body>
+</html>
