@@ -126,7 +126,7 @@ function createTaskCard(task, options = {}) {
     const card = document.createElement('div');
     card.className = 'task-card';
     card.setAttribute('data-task-id', task.id);
-    card.draggable = true;
+    card.draggable = options.draggable !== false;
     
     // Получаем цвета приоритета
     const priorityColors = {
@@ -143,6 +143,11 @@ function createTaskCard(task, options = {}) {
     const priorityTexts = { high: 'Высокий', medium: 'Средний', low: 'Низкий' };
     const priorityText = priorityTexts[task.priority] || 'Средний';
     
+    let deleteButtonHtml = '';
+    if (options.showDelete !== false) {
+        deleteButtonHtml = `<button class="delete-task" data-id="${task.id}"><i class="fas fa-trash"></i></button>`;
+    }
+    
     card.innerHTML = `
         <div class="task-title">${window.escapeHtml(task.title)}${privateBadge}</div>
         <div class="task-description">${window.escapeHtml(task.description || '')}</div>
@@ -152,19 +157,19 @@ function createTaskCard(task, options = {}) {
         </div>
         <div class="task-meta">
             <span><i class="fas fa-calendar"></i> ${dueDate}</span>
-            ${options.showDelete !== false ? `
-            <button class="delete-task" data-id="${task.id}">
-                <i class="fas fa-trash"></i>
-            </button>
-            ` : ''}
+            ${deleteButtonHtml}
         </div>
     `;
     
     // Обработчик drag-start
     card.addEventListener('dragstart', (e) => {
-        card.classList.add('dragging');
-        e.dataTransfer.setData('text/plain', task.id);
-        e.dataTransfer.effectAllowed = 'move';
+        if (options.draggable !== false) {
+            card.classList.add('dragging');
+            e.dataTransfer.setData('text/plain', task.id);
+            e.dataTransfer.effectAllowed = 'move';
+        } else {
+            e.preventDefault();
+        }
     });
     
     card.addEventListener('dragend', () => {
@@ -176,12 +181,14 @@ function createTaskCard(task, options = {}) {
 
 /**
  * Создание карточки для сделки (шаблон)
+ * @param {Object} deal - Данные сделки
+ * @param {Object} options - Опции { canEdit, onDelete }
  */
 function createDealCard(deal, options = {}) {
     const card = document.createElement('div');
     card.className = 'deal-card';
     card.setAttribute('data-deal-id', deal.id);
-    card.draggable = true;
+    card.draggable = options.canEdit !== false;
     
     const typeLabels = {
         primary: '🏗️ Первичка',
@@ -192,6 +199,11 @@ function createDealCard(deal, options = {}) {
     const typeText = typeLabels[deal.type] || 'Вторичка';
     
     const priceFormatted = (deal.price_current || deal.price_initial || 0).toLocaleString();
+    
+    let deleteButtonHtml = '';
+    if (options.canEdit !== false) {
+        deleteButtonHtml = `<button class="delete-deal" data-id="${deal.id}"><i class="fas fa-trash"></i> Удалить</button>`;
+    }
     
     card.innerHTML = `
         <div class="deal-title">
@@ -211,12 +223,20 @@ function createDealCard(deal, options = {}) {
             <span><i class="fas fa-user-tie"></i> ${window.escapeHtml(deal.agent_id || '—')}</span>
             <span><i class="fas fa-calendar"></i> ${deal.deadline ? window.formatDate(deal.deadline, 'DD.MM.YYYY') : '—'}</span>
         </div>
+        <div class="deal-meta" style="margin-top: 8px;">
+            ${deleteButtonHtml}
+        </div>
     `;
     
+    // Обработчик drag-start
     card.addEventListener('dragstart', (e) => {
-        card.classList.add('dragging');
-        e.dataTransfer.setData('text/plain', deal.id);
-        e.dataTransfer.effectAllowed = 'move';
+        if (options.canEdit !== false) {
+            card.classList.add('dragging');
+            e.dataTransfer.setData('text/plain', deal.id);
+            e.dataTransfer.effectAllowed = 'move';
+        } else {
+            e.preventDefault();
+        }
     });
     
     card.addEventListener('dragend', () => {
