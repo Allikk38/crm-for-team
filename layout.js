@@ -223,7 +223,7 @@ function toggleTheme() {
 
 // Переход в профиль
 function goToProfile() {
-    window.location.href = 'profile.html';
+    window.location.href = 'profile-supabase.html';
 }
 
 // Выход из системы
