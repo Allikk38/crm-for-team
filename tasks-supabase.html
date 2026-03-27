@@ -170,7 +170,7 @@
                 </div>
             </div>
             
-            <div class="kanban-board">
+            <div class="kanban-board" id="kanbanBoard">
                 <div class="kanban-column" data-status="pending">
                     <div class="column-header">
                         <span><i class="fas fa-circle"></i> To Do</span>
@@ -254,19 +254,26 @@
     </div>
     
     <script type="module">
+        // Импорт из Supabase модулей
         import { supabase } from './js/core/supabase.js';
-        import { checkSupabaseSession, getCurrentSupabaseUser, requireSupabaseAuth, updateSupabaseUserInterface, logoutFromSupabase } from './js/core/supabase-session.js';
+        import { 
+            getCurrentSupabaseUser, 
+            requireSupabaseAuth, 
+            updateSupabaseUserInterface, 
+            logoutFromSupabase 
+        } from './js/core/supabase-session.js';
+        
+        // Импорт сервисов
         import { getTasks, createTask, updateTask, updateTaskStatus, deleteTask } from './js/services/tasks-supabase.js';
         
         // Глобальные переменные
         let tasks = [];
         let users = [];
         let complexes = [];
-        let comments = [];
-        let draggedTask = null;
         let currentUser = null;
         
         // ========== ГЛОБАЛЬНЫЕ ФУНКЦИИ ==========
+        
         window.toggleSidebar = function() {
             const sidebar = document.getElementById('sidebar');
             if (sidebar) sidebar.classList.toggle('collapsed');
@@ -343,67 +350,9 @@
             }
         };
         
-        // ========== ФУНКЦИИ КАНБАН ==========
+        // ========== РЕНДЕРИНГ КАНБАНА ==========
         
-        function getPriorityColor(priority) {
-            const colors = { high: '#ff6b6b', medium: '#ffc107', low: '#4caf50' };
-            return colors[priority] || '#ffc107';
-        }
-        
-        function getPriorityText(priority) {
-            const texts = { high: 'Высокий', medium: 'Средний', low: 'Низкий' };
-            return texts[priority] || 'Средний';
-        }
-        
-        function getStatusText(status) {
-            const texts = { pending: 'To Do', in_progress: 'В работе', completed: 'Готово' };
-            return texts[status] || status;
-        }
-        
-        function createTaskCard(task) {
-            const card = document.createElement('div');
-            card.className = 'task-card';
-            card.setAttribute('data-task-id', task.id);
-            card.draggable = true;
-            card.style.borderLeftColor = getPriorityColor(task.priority);
-            
-            const privateBadge = task.is_private ? '<span class="private-badge"><i class="fas fa-lock"></i> Приватная</span>' : '';
-            const dueDate = task.due_date || 'без срока';
-            
-            card.innerHTML = `
-                <div class="task-title">${escapeHtml(task.title)}${privateBadge}</div>
-                <div class="task-description">${escapeHtml(task.description || '')}</div>
-                <div class="task-meta">
-                    <span class="task-priority priority-${task.priority}">${getPriorityText(task.priority)}</span>
-                    <span class="task-assignee"><i class="fas fa-user"></i> ${escapeHtml(task.assigned_to || 'Не назначен')}</span>
-                </div>
-                <div class="task-meta">
-                    <span><i class="fas fa-calendar"></i> ${dueDate}</span>
-                    <button class="delete-task" onclick="deleteTask('${task.id}')"><i class="fas fa-trash"></i></button>
-                </div>
-            `;
-            
-            card.addEventListener('dragstart', (e) => {
-                draggedTask = card;
-                card.classList.add('dragging');
-                e.dataTransfer.setData('text/plain', task.id);
-            });
-            
-            card.addEventListener('dragend', () => {
-                card.classList.remove('dragging');
-                draggedTask = null;
-            });
-            
-            card.addEventListener('click', (e) => {
-                if (!e.target.classList.contains('delete-task') && !e.target.closest('.delete-task')) {
-                    openModal(task.id);
-                }
-            });
-            
-            return card;
-        }
-        
-        function renderKanban() {
+        function renderKanbanBoard() {
             const todoContainer = document.getElementById('todoTasks');
             const progressContainer = document.getElementById('progressTasks');
             const doneContainer = document.getElementById('doneTasks');
@@ -417,7 +366,28 @@
             let todoCount = 0, progressCount = 0, doneCount = 0;
             
             for (const task of tasks) {
-                const card = createTaskCard(task);
+                // Используем компонент для создания карточки
+                const card = window.CRM.Kanban.createTaskCard(task, {
+                    showDelete: true,
+                    onDelete: (id) => deleteTask(id)
+                });
+                
+                // Добавляем обработчик клика для редактирования
+                card.addEventListener('click', (e) => {
+                    if (!e.target.classList.contains('delete-task') && 
+                        !e.target.closest('.delete-task')) {
+                        openModal(task.id);
+                    }
+                });
+                
+                // Переопределяем обработчик удаления
+                const deleteBtn = card.querySelector('.delete-task');
+                if (deleteBtn) {
+                    deleteBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        deleteTask(task.id);
+                    };
+                }
                 
                 if (task.status === 'pending') {
                     todoContainer.appendChild(card);
@@ -449,11 +419,11 @@
         }
         
         function setupDropZones() {
-            const columns = document.querySelectorAll('.tasks-container');
-            columns.forEach(column => {
-                column.addEventListener('dragover', (e) => e.preventDefault());
-                column.addEventListener('drop', async (e) => {
-                    const newStatus = column.parentElement.getAttribute('data-status');
+            const containers = document.querySelectorAll('.tasks-container');
+            containers.forEach(container => {
+                container.addEventListener('dragover', (e) => e.preventDefault());
+                container.addEventListener('drop', async (e) => {
+                    const newStatus = container.parentElement.getAttribute('data-status');
                     await handleDrop(e, newStatus);
                 });
             });
@@ -470,9 +440,18 @@
             }
         }
         
+        async function loadComplexes() {
+            try {
+                const { data, error } = await supabase.from('complexes').select('*').eq('user_id', currentUser?.id);
+                if (!error && data) complexes = data;
+            } catch (e) {
+                console.error('Ошибка загрузки объектов:', e);
+            }
+        }
+        
         async function loadTasksData() {
             tasks = await getTasks();
-            renderKanban();
+            renderKanbanBoard();
             console.log(`Загружено ${tasks.length} задач`);
         }
         
@@ -481,13 +460,23 @@
             const modalTitle = document.getElementById('modalTitle');
             const privateCheckbox = document.getElementById('taskPrivate');
             
-            // Загружаем пользователей для селекта
+            // Загружаем пользователей и объекты для селектов
             await loadUsers();
+            await loadComplexes();
+            
             const assigneeSelect = document.getElementById('taskAssignee');
             if (assigneeSelect && users.length) {
                 assigneeSelect.innerHTML = '<option value="">Назначить исполнителя</option>';
                 for (const user of users) {
                     assigneeSelect.innerHTML += `<option value="${user.github_username}">${user.name}</option>`;
+                }
+            }
+            
+            const complexSelect = document.getElementById('taskComplex');
+            if (complexSelect && complexes.length) {
+                complexSelect.innerHTML = '<option value="">Привязать к объекту</option>';
+                for (const complex of complexes) {
+                    complexSelect.innerHTML += `<option value="${complex.id}">${complex.name}</option>`;
                 }
             }
             
@@ -499,6 +488,7 @@
                     document.getElementById('taskTitle').value = task.title;
                     document.getElementById('taskDescription').value = task.description || '';
                     document.getElementById('taskAssignee').value = task.assigned_to || '';
+                    document.getElementById('taskComplex').value = task.complex_id || '';
                     document.getElementById('taskPriority').value = task.priority;
                     document.getElementById('taskDueDate').value = task.due_date || '';
                     document.getElementById('taskStatus').value = task.status;
@@ -510,6 +500,7 @@
                 document.getElementById('taskTitle').value = '';
                 document.getElementById('taskDescription').value = '';
                 document.getElementById('taskAssignee').value = '';
+                document.getElementById('taskComplex').value = '';
                 document.getElementById('taskPriority').value = 'medium';
                 document.getElementById('taskDueDate').value = '';
                 document.getElementById('taskStatus').value = 'pending';
@@ -517,13 +508,6 @@
             }
             
             modal.classList.add('active');
-        }
-        
-        function escapeHtml(text) {
-            if (!text) return '';
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
         }
         
         // ========== ИНИЦИАЛИЗАЦИЯ ==========
@@ -535,7 +519,6 @@
             currentUser = getCurrentSupabaseUser();
             updateSupabaseUserInterface();
             
-            await loadUsers();
             await loadTasksData();
             setupDropZones();
             
