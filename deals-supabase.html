@@ -653,6 +653,7 @@
                 deadline: deal.deadline
             };
             
+            console.log(`[deals] Создаю карточку для ${deal.id}, canEdit=${canEdit}`);
             const card = window.CRM.Kanban.createDealCard(dealWithNames, { canEdit });
             card.setAttribute('data-deal-id', deal.id);
             
