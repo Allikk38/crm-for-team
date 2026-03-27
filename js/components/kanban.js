@@ -154,9 +154,6 @@ function setupDragAndDrop(containerSelector, onDrop) {
     
     containers.forEach(container => {
         // НЕ клонируем контейнер! Просто добавляем обработчики
-        container.removeEventListener('dragover', handleDragOver);
-        container.removeEventListener('dragleave', handleDragLeave);
-        container.removeEventListener('drop', handleDrop);
         
         function handleDragOver(e) {
             e.preventDefault();
@@ -180,6 +177,12 @@ function setupDragAndDrop(containerSelector, onDrop) {
             }
         }
         
+        // Удаляем старые обработчики, если есть
+        container.removeEventListener('dragover', handleDragOver);
+        container.removeEventListener('dragleave', handleDragLeave);
+        container.removeEventListener('drop', handleDrop);
+        
+        // Добавляем новые
         container.addEventListener('dragover', handleDragOver);
         container.addEventListener('dragleave', handleDragLeave);
         container.addEventListener('drop', handleDrop);
