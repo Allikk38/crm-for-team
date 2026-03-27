@@ -2,19 +2,7 @@
  * ============================================
  * ФАЙЛ: layout.js
  * РОЛЬ: Управление боковой навигационной панелью
- * СВЯЗИ:
- *   - auth.js: auth.getCurrentUser(), auth.logout()
- *   - theme.js: window.theme
- *   - localStorage: сохранение состояния панели
- * МЕХАНИКА:
- *   1. Управление состоянием боковой панели (развёрнута/свёрнута)
- *   2. Сохранение состояния в localStorage
- *   3. Адаптация для мобильных устройств
- *   4. Обработка клика по профилю (переход в профиль)
- *   5. Централизованная генерация навигации из единого массива
- *   6. Фильтрация пунктов меню по роли пользователя
- *   7. Подсветка активного пункта меню
- *   8. Кнопка выхода и кнопка темы в нижней части панели
+ * ОБНОВЛЕНИЕ: Поддержка Supabase и старой системы
  * ============================================
  */
 
@@ -23,60 +11,50 @@ let sidebarCollapsed = false;
 
 // ========== ЦЕНТРАЛИЗОВАННАЯ НАВИГАЦИЯ ==========
 
-/**
- * Единый источник истины для всех пунктов меню
- * 
- * Структура пункта:
- * {
- *   href: string,        // ссылка на страницу
- *   icon: string,        // класс иконки Font Awesome (без "fas ")
- *   label: string,       // текст пункта
- *   roles: array|null    // массив ролей, которые видят пункт (null = все)
- * }
- */
 const NAVIGATION_ITEMS = [
-    // Базовые пункты (видят все) - теперь supabase версии
     { href: "index-supabase.html", icon: "fa-home", label: "Дашборд", roles: null },
     { href: "tasks-supabase.html", icon: "fa-tasks", label: "Доска задач", roles: null },
     { href: "complexes-supabase.html", icon: "fa-building", label: "Объекты", roles: null },
     { href: "deals-supabase.html", icon: "fa-handshake", label: "Заявки", roles: null },
     { href: "counterparties-supabase.html", icon: "fa-users", label: "Контрагенты", roles: null },
     { href: "calendar-supabase.html", icon: "fa-calendar-alt", label: "Календарь", roles: null },
-    
-    // Пункты для админов и менеджеров
     { href: "manager-supabase.html", icon: "fa-chart-simple", label: "Панель менеджера", roles: ["admin", "manager"] },
-    
-    // Пункты только для админов
     { href: "admin-supabase.html", icon: "fa-users-cog", label: "Управление", roles: ["admin"] }
 ];
-/**
- * Рендеринг навигации на основе роли пользователя
- */
-function renderNavigation() {
-    const user = auth.getCurrentUser();
-    const container = document.getElementById('sidebar-nav');
-    
-    if (!container) {
-        console.warn('[layout.js] Контейнер #sidebar-nav не найден');
-        return;
+
+function getCurrentUserRole() {
+    // Пробуем получить пользователя из Supabase (если есть)
+    if (window.supabaseSession && window.supabaseSession.getCurrentSupabaseUser) {
+        const user = window.supabaseSession.getCurrentSupabaseUser();
+        if (user) return user.role;
     }
     
-    // Фильтруем пункты по роли
+    // Пробуем получить из старой системы auth
+    if (window.auth && window.auth.getCurrentUser) {
+        const user = window.auth.getCurrentUser();
+        if (user) return user.role;
+    }
+    
+    return null;
+}
+
+function renderNavigation() {
+    const container = document.getElementById('sidebar-nav');
+    if (!container) return;
+    
+    const userRole = getCurrentUserRole();
+    
     const visibleItems = NAVIGATION_ITEMS.filter(item => {
         if (!item.roles) return true;
-        if (!user) return false;
-        return item.roles.includes(user.role);
+        if (!userRole) return false;
+        return item.roles.includes(userRole);
     });
     
-    // Определяем текущий путь для подсветки активного пункта
-    const currentPath = window.location.pathname.split('/').pop() || 'index.html';
+    const currentPath = window.location.pathname.split('/').pop() || 'index-supabase.html';
     
-    // Генерируем HTML
     let html = '';
     for (const item of visibleItems) {
-        const isActive = (item.href === currentPath) || 
-                         (currentPath === 'index.html' && item.href === 'index.html');
-        
+        const isActive = item.href === currentPath;
         html += `<a href="${item.href}" class="nav-item ${isActive ? 'active' : ''}">
             <i class="fas ${item.icon}"></i>
             <span>${escapeHtml(item.label)}</span>
@@ -84,7 +62,6 @@ function renderNavigation() {
     }
     
     container.innerHTML = html;
-    console.log('[layout.js] Навигация отрендерена, пунктов:', visibleItems.length);
 }
 
 function escapeHtml(text) {
@@ -94,28 +71,18 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-// ========== ОСТАЛЬНОЙ ФУНКЦИОНАЛ ==========
-
-// Инициализация боковой панели
 function initSidebar() {
-    // Загружаем сохранённое состояние
     const saved = localStorage.getItem('sidebar_collapsed');
     if (saved === 'true') {
         sidebarCollapsed = true;
         document.getElementById('sidebar')?.classList.add('collapsed');
     }
     
-    // Рендерим навигацию (централизованно)
     renderNavigation();
-    
-    // Добавляем обработчики для мобильного меню
     initMobileMenu();
-    
-    // Добавляем кнопку выхода и кнопку темы
     addSidebarButtons();
 }
 
-// Сворачивание/разворачивание панели
 function toggleSidebar() {
     const sidebar = document.getElementById('sidebar');
     if (!sidebar) return;
@@ -131,9 +98,7 @@ function toggleSidebar() {
     }
 }
 
-// Инициализация мобильного меню
 function initMobileMenu() {
-    // Создаём кнопку для мобильного меню
     const toggleBtn = document.createElement('div');
     toggleBtn.className = 'mobile-menu-toggle';
     toggleBtn.innerHTML = '<i class="fas fa-bars"></i>';
@@ -143,7 +108,6 @@ function initMobileMenu() {
     };
     document.body.appendChild(toggleBtn);
     
-    // Закрываем меню при клике вне его
     document.addEventListener('click', (e) => {
         const sidebar = document.getElementById('sidebar');
         const toggle = document.querySelector('.mobile-menu-toggle');
@@ -155,16 +119,13 @@ function initMobileMenu() {
     });
 }
 
-// Добавление кнопок в нижнюю часть боковой панели
 function addSidebarButtons() {
     const sidebarFooter = document.querySelector('.sidebar-footer');
     if (!sidebarFooter) return;
     
-    // Очищаем футер от существующих кнопок (кроме collapse-btn)
     const existingBtns = sidebarFooter.querySelectorAll('button:not(.collapse-btn)');
     existingBtns.forEach(btn => btn.remove());
     
-    // Кнопка переключения темы
     const themeBtn = document.createElement('button');
     themeBtn.className = 'theme-btn';
     const currentTheme = localStorage.getItem('crm_theme') || 'dark';
@@ -176,7 +137,6 @@ function addSidebarButtons() {
         toggleTheme();
     };
     
-    // Кнопка выхода
     const logoutBtn = document.createElement('button');
     logoutBtn.className = 'logout-btn';
     logoutBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i> <span>Выйти</span>';
@@ -189,12 +149,10 @@ function addSidebarButtons() {
     sidebarFooter.appendChild(logoutBtn);
 }
 
-// Переключение темы
 function toggleTheme() {
     if (window.theme && window.theme.toggleTheme) {
         window.theme.toggleTheme();
     } else {
-        // Fallback
         const isDark = document.documentElement.classList.contains('theme-dark');
         if (isDark) {
             document.documentElement.classList.remove('theme-dark');
@@ -211,7 +169,6 @@ function toggleTheme() {
         }
     }
     
-    // Обновляем текст кнопки
     const themeBtn = document.querySelector('.theme-btn');
     if (themeBtn) {
         const isDarkNow = document.documentElement.classList.contains('theme-dark');
@@ -221,25 +178,25 @@ function toggleTheme() {
     }
 }
 
-// Переход в профиль
 function goToProfile() {
     window.location.href = 'profile-supabase.html';
 }
 
-// Выход из системы
 function logout() {
     if (confirm('Вы уверены, что хотите выйти из системы?')) {
-        if (window.auth && window.auth.logout) {
+        // Пробуем выйти из Supabase
+        if (window.supabaseSession && window.supabaseSession.logoutFromSupabase) {
+            window.supabaseSession.logoutFromSupabase();
+        } else if (window.auth && window.auth.logout) {
             window.auth.logout();
         } else {
             localStorage.removeItem('crm_session');
             localStorage.removeItem('crm_remember_me');
-            window.location.href = 'auth.html';
+            window.location.href = 'auth-supabase.html';
         }
     }
 }
 
-// Экспорт
 window.sidebar = {
     initSidebar,
     toggleSidebar,
@@ -248,7 +205,6 @@ window.sidebar = {
     renderNavigation
 };
 
-// Автоматическая инициализация
 document.addEventListener('DOMContentLoaded', () => {
     initSidebar();
 });
