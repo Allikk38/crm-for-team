@@ -18,6 +18,16 @@ import { supabase } from './supabase.js';
 // Текущий пользователь Supabase
 let currentSupabaseUser = null;
 
+// Глобальная переменная для layout.js
+window.currentSupabaseUser = null;
+
+/**
+ * Обновить глобальную переменную для layout.js
+ */
+function updateGlobalUser() {
+    window.currentSupabaseUser = currentSupabaseUser;
+}
+
 /**
  * Загрузить профиль пользователя из таблицы profiles
  * @param {string} userId - ID пользователя
@@ -63,6 +73,9 @@ export async function checkSupabaseSession() {
                 github_username: profile?.github_username || user.email?.split('@')[0] || user.id
             };
             
+            // Обновляем глобальную переменную для layout.js
+            updateGlobalUser();
+            
             console.log('[supabase-session] Пользователь загружен:', {
                 name: currentSupabaseUser.name,
                 role: currentSupabaseUser.role,
@@ -94,6 +107,7 @@ export async function logoutFromSupabase() {
     try {
         await supabase.auth.signOut();
         currentSupabaseUser = null;
+        updateGlobalUser();
         window.location.href = 'auth-supabase.html';
     } catch (error) {
         console.error('[supabase-session] Ошибка выхода:', error);
