@@ -6,15 +6,8 @@
  *   - js/core/supabase.js
  * ============================================
  * 
- * ФУНКЦИИ:
- *   - getDeals() - получить все сделки текущего пользователя
- *   - getDealById(id) - получить сделку по ID
- *   - createDeal(dealData) - создать сделку
- *   - updateDeal(id, updates) - обновить сделку
- *   - deleteDeal(id) - удалить сделку
- *   - updateDealStatus(id, status) - обновить статус
- *   - getDealsByStatus(status) - фильтр по статусу
- *   - getDealsByAgent(agentId) - фильтр по агенту
+ * ВНИМАНИЕ: В таблице deals используется поле stage (не status!)
+ * Статусы: new, showing, negotiation, documents, closed, cancelled
  * ============================================
  */
 
@@ -41,8 +34,14 @@ export async function getDeals() {
         
         if (error) throw error;
         
-        console.log(`[deals-supabase] Загружено ${data?.length || 0} сделок`);
-        return data || [];
+        // Добавляем поле status как алиас для stage для совместимости
+        const dealsWithStatus = (data || []).map(deal => ({
+            ...deal,
+            status: deal.stage // добавляем status для совместимости с frontend
+        }));
+        
+        console.log(`[deals-supabase] Загружено ${dealsWithStatus?.length || 0} сделок`);
+        return dealsWithStatus;
     } catch (error) {
         console.error('[deals-supabase] Ошибка загрузки сделок:', error);
         return [];
@@ -66,6 +65,10 @@ export async function getDealById(id) {
             .single();
         
         if (error) throw error;
+        
+        if (data) {
+            data.status = data.stage; // добавляем status для совместимости
+        }
         return data;
     } catch (error) {
         console.error('[deals-supabase] Ошибка загрузки сделки:', error);
@@ -96,7 +99,7 @@ export async function createDeal(dealData) {
                 buyer_id: dealData.buyer_id || null,
                 agent_id: dealData.agent_id || null,
                 type: dealData.type || 'secondary',
-                status: dealData.status || 'new',
+                stage: dealData.status || 'new', // используем stage, а не status
                 price_initial: dealData.price_initial || 0,
                 price_current: dealData.price_current || dealData.price_initial || 0,
                 commission: dealData.commission || 3,
@@ -125,15 +128,20 @@ export async function createDeal(dealData) {
  */
 export async function updateDeal(id, updates) {
     try {
-        // Подготовка данных для обновления
-        const updateData = {
-            ...updates,
-            updated_at: new Date().toISOString()
-        };
+        // Преобразуем status в stage, если есть
+        const updateData = { ...updates };
+        if (updateData.status !== undefined) {
+            updateData.stage = updateData.status;
+            delete updateData.status;
+        }
         
-        // Убираем поле user_id, если оно есть (нельзя менять владельца)
+        // Убираем поля, которые нельзя обновлять
         delete updateData.user_id;
-        delete updateData.id; // Убираем id, если вдруг попал
+        delete updateData.id;
+        delete updateData.created_at;
+        
+        // Добавляем updated_at
+        updateData.updated_at = new Date().toISOString();
         
         console.log('[deals-supabase] Обновление сделки:', {
             id: id,
@@ -193,7 +201,7 @@ export async function deleteDeal(id) {
  * @returns {Promise<Object|null>} Обновленная сделка или null
  */
 export async function updateDealStatus(id, status) {
-    const updates = { status };
+    const updates = { status }; // status будет преобразован в stage в updateDeal
     
     if (status === 'closed' || status === 'cancelled') {
         updates.completed_at = new Date().toISOString();
@@ -215,10 +223,15 @@ export async function getDealsByStatus(status) {
             .from('deals')
             .select('*')
             .eq('user_id', user.id)
-            .eq('status', status);
+            .eq('stage', status); // используем stage, а не status
         
         if (error) throw error;
-        return data || [];
+        
+        const dealsWithStatus = (data || []).map(deal => ({
+            ...deal,
+            status: deal.stage
+        }));
+        return dealsWithStatus;
     } catch (error) {
         console.error('[deals-supabase] Ошибка загрузки сделок по статусу:', error);
         return [];
@@ -241,7 +254,12 @@ export async function getDealsByAgent(agentId) {
             .eq('agent_id', agentId);
         
         if (error) throw error;
-        return data || [];
+        
+        const dealsWithStatus = (data || []).map(deal => ({
+            ...deal,
+            status: deal.stage
+        }));
+        return dealsWithStatus;
     } catch (error) {
         console.error('[deals-supabase] Ошибка загрузки сделок по агенту:', error);
         return [];
@@ -262,10 +280,15 @@ export async function getOverdueDeals() {
             .select('*')
             .eq('user_id', user.id)
             .lt('deadline', today)
-            .not('status', 'in', ['closed', 'cancelled']);
+            .not('stage', 'in', ['closed', 'cancelled']); // используем stage
         
         if (error) throw error;
-        return data || [];
+        
+        const dealsWithStatus = (data || []).map(deal => ({
+            ...deal,
+            status: deal.stage
+        }));
+        return dealsWithStatus;
     } catch (error) {
         console.error('[deals-supabase] Ошибка загрузки просроченных сделок:', error);
         return [];
