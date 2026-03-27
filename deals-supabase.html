@@ -631,11 +631,21 @@
         
         // ========== СОЗДАНИЕ КАРТОЧКИ ==========
         
-       function createDealCardWithData(deal) {
-            // Убедитесь, что canEdit - это true/false, а не undefined
-            const canEdit = (currentUser?.role === 'admin' || 
-                             currentUser?.role === 'manager' || 
-                             deal.agent_id === currentUser?.github_username) === true;
+        function createDealCardWithData(deal) {
+            // Подробная отладка
+            const isAdmin = currentUser?.role === 'admin';
+            const isManager = currentUser?.role === 'manager';
+            const isAgentMatch = deal.agent_id === currentUser?.github_username;
+            
+            console.log(`[deals] Детали карточки ${deal.id}:`, {
+                'deal.agent_id': deal.agent_id,
+                'currentUser.github_username': currentUser?.github_username,
+                'isAdmin': isAdmin,
+                'isManager': isManager,
+                'isAgentMatch': isAgentMatch
+            });
+            
+            const canEdit = (isAdmin || isManager || isAgentMatch) === true;
             
             console.log(`[deals] Карточка ${deal.id}, canEdit: ${canEdit}, роль: ${currentUser?.role}`);
             
