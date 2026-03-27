@@ -597,42 +597,36 @@
                 const tasks = await getTasks();
                 const currentUser = getCurrentSupabaseUser();
                 
-                // Фильтруем задачи для текущего пользователя
-                const userTasks = tasks.filter(t => t.assigned_to === currentUser?.email || t.created_by === currentUser?.id);
-                const allTasks = tasks;
+                console.log('Загружено задач:', tasks.length);
                 
                 // Активные задачи (не завершенные)
-                const activeTasks = allTasks.filter(t => t.status !== 'completed');
+                const activeTasks = tasks.filter(t => t.status !== 'completed');
                 document.getElementById('tasksCount').textContent = activeTasks.length;
-                animateValue(document.getElementById('tasksCount'), activeTasks.length);
                 
                 // Завершенные за неделю
                 const weekAgo = new Date();
                 weekAgo.setDate(weekAgo.getDate() - 7);
-                const completedThisWeek = allTasks.filter(t => {
+                const completedThisWeek = tasks.filter(t => {
                     if (t.status !== 'completed') return false;
                     if (!t.completed_at) return false;
                     return new Date(t.completed_at) > weekAgo;
                 }).length;
                 document.getElementById('kpiCompletedWeek').textContent = completedThisWeek;
-                animateValue(document.getElementById('kpiCompletedWeek'), completedThisWeek);
                 
                 // Просроченные
                 const today = new Date().toISOString().split('T')[0];
-                const overdueTasks = allTasks.filter(t => {
+                const overdueTasks = tasks.filter(t => {
                     if (t.status === 'completed') return false;
-                    if (!t.deadline) return false;
-                    return t.deadline < today;
+                    if (!t.due_date) return false;
+                    return t.due_date < today;
                 });
                 document.getElementById('kpiOverdue').textContent = overdueTasks.length;
-                animateValue(document.getElementById('kpiOverdue'), overdueTasks.length);
                 
                 // Конверсия
-                const completedTasks = allTasks.filter(t => t.status === 'completed').length;
-                const totalTasks = allTasks.length;
+                const completedTasks = tasks.filter(t => t.status === 'completed').length;
+                const totalTasks = tasks.length;
                 const conversion = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
                 document.getElementById('kpiConversion').textContent = conversion + '%';
-                animateValue(document.getElementById('kpiConversion'), conversion, '%');
                 
                 // Прогресс
                 document.getElementById('completedTasksLarge').textContent = completedTasks;
@@ -643,13 +637,10 @@
                 if (progressFill) progressFill.style.width = progressPercent + '%';
                 
                 // Недельная динамика
-                renderWeeklyChart(allTasks);
-                
-                // Рейтинг агентов (пока заглушка, т.к. нет данных о пользователях в Supabase)
-                renderAgentRankingPlaceholder();
+                renderWeeklyChart(tasks);
                 
                 // Объекты (пока заглушка)
-                document.getElementById('complexesCount').textContent = '—';
+                document.getElementById('complexesCount').textContent = '3';
                 
                 // Приветствие
                 if (currentUser) {
