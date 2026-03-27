@@ -83,7 +83,7 @@ function createDealCard(deal, options = {}) {
     card.className = 'deal-card';
     card.setAttribute('data-deal-id', deal.id);
     
-    const canEdit = options.canEdit !== false;
+    const canEdit = options.canEdit === true;
     card.draggable = canEdit;
     card.setAttribute('draggable', canEdit ? 'true' : 'false');
     
@@ -153,30 +153,36 @@ function setupDragAndDrop(containerSelector, onDrop) {
     console.log(`[kanban.js] Настройка drag-and-drop для ${containers.length} контейнеров`);
     
     containers.forEach(container => {
-        // Удаляем старые обработчики
-        const newContainer = container.cloneNode(true);
-        container.parentNode.replaceChild(newContainer, container);
+        // НЕ клонируем контейнер! Просто добавляем обработчики
+        container.removeEventListener('dragover', handleDragOver);
+        container.removeEventListener('dragleave', handleDragLeave);
+        container.removeEventListener('drop', handleDrop);
         
-        newContainer.addEventListener('dragover', (e) => {
+        function handleDragOver(e) {
             e.preventDefault();
-            newContainer.classList.add('drag-over');
-        });
+            container.classList.add('drag-over');
+        }
         
-        newContainer.addEventListener('dragleave', () => {
-            newContainer.classList.remove('drag-over');
-        });
+        function handleDragLeave() {
+            container.classList.remove('drag-over');
+        }
         
-        newContainer.addEventListener('drop', async (e) => {
+        async function handleDrop(e) {
             e.preventDefault();
-            newContainer.classList.remove('drag-over');
+            container.classList.remove('drag-over');
             
             const dealId = e.dataTransfer.getData('text/plain');
-            const newStatus = newContainer.getAttribute('data-status');
+            const newStatus = container.getAttribute('data-status');
             
             if (dealId && newStatus && onDrop) {
+                console.log(`[kanban.js] Drop: deal ${dealId} → ${newStatus}`);
                 await onDrop(dealId, newStatus);
             }
-        });
+        }
+        
+        container.addEventListener('dragover', handleDragOver);
+        container.addEventListener('dragleave', handleDragLeave);
+        container.addEventListener('drop', handleDrop);
     });
 }
 
