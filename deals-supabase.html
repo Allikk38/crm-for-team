@@ -4,6 +4,22 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     
+    <!-- 
+    ============================================
+    ФАЙЛ: deals-supabase.html
+    РОЛЬ: Управление заявками (сделки) с Supabase
+    ОСОБЕННОСТИ:
+      - Kanban-доска с 6 статусами
+      - Drag-and-drop для изменения статуса
+      - Фильтрация по поиску, типу, агенту
+      - Интеграция с объектами и контрагентами
+    ЗАВИСИМОСТИ:
+      - CSS: base.css, theme.css, components.css, kanban.css, modal.css, animations.css
+      - JS: js/core/supabase.js, js/core/supabase-session.js, js/components/kanban.js, js/ui/animations.js, layout.js
+      - Таблицы: deals, complexes, counterparties, profiles
+    ============================================
+    -->
+    
     <script>
         (function() {
             try {
@@ -292,11 +308,11 @@
             </div>
             <nav class="sidebar-nav" id="sidebar-nav"></nav>
             <div class="sidebar-footer">
-                <button class="collapse-btn" onclick="toggleSidebar()">
+                <button class="collapse-btn" onclick="window.sidebar?.toggleSidebar()">
                     <i class="fas fa-chevron-left"></i>
                     <span>Свернуть</span>
                 </button>
-                <button class="logout-btn" onclick="handleLogout()" style="margin-top: 12px; width: 100%; padding: 10px; background: rgba(255, 107, 107, 0.2); border: none; border-radius: 12px; color: #ff6b6b; cursor: pointer;">
+                <button class="logout-btn" onclick="window.sidebar?.logout()" style="margin-top: 12px; width: 100%; padding: 10px; background: rgba(255, 107, 107, 0.2); border: none; border-radius: 12px; color: #ff6b6b; cursor: pointer;">
                     <i class="fas fa-sign-out-alt"></i> Выйти
                 </button>
             </div>
@@ -309,7 +325,7 @@
                         <i class="fas fa-plus"></i> Новая заявка
                     </button>
                 </div>
-                <div class="user-profile" onclick="goToProfile()">
+                <div class="user-profile" onclick="window.sidebar?.goToProfile()">
                     <div class="user-info">
                         <div class="user-name" id="userName">Загрузка...</div>
                         <div class="user-role" id="userRole">—</div>
@@ -439,8 +455,8 @@
             </div>
             
             <div class="modal-buttons">
-                <button onclick="closeDealModal()">Отмена</button>
-                <button class="primary" onclick="saveDeal()">Сохранить</button>
+                <button onclick="window.closeDealModal()">Отмена</button>
+                <button class="primary" onclick="window.saveDeal()">Сохранить</button>
             </div>
         </div>
     </div>
@@ -448,6 +464,7 @@
     <!-- Подключаем утилиты и компоненты -->
     <script src="js/utils/helpers.js"></script>
     <script src="js/components/kanban.js"></script>
+    <script src="js/ui/animations.js"></script>
     
     <script type="module">
         import { supabase } from './js/core/supabase.js';
@@ -611,14 +628,13 @@
             }
         };
         
-        // ========== СОЗДАНИЕ КАРТОЧКИ (ИСПОЛЬЗУЕМ КОМПОНЕНТ) ==========
+        // ========== СОЗДАНИЕ КАРТОЧКИ ==========
         
         function createDealCardWithData(deal) {
             const canEdit = currentUser?.role === 'admin' || 
                            currentUser?.role === 'manager' || 
                            deal.agent_id === currentUser?.github_username;
             
-            // Подготавливаем данные для компонента
             const dealWithNames = {
                 ...deal,
                 complex_name: getComplexName(deal.complex_id),
@@ -628,11 +644,9 @@
                 deadline: deal.deadline
             };
             
-            // Используем компонент для создания карточки
             const card = window.CRM.Kanban.createDealCard(dealWithNames, { canEdit });
             card.setAttribute('data-deal-id', deal.id);
             
-            // Добавляем обработчик клика для редактирования
             card.addEventListener('click', (e) => {
                 if (!e.target.classList.contains('delete-deal') && 
                     !e.target.closest('.delete-deal')) {
@@ -640,7 +654,6 @@
                 }
             });
             
-            // Добавляем обработчик удаления
             const deleteBtn = card.querySelector('.delete-deal');
             if (deleteBtn) {
                 deleteBtn.onclick = (e) => {
@@ -698,7 +711,6 @@
             }
             board.innerHTML = html;
             
-            // Заполняем контейнеры карточками
             for (const status of DEAL_STATUSES) {
                 const container = document.getElementById(`container-${status.id}`);
                 if (container) {
@@ -712,7 +724,6 @@
                 }
             }
             
-            // Используем компонент для настройки drag-and-drop
             window.CRM.Kanban.setupDragAndDrop('.deals-container', async (dealId, newStatus) => {
                 await updateDealStatus(dealId, newStatus);
             });
@@ -808,7 +819,7 @@
             }
             
             if (!error) {
-                closeDealModal();
+                window.closeDealModal();
                 await loadDeals();
                 if (window.showToast) {
                     window.showToast('success', dealId ? 'Заявка обновлена' : 'Заявка создана');
@@ -817,20 +828,6 @@
                 console.error('[deals-supabase] Ошибка сохранения:', error);
                 alert('Ошибка сохранения');
             }
-        };
-        
-        // ========== ГЛОБАЛЬНЫЕ ФУНКЦИИ ==========
-        
-        window.toggleSidebar = function() {
-            document.getElementById('sidebar').classList.toggle('collapsed');
-        };
-        
-        window.goToProfile = function() {
-            window.location.href = 'profile-supabase.html';
-        };
-        
-        window.handleLogout = async function() {
-            if (confirm('Выйти?')) await logoutFromSupabase();
         };
         
         // ========== ИНИЦИАЛИЗАЦИЯ ==========
@@ -857,6 +854,11 @@
             const sidebar = document.getElementById('sidebar');
             if (sidebar && localStorage.getItem('sidebar_collapsed') === 'true') {
                 sidebar.classList.add('collapsed');
+            }
+            
+            // Инициализация анимаций
+            if (window.CRM?.ui?.animations) {
+                console.log('[deals-supabase] Анимации инициализированы');
             }
             
             console.log('[deals-supabase] Инициализация завершена');
