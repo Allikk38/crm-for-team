@@ -125,16 +125,36 @@ export async function createDeal(dealData) {
  */
 export async function updateDeal(id, updates) {
     try {
+        // Подготовка данных для обновления
+        const updateData = {
+            ...updates,
+            updated_at: new Date().toISOString()
+        };
+        
+        // Убираем поле user_id, если оно есть (нельзя менять владельца)
+        delete updateData.user_id;
+        delete updateData.id; // Убираем id, если вдруг попал
+        
+        console.log('[deals-supabase] Обновление сделки:', {
+            id: id,
+            updateData: updateData
+        });
+        
         const { data, error } = await supabase
             .from('deals')
-            .update({
-                ...updates,
-                updated_at: new Date().toISOString()
-            })
+            .update(updateData)
             .eq('id', id)
             .select();
         
-        if (error) throw error;
+        if (error) {
+            console.error('[deals-supabase] Ошибка Supabase:', {
+                code: error.code,
+                message: error.message,
+                details: error.details,
+                hint: error.hint
+            });
+            throw error;
+        }
         
         console.log('[deals-supabase] Сделка обновлена:', id);
         return data[0];
