@@ -3,17 +3,10 @@
  * ФАЙЛ: js/components/kanban.js
  * РОЛЬ: Универсальный компонент для рендеринга канбан-досок
  * ЗАВИСИМОСТИ:
- *   - js/utils/helpers.js (escapeHtml, showToast)
+ *   - js/utils/helpers.js (escapeHtml, showToast, formatDate)
  * ИСПОЛЬЗУЕТСЯ В:
  *   - tasks-supabase.html
  *   - deals-supabase.html
- * 
- * КОНФИГУРАЦИЯ:
- *   columns: [
- *     { id: 'pending', title: 'To Do', icon: 'fa-circle', color: '#9e9e9e' },
- *     { id: 'in_progress', title: 'В работе', icon: 'fa-spinner fa-pulse', color: '#2196f3' },
- *     { id: 'completed', title: 'Готово', icon: 'fa-check-circle', color: '#4caf50' }
- *   ]
  * ============================================
  */
 
@@ -21,114 +14,31 @@ window.CRM = window.CRM || {};
 window.CRM.Kanban = window.CRM.Kanban || {};
 
 /**
- * Рендеринг канбан-доски
- * @param {Object} config - Конфигурация
- * @param {Array} config.columns - Массив колонок
- * @param {Array} items - Элементы для отображения
- * @param {Function} renderItem - Функция рендеринга карточки
- * @param {Function} onStatusChange - Коллбэк при изменении статуса
- * @param {Object} options - Дополнительные опции
- */
-function renderKanban(config, items, renderItem, onStatusChange, options = {}) {
-    const container = document.getElementById(config.containerId || 'kanbanBoard');
-    if (!container) return;
-
-    // Группируем элементы по статусу
-    const itemsByStatus = {};
-    config.columns.forEach(col => {
-        itemsByStatus[col.id] = [];
-    });
-    
-    items.forEach(item => {
-        const status = item.status || config.defaultStatus || config.columns[0].id;
-        if (itemsByStatus[status]) {
-            itemsByStatus[status].push(item);
-        } else {
-            itemsByStatus[config.columns[0].id].push(item);
-        }
-    });
-
-    // Рендерим колонки
-    let html = '';
-    for (const column of config.columns) {
-        const columnItems = itemsByStatus[column.id] || [];
-        html += `
-            <div class="kanban-column" data-status="${column.id}" style="border-top: 3px solid ${column.color};">
-                <div class="column-header">
-                    <span><i class="fas ${column.icon}"></i> ${column.title}</span>
-                    <span class="count">${columnItems.length}</span>
-                </div>
-                <div class="tasks-container" data-status="${column.id}" id="container-${column.id}"></div>
-                ${config.showAddButton !== false ? `
-                <button class="add-task-btn" data-status="${column.id}">
-                    <i class="fas fa-plus"></i> Добавить
-                </button>
-                ` : ''}
-            </div>
-        `;
-    }
-    container.innerHTML = html;
-
-    // Заполняем контейнеры карточками
-    for (const column of config.columns) {
-        const columnContainer = document.getElementById(`container-${column.id}`);
-        if (columnContainer) {
-            const columnItems = itemsByStatus[column.id] || [];
-            for (const item of columnItems) {
-                const card = renderItem(item);
-                columnContainer.appendChild(card);
-            }
-            
-            if (columnItems.length === 0 && config.showEmptyMessage) {
-                columnContainer.innerHTML = `<div class="empty-deals"><i class="fas fa-inbox"></i><p>Нет элементов</p></div>`;
-            }
-        }
-    }
-
-    // Настраиваем drag-and-drop
-    setupDragAndDrop(config, onStatusChange);
-}
-
-/**
- * Настройка drag-and-drop
- */
-function setupDragAndDrop(config, onStatusChange) {
-    const containers = document.querySelectorAll('.tasks-container');
-    
-    containers.forEach(container => {
-        container.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            container.classList.add('drag-over');
-        });
-        
-        container.addEventListener('dragleave', () => {
-            container.classList.remove('drag-over');
-        });
-        
-        container.addEventListener('drop', async (e) => {
-            e.preventDefault();
-            container.classList.remove('drag-over');
-            
-            const itemId = e.dataTransfer.getData('text/plain');
-            const newStatus = container.getAttribute('data-status');
-            
-            if (itemId && newStatus && onStatusChange) {
-                await onStatusChange(itemId, newStatus);
-            }
-        });
-    });
-}
-
-/**
  * Создание карточки для задачи (шаблон)
+ * @param {Object} task - Данные задачи
+ * @param {Object} options - Опции { showDelete, onDelete }
  */
 function createTaskCard(task, options = {}) {
     const card = document.createElement('div');
     card.className = 'task-card';
     card.setAttribute('data-task-id', task.id);
-    card.draggable = options.draggable !== false;
+    card.draggable = true;
+    card.setAttribute('draggable', 'true');
     
-    // Получаем цвета приоритета
+    // Отключаем выделение текста при drag
+    card.ondragstart = function(e) {
+        card.classList.add('dragging');
+        e.dataTransfer.setData('text/plain', task.id);
+        e.dataTransfer.effectAllowed = 'move';
+        // Убираем стандартную картинку перетаскивания
+        e.dataTransfer.setDragImage(new Image(), 0, 0);
+        return true;
+    };
+    
+    card.ondragend = function() {
+        card.classList.remove('dragging');
+    };
+    
     const priorityColors = {
         high: '#ff6b6b',
         medium: '#ffc107',
@@ -139,7 +49,6 @@ function createTaskCard(task, options = {}) {
     const privateBadge = task.is_private ? '<span class="private-badge"><i class="fas fa-lock"></i> Приватная</span>' : '';
     const dueDate = task.due_date ? window.formatDate(task.due_date, 'DD.MM.YYYY') : 'без срока';
     
-    // Текст приоритета
     const priorityTexts = { high: 'Высокий', medium: 'Средний', low: 'Низкий' };
     const priorityText = priorityTexts[task.priority] || 'Средний';
     
@@ -161,21 +70,6 @@ function createTaskCard(task, options = {}) {
         </div>
     `;
     
-    // Обработчик drag-start
-    card.addEventListener('dragstart', (e) => {
-        if (options.draggable !== false) {
-            card.classList.add('dragging');
-            e.dataTransfer.setData('text/plain', task.id);
-            e.dataTransfer.effectAllowed = 'move';
-        } else {
-            e.preventDefault();
-        }
-    });
-    
-    card.addEventListener('dragend', () => {
-        card.classList.remove('dragging');
-    });
-    
     return card;
 }
 
@@ -188,7 +82,25 @@ function createDealCard(deal, options = {}) {
     const card = document.createElement('div');
     card.className = 'deal-card';
     card.setAttribute('data-deal-id', deal.id);
-    card.draggable = options.canEdit !== false;
+    
+    const canEdit = options.canEdit !== false;
+    card.draggable = canEdit;
+    card.setAttribute('draggable', canEdit ? 'true' : 'false');
+    
+    // Отключаем выделение текста при drag
+    if (canEdit) {
+        card.ondragstart = function(e) {
+            card.classList.add('dragging');
+            e.dataTransfer.setData('text/plain', deal.id);
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setDragImage(new Image(), 0, 0);
+            return true;
+        };
+        
+        card.ondragend = function() {
+            card.classList.remove('dragging');
+        };
+    }
     
     const typeLabels = {
         primary: '🏗️ Первичка',
@@ -201,7 +113,7 @@ function createDealCard(deal, options = {}) {
     const priceFormatted = (deal.price_current || deal.price_initial || 0).toLocaleString();
     
     let deleteButtonHtml = '';
-    if (options.canEdit !== false) {
+    if (canEdit) {
         deleteButtonHtml = `<button class="delete-deal" data-id="${deal.id}"><i class="fas fa-trash"></i> Удалить</button>`;
     }
     
@@ -228,33 +140,51 @@ function createDealCard(deal, options = {}) {
         </div>
     `;
     
-    // Обработчик drag-start
-    card.addEventListener('dragstart', (e) => {
-        if (options.canEdit !== false) {
-            card.classList.add('dragging');
-            e.dataTransfer.setData('text/plain', deal.id);
-            e.dataTransfer.effectAllowed = 'move';
-        } else {
-            e.preventDefault();
-        }
-    });
-    
-    card.addEventListener('dragend', () => {
-        card.classList.remove('dragging');
-    });
-    
     return card;
+}
+
+/**
+ * Настройка drag-and-drop для контейнеров
+ * @param {string} containerSelector - Селектор контейнеров
+ * @param {Function} onDrop - Коллбэк при drop (dealId, newStatus)
+ */
+function setupDragAndDrop(containerSelector, onDrop) {
+    const containers = document.querySelectorAll(containerSelector);
+    console.log(`[kanban.js] Настройка drag-and-drop для ${containers.length} контейнеров`);
+    
+    containers.forEach(container => {
+        // Удаляем старые обработчики
+        const newContainer = container.cloneNode(true);
+        container.parentNode.replaceChild(newContainer, container);
+        
+        newContainer.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            newContainer.classList.add('drag-over');
+        });
+        
+        newContainer.addEventListener('dragleave', () => {
+            newContainer.classList.remove('drag-over');
+        });
+        
+        newContainer.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            newContainer.classList.remove('drag-over');
+            
+            const dealId = e.dataTransfer.getData('text/plain');
+            const newStatus = newContainer.getAttribute('data-status');
+            
+            if (dealId && newStatus && onDrop) {
+                await onDrop(dealId, newStatus);
+            }
+        });
+    });
 }
 
 // Экспорт в глобальный объект
 window.CRM.Kanban = {
-    render: renderKanban,
     createTaskCard: createTaskCard,
     createDealCard: createDealCard,
     setupDragAndDrop: setupDragAndDrop
 };
-
-// Для обратной совместимости
-window.renderKanban = renderKanban;
 
 console.log('[kanban.js] Загружен компонент канбан-доски');
