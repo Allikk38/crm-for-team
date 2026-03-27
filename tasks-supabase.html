@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    
+    <script>
+        (function() {
+            try {
+                const savedTheme = localStorage.getItem('crm_theme');
+                if (savedTheme === 'light') {
+                    if (document.documentElement) document.documentElement.classList.add('theme-light');
+                    if (document.body) document.body.classList.add('theme-light');
+                } else if (savedTheme === 'dark') {
+                    if (document.documentElement) document.documentElement.classList.add('theme-dark');
+                    if (document.body) document.body.classList.add('theme-dark');
+                }
+            } catch(e) {}
+        })();
+    </script>
+    
+    <title>Доска задач - CRM для команды (Supabase)</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+    <link rel="stylesheet" href="css/kanban.css">
+    <link rel="stylesheet" href="css/manager.css">
+    <link rel="stylesheet" href="css/calendar.css">
+    <link rel="stylesheet" href="css/modal.css">
+    <link rel="stylesheet" href="css/responsive.css">
+    <link rel="stylesheet" href="css/animations.css">
+    
+    <style>
+        .kanban-column {
+            animation: fadeInUp 0.4s ease backwards;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .kanban-column:nth-child(1) { animation-delay: 0.05s; }
+        .kanban-column:nth-child(2) { animation-delay: 0.1s; }
+        .kanban-column:nth-child(3) { animation-delay: 0.15s; }
+        
+        .task-card {
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            animation: fadeInScale 0.3s ease backwards;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .task-card:hover {
+            transform: translateX(6px) translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+            border-color: var(--accent);
+        }
+        
+        .task-card.dragging {
+            opacity: 0.5;
+            transform: scale(0.98);
+            cursor: grabbing;
+        }
+        
+        .drag-over {
+            background: rgba(108, 108, 255, 0.1);
+            border: 2px dashed var(--accent);
+            transition: all 0.2s ease;
+        }
+        
+        .private-badge {
+            display: inline-block;
+            background: rgba(255, 107, 107, 0.2);
+            color: #ff6b6b;
+            font-size: 0.6rem;
+            padding: 2px 6px;
+            border-radius: 12px;
+            margin-left: 8px;
+        }
+        
+        .comment-item {
+            transition: all 0.2s ease;
+            animation: fadeInScale 0.3s ease backwards;
+        }
+        .comment-item:hover {
+            transform: translateX(4px);
+            background: rgba(108, 108, 255, 0.1);
+        }
+        
+        .add-task-btn-header {
+            background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+            border: none;
+            padding: 10px 20px;
+            border-radius: 40px;
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 500;
+        }
+        
+        .add-task-btn-header:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(108, 108, 255, 0.4);
+        }
+        
+        .top-bar-actions {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        
+        .skeleton-task {
+            background: linear-gradient(90deg, var(--card-border) 25%, var(--card-hover) 50%, var(--card-border) 75%);
+            background-size: 200% 100%;
+            animation: skeletonLoading 1.5s infinite;
+            height: 100px;
+            border-radius: 12px;
+            margin-bottom: 12px;
+        }
+        
+        @keyframes skeletonLoading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        
+        @media (max-width: 768px) {
+            .task-card:hover {
+                transform: translateX(3px) translateY(-1px);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-layout">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-logo">
+                <i class="fas fa-chart-line"></i>
+                <span>CRM Team</span>
+            </div>
+            <nav class="sidebar-nav" id="sidebar-nav">
+                <a href="index-supabase.html" class="nav-item">
+                    <i class="fas fa-tachometer-alt"></i>
+                    <span>Дашборд</span>
+                </a>
+                <a href="tasks-supabase.html" class="nav-item active">
+                    <i class="fas fa-tasks"></i>
+                    <span>Задачи</span>
+                </a>
+                <a href="complexes.html" class="nav-item">
+                    <i class="fas fa-building"></i>
+                    <span>Объекты</span>
+                </a>
+                <a href="deals.html" class="nav-item">
+                    <i class="fas fa-chart-line"></i>
+                    <span>Сделки</span>
+                </a>
+                <a href="counterparties.html" class="nav-item">
+                    <i class="fas fa-handshake"></i>
+                    <span>Контрагенты</span>
+                </a>
+                <a href="calendar.html" class="nav-item">
+                    <i class="fas fa-calendar"></i>
+                    <span>Календарь</span>
+                </a>
+                <a href="profile-supabase.html" class="nav-item">
+                    <i class="fas fa-user"></i>
+                    <span>Профиль</span>
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <button class="collapse-btn" onclick="toggleSidebar()">
+                    <i class="fas fa-chevron-left"></i>
+                    <span>Свернуть</span>
+                </button>
+                <button class="logout-btn" onclick="handleLogout()" style="margin-top: 12px; width: 100%; padding: 10px; background: rgba(255, 107, 107, 0.2); border: none; border-radius: 12px; color: #ff6b6b; cursor: pointer;">
+                    <i class="fas fa-sign-out-alt"></i> Выйти
+                </button>
+            </div>
+        </aside>
+        
+        <main class="main-content">
+            <div class="top-bar">
+                <div class="top-bar-actions">
+                    <button id="addTaskBtn" class="add-task-btn-header">
+                        <i class="fas fa-plus"></i> Новая задача
+                    </button>
+                </div>
+                <div class="user-profile" onclick="goToProfile()">
+                    <div class="user-info">
+                        <div class="user-name" id="userName">Загрузка...</div>
+                        <div class="user-role" id="userRole">—</div>
+                    </div>
+                    <div class="user-avatar" id="userAvatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="kanban-board">
+                <div class="kanban-column" data-status="pending">
+                    <div class="column-header">
+                        <span><i class="fas fa-circle"></i> To Do</span>
+                        <span id="todoCount">0</span>
+                    </div>
+                    <div id="todoTasks" class="tasks-container"></div>
+                    <button class="add-task-btn" data-status="pending"><i class="fas fa-plus"></i> Добавить задачу</button>
+                </div>
+                
+                <div class="kanban-column" data-status="in_progress">
+                    <div class="column-header">
+                        <span><i class="fas fa-spinner fa-pulse"></i> В работе</span>
+                        <span id="progressCount">0</span>
+                    </div>
+                    <div id="progressTasks" class="tasks-container"></div>
+                    <button class="add-task-btn" data-status="in_progress"><i class="fas fa-plus"></i> Добавить задачу</button>
+                </div>
+                
+                <div class="kanban-column" data-status="completed">
+                    <div class="column-header">
+                        <span><i class="fas fa-check-circle"></i> Готово</span>
+                        <span id="doneCount">0</span>
+                    </div>
+                    <div id="doneTasks" class="tasks-container"></div>
+                    <button class="add-task-btn" data-status="completed"><i class="fas fa-plus"></i> Добавить задачу</button>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <!-- Модальное окно задачи -->
+    <div id="taskModal" class="modal">
+        <div class="modal-content">
+            <h3 id="modalTitle"><i class="fas fa-tasks"></i> Создать задачу</h3>
+            <input type="hidden" id="taskId">
+            <input type="text" id="taskTitle" placeholder="Название задачи" required>
+            <textarea id="taskDescription" placeholder="Описание задачи"></textarea>
+            <select id="taskAssignee">
+                <option value="">Назначить исполнителя</option>
+            </select>
+            <select id="taskComplex">
+                <option value="">Привязать к объекту</option>
+            </select>
+            <select id="taskPriority">
+                <option value="low">Низкий приоритет</option>
+                <option value="medium" selected>Средний приоритет</option>
+                <option value="high">Высокий приоритет</option>
+            </select>
+            <input type="date" id="taskDueDate">
+            <select id="taskStatus">
+                <option value="pending">To Do</option>
+                <option value="in_progress">В работе</option>
+                <option value="completed">Готово</option>
+            </select>
+            
+            <div class="private-checkbox-wrapper" id="privateCheckboxGroup">
+                <label>
+                    <input type="checkbox" id="taskPrivate">
+                    <i class="fas fa-lock"></i> Приватная задача
+                </label>
+            </div>
+            
+            <div class="comments-section">
+                <div class="comments-header">
+                    <i class="fas fa-comments"></i> Комментарии (<span id="commentsCount">0</span>)
+                </div>
+                <div id="commentsList" class="comments-list">
+                    <div class="comment-empty">Нет комментариев</div>
+                </div>
+                <div class="add-comment">
+                    <textarea id="newComment" placeholder="Написать комментарий..." rows="2"></textarea>
+                    <button class="primary" onclick="addComment()" style="margin-top: 8px; width: 100%;"><i class="fas fa-paper-plane"></i> Отправить</button>
+                </div>
+            </div>
+            
+            <div class="modal-buttons">
+                <button onclick="closeModal()"><i class="fas fa-times"></i> Отмена</button>
+                <button class="primary" onclick="saveTask()"><i class="fas fa-save"></i> Сохранить</button>
+            </div>
+        </div>
+    </div>
+    
+    <script type="module">
+        import { supabase } from './js/core/supabase.js';
+        import { checkSupabaseSession, getCurrentSupabaseUser, requireSupabaseAuth, updateSupabaseUserInterface, logoutFromSupabase } from './js/core/supabase-session.js';
+        import { getTasks, createTask, updateTask, updateTaskStatus, deleteTask } from './js/services/tasks-supabase.js';
+        
+        // Глобальные переменные
+        let tasks = [];
+        let users = [];
+        let complexes = [];
+        let comments = [];
+        let draggedTask = null;
+        let currentUser = null;
+        
+        // ========== ГЛОБАЛЬНЫЕ ФУНКЦИИ ==========
+        window.toggleSidebar = function() {
+            const sidebar = document.getElementById('sidebar');
+            if (sidebar) sidebar.classList.toggle('collapsed');
+        };
+        
+        window.goToProfile = function() {
+            window.location.href = 'profile-supabase.html';
+        };
+        
+        window.handleLogout = async function() {
+            if (confirm('Вы уверены, что хотите выйти?')) {
+                await logoutFromSupabase();
+            }
+        };
+        
+        window.closeModal = function() {
+            document.getElementById('taskModal').classList.remove('active');
+        };
+        
+        window.addComment = async function() {
+            const taskId = document.getElementById('taskId').value;
+            if (!taskId) return;
+            
+            const commentText = document.getElementById('newComment').value.trim();
+            if (!commentText) {
+                alert('Введите комментарий');
+                return;
+            }
+            
+            // TODO: реализовать комментарии
+            alert('Комментарии пока в разработке');
+        };
+        
+        window.saveTask = async function() {
+            const taskId = document.getElementById('taskId').value;
+            const taskData = {
+                title: document.getElementById('taskTitle').value,
+                description: document.getElementById('taskDescription').value,
+                assigned_to: document.getElementById('taskAssignee').value || null,
+                priority: document.getElementById('taskPriority').value,
+                due_date: document.getElementById('taskDueDate').value || null,
+                status: document.getElementById('taskStatus').value,
+                is_private: document.getElementById('taskPrivate').checked
+            };
+            
+            if (!taskData.title) {
+                alert('Введите название задачи');
+                return;
+            }
+            
+            let result;
+            if (taskId) {
+                result = await updateTask(taskId, taskData);
+            } else {
+                result = await createTask(taskData);
+            }
+            
+            if (result) {
+                closeModal();
+                await loadTasksData();
+            } else {
+                alert('Ошибка сохранения задачи');
+            }
+        };
+        
+        window.editTask = function(taskId) {
+            openModal(taskId);
+        };
+        
+        window.deleteTask = async function(taskId) {
+            if (confirm('Вы уверены, что хотите удалить эту задачу?')) {
+                await deleteTask(taskId);
+                await loadTasksData();
+            }
+        };
+        
+        // ========== ФУНКЦИИ КАНБАН ==========
+        
+        function getPriorityColor(priority) {
+            const colors = { high: '#ff6b6b', medium: '#ffc107', low: '#4caf50' };
+            return colors[priority] || '#ffc107';
+        }
+        
+        function getPriorityText(priority) {
+            const texts = { high: 'Высокий', medium: 'Средний', low: 'Низкий' };
+            return texts[priority] || 'Средний';
+        }
+        
+        function getStatusText(status) {
+            const texts = { pending: 'To Do', in_progress: 'В работе', completed: 'Готово' };
+            return texts[status] || status;
+        }
+        
+        function createTaskCard(task) {
+            const card = document.createElement('div');
+            card.className = 'task-card';
+            card.setAttribute('data-task-id', task.id);
+            card.draggable = true;
+            card.style.borderLeftColor = getPriorityColor(task.priority);
+            
+            const privateBadge = task.is_private ? '<span class="private-badge"><i class="fas fa-lock"></i> Приватная</span>' : '';
+            const dueDate = task.due_date || 'без срока';
+            
+            card.innerHTML = `
+                <div class="task-title">${escapeHtml(task.title)}${privateBadge}</div>
+                <div class="task-description">${escapeHtml(task.description || '')}</div>
+                <div class="task-meta">
+                    <span class="task-priority priority-${task.priority}">${getPriorityText(task.priority)}</span>
+                    <span class="task-assignee"><i class="fas fa-user"></i> ${escapeHtml(task.assigned_to || 'Не назначен')}</span>
+                </div>
+                <div class="task-meta">
+                    <span><i class="fas fa-calendar"></i> ${dueDate}</span>
+                    <button class="delete-task" onclick="deleteTask('${task.id}')"><i class="fas fa-trash"></i></button>
+                </div>
+            `;
+            
+            card.addEventListener('dragstart', (e) => {
+                draggedTask = card;
+                card.classList.add('dragging');
+                e.dataTransfer.setData('text/plain', task.id);
+            });
+            
+            card.addEventListener('dragend', () => {
+                card.classList.remove('dragging');
+                draggedTask = null;
+            });
+            
+            card.addEventListener('click', (e) => {
+                if (!e.target.classList.contains('delete-task') && !e.target.closest('.delete-task')) {
+                    openModal(task.id);
+                }
+            });
+            
+            return card;
+        }
+        
+        function renderKanban() {
+            const todoContainer = document.getElementById('todoTasks');
+            const progressContainer = document.getElementById('progressTasks');
+            const doneContainer = document.getElementById('doneTasks');
+            
+            if (!todoContainer) return;
+            
+            todoContainer.innerHTML = '';
+            progressContainer.innerHTML = '';
+            doneContainer.innerHTML = '';
+            
+            let todoCount = 0, progressCount = 0, doneCount = 0;
+            
+            for (const task of tasks) {
+                const card = createTaskCard(task);
+                
+                if (task.status === 'pending') {
+                    todoContainer.appendChild(card);
+                    todoCount++;
+                } else if (task.status === 'in_progress') {
+                    progressContainer.appendChild(card);
+                    progressCount++;
+                } else if (task.status === 'completed') {
+                    doneContainer.appendChild(card);
+                    doneCount++;
+                }
+            }
+            
+            document.getElementById('todoCount').textContent = todoCount;
+            document.getElementById('progressCount').textContent = progressCount;
+            document.getElementById('doneCount').textContent = doneCount;
+        }
+        
+        async function handleDrop(e, newStatus) {
+            e.preventDefault();
+            const taskId = e.dataTransfer.getData('text/plain');
+            if (taskId) {
+                const task = tasks.find(t => t.id == taskId);
+                if (task && task.status !== newStatus) {
+                    await updateTaskStatus(taskId, newStatus);
+                    await loadTasksData();
+                }
+            }
+        }
+        
+        function setupDropZones() {
+            const columns = document.querySelectorAll('.tasks-container');
+            columns.forEach(column => {
+                column.addEventListener('dragover', (e) => e.preventDefault());
+                column.addEventListener('drop', async (e) => {
+                    const newStatus = column.parentElement.getAttribute('data-status');
+                    await handleDrop(e, newStatus);
+                });
+            });
+        }
+        
+        // ========== ЗАГРУЗКА ДАННЫХ ==========
+        
+        async function loadUsers() {
+            try {
+                const { data, error } = await supabase.from('profiles').select('*');
+                if (!error && data) users = data;
+            } catch (e) {
+                console.error('Ошибка загрузки пользователей:', e);
+            }
+        }
+        
+        async function loadTasksData() {
+            tasks = await getTasks();
+            renderKanban();
+            console.log(`Загружено ${tasks.length} задач`);
+        }
+        
+        async function openModal(taskId) {
+            const modal = document.getElementById('taskModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const privateCheckbox = document.getElementById('taskPrivate');
+            
+            // Загружаем пользователей для селекта
+            await loadUsers();
+            const assigneeSelect = document.getElementById('taskAssignee');
+            if (assigneeSelect && users.length) {
+                assigneeSelect.innerHTML = '<option value="">Назначить исполнителя</option>';
+                for (const user of users) {
+                    assigneeSelect.innerHTML += `<option value="${user.github_username}">${user.name}</option>`;
+                }
+            }
+            
+            if (taskId) {
+                modalTitle.textContent = 'Редактировать задачу';
+                const task = tasks.find(t => t.id == taskId);
+                if (task) {
+                    document.getElementById('taskId').value = task.id;
+                    document.getElementById('taskTitle').value = task.title;
+                    document.getElementById('taskDescription').value = task.description || '';
+                    document.getElementById('taskAssignee').value = task.assigned_to || '';
+                    document.getElementById('taskPriority').value = task.priority;
+                    document.getElementById('taskDueDate').value = task.due_date || '';
+                    document.getElementById('taskStatus').value = task.status;
+                    if (privateCheckbox) privateCheckbox.checked = task.is_private;
+                }
+            } else {
+                modalTitle.textContent = 'Создать задачу';
+                document.getElementById('taskId').value = '';
+                document.getElementById('taskTitle').value = '';
+                document.getElementById('taskDescription').value = '';
+                document.getElementById('taskAssignee').value = '';
+                document.getElementById('taskPriority').value = 'medium';
+                document.getElementById('taskDueDate').value = '';
+                document.getElementById('taskStatus').value = 'pending';
+                if (privateCheckbox) privateCheckbox.checked = false;
+            }
+            
+            modal.classList.add('active');
+        }
+        
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // ========== ИНИЦИАЛИЗАЦИЯ ==========
+        
+        async function init() {
+            const isAuth = await requireSupabaseAuth('auth-supabase.html');
+            if (!isAuth) return;
+            
+            currentUser = getCurrentSupabaseUser();
+            updateSupabaseUserInterface();
+            
+            await loadUsers();
+            await loadTasksData();
+            setupDropZones();
+            
+            // Кнопки добавления задач
+            const addTaskBtn = document.getElementById('addTaskBtn');
+            if (addTaskBtn) addTaskBtn.addEventListener('click', () => openModal());
+            
+            const addBtns = document.querySelectorAll('.add-task-btn');
+            addBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const status = btn.getAttribute('data-status');
+                    document.getElementById('taskStatus').value = status;
+                    openModal();
+                });
+            });
+            
+            // Восстанавливаем состояние сайдбара
+            const sidebar = document.getElementById('sidebar');
+            if (sidebar && localStorage.getItem('sidebar_collapsed') === 'true') {
+                sidebar.classList.add('collapsed');
+            }
+        }
+        
+        init();
+    </script>
+</body>
+</html>
