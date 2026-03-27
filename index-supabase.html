@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    
+    <!-- 
+    ============================================
+    ФАЙЛ: index-supabase.html
+    РОЛЬ: Главная страница (дашборд) с Supabase
+    ОСОБЕННОСТИ:
+      - Использует Supabase для данных
+      - Сохранен дизайн из оригинального index.html
+      - Работает параллельно со старой системой
+    ЗАВИСИМОСТИ:
+      - CSS: base.css, theme.css, components.css, dashboard.css, responsive.css, animations.css
+      - JS: js/core/supabase.js, js/core/supabase-session.js, js/services/supabase-tasks.js
+    ============================================
+    -->
+    
+    <script>
+        (function() {
+            try {
+                const savedTheme = localStorage.getItem('crm_theme');
+                if (savedTheme === 'light') {
+                    if (document.documentElement) document.documentElement.classList.add('theme-light');
+                    if (document.body) document.body.classList.add('theme-light');
+                } else if (savedTheme === 'dark') {
+                    if (document.documentElement) document.documentElement.classList.add('theme-dark');
+                    if (document.body) document.body.classList.add('theme-dark');
+                }
+            } catch(e) {
+                console.warn('Theme initialization error:', e);
+            }
+        })();
+    </script>
+    
+    <title>Дашборд - CRM для команды (Supabase)</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <!-- CSS модули -->
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+    <link rel="stylesheet" href="css/kanban.css">
+    <link rel="stylesheet" href="css/manager.css">
+    <link rel="stylesheet" href="css/calendar.css">
+    <link rel="stylesheet" href="css/modal.css">
+    <link rel="stylesheet" href="css/responsive.css">
+    <link rel="stylesheet" href="css/animations.css">
+    
+    <style>
+        /* Анимация для KPI карточек */
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+        
+        .dashboard .card {
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            animation: fadeInUp 0.4s ease backwards;
+        }
+        
+        .dashboard .card:nth-child(1) { animation-delay: 0.05s; }
+        .dashboard .card:nth-child(2) { animation-delay: 0.1s; }
+        .dashboard .card:nth-child(3) { animation-delay: 0.15s; }
+        
+        .dashboard .card:hover {
+            transform: translateY(-6px) scale(1.02);
+            border-color: var(--accent);
+            box-shadow: 0 16px 32px rgba(0, 0, 0, 0.2);
+        }
+        
+        .dashboard .card:active {
+            transform: translateY(-2px) scale(0.99);
+        }
+        
+        .dashboard .card p {
+            font-size: 2rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--text-primary), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            transition: all 0.2s ease;
+        }
+        
+        .dashboard .card:hover p {
+            transform: scale(1.05);
+        }
+        
+        .analytics-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+        
+        .analytics-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            border-radius: 24px;
+            border: 1px solid var(--card-border);
+            padding: 20px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            animation: fadeInUp 0.4s ease backwards;
+        }
+        
+        .analytics-card:nth-child(1) { animation-delay: 0.2s; }
+        .analytics-card:nth-child(2) { animation-delay: 0.25s; }
+        
+        .analytics-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--accent);
+            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.15);
+        }
+        
+        .analytics-title {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+        }
+        
+        .analytics-card:hover .analytics-title {
+            color: var(--accent);
+        }
+        
+        .kpi-compact {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+        }
+        
+        .kpi-compact-item {
+            text-align: center;
+            transition: all 0.2s ease;
+            animation: fadeInScale 0.3s ease backwards;
+        }
+        
+        .kpi-compact-item:nth-child(1) { animation-delay: 0.3s; }
+        .kpi-compact-item:nth-child(2) { animation-delay: 0.35s; }
+        .kpi-compact-item:nth-child(3) { animation-delay: 0.4s; }
+        .kpi-compact-item:nth-child(4) { animation-delay: 0.45s; }
+        
+        .kpi-compact-item:hover {
+            transform: translateY(-4px);
+        }
+        
+        .kpi-compact-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--text-primary), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            transition: all 0.2s ease;
+        }
+        
+        .kpi-compact-item:hover .kpi-compact-value {
+            transform: scale(1.05);
+        }
+        
+        .kpi-compact-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+        
+        .trend-up {
+            color: #4caf50;
+            font-size: 0.7rem;
+            transition: all 0.2s ease;
+        }
+        
+        .trend-down {
+            color: #ff6b6b;
+            font-size: 0.7rem;
+            transition: all 0.2s ease;
+        }
+        
+        .trend-up:hover, .trend-down:hover {
+            transform: translateX(2px);
+        }
+        
+        .chart-container {
+            margin-top: 16px;
+        }
+        
+        .chart-bars-mini {
+            display: flex;
+            align-items: flex-end;
+            height: 100px;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        
+        .chart-bar-mini {
+            flex: 1;
+            background: linear-gradient(180deg, var(--accent), var(--accent-hover));
+            border-radius: 4px 4px 0 0;
+            transition: height 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            min-height: 4px;
+            cursor: pointer;
+        }
+        
+        .chart-bar-mini:hover {
+            opacity: 0.8;
+            transform: scaleX(1.02);
+        }
+        
+        .agent-ranking {
+            margin-top: 12px;
+        }
+        
+        .agent-ranking-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--card-border);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            animation: slideInFromLeft 0.3s ease backwards;
+        }
+        
+        .agent-ranking-item:nth-child(1) { animation-delay: 0.05s; }
+        .agent-ranking-item:nth-child(2) { animation-delay: 0.1s; }
+        .agent-ranking-item:nth-child(3) { animation-delay: 0.15s; }
+        .agent-ranking-item:nth-child(4) { animation-delay: 0.2s; }
+        .agent-ranking-item:nth-child(5) { animation-delay: 0.25s; }
+        
+        .agent-ranking-item:hover {
+            transform: translateX(8px);
+            background: rgba(108, 108, 255, 0.05);
+            padding-left: 8px;
+            border-radius: 12px;
+        }
+        
+        .agent-ranking-name {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .agent-ranking-badge {
+            width: 28px;
+            height: 28px;
+            background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+        
+        .agent-ranking-item:hover .agent-ranking-badge {
+            transform: scale(1.1);
+        }
+        
+        .agent-ranking-value {
+            font-weight: 600;
+            color: var(--accent);
+            transition: all 0.2s ease;
+        }
+        
+        .agent-ranking-item:hover .agent-ranking-value {
+            transform: scale(1.05);
+        }
+        
+        .progress-bar-container {
+            height: 8px;
+            background: var(--input-bg);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent), var(--accent-hover));
+            border-radius: 4px;
+            transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .progress-bar-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+            animation: shimmer 2s infinite;
+        }
+        
+        @keyframes shimmer {
+            0% { left: -100%; }
+            50% { left: 100%; }
+            100% { left: 100%; }
+        }
+        
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .progress-header h3 {
+            font-size: 0.9rem;
+        }
+        
+        .progress-stats {
+            display: flex;
+            gap: 16px;
+            margin-top: 12px;
+            font-size: 0.75rem;
+        }
+        
+        .progress-stats span {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.2s ease;
+        }
+        
+        .progress-stats span:hover {
+            transform: translateX(2px);
+        }
+        
+        .info-panel {
+            animation: fadeInUp 0.4s ease 0.5s backwards;
+        }
+        
+        .info-panel:hover {
+            transform: translateY(-2px);
+            border-color: var(--accent);
+        }
+        
+        .skeleton {
+            background: linear-gradient(90deg, var(--card-border) 25%, var(--card-hover) 50%, var(--card-border) 75%);
+            background-size: 200% 100%;
+            animation: skeletonLoading 1.5s infinite;
+            border-radius: 8px;
+        }
+        
+        @keyframes skeletonLoading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        
+        @media (max-width: 768px) {
+            .analytics-section {
+                grid-template-columns: 1fr;
+            }
+            
+            .dashboard .card p {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-layout">
+        <!-- Боковая панель навигации -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-logo">
+                <i class="fas fa-chart-line"></i>
+                <span>CRM Team</span>
+            </div>
+            
+            <nav class="sidebar-nav" id="sidebar-nav">
+                <a href="index-supabase.html" class="nav-item active">
+                    <i class="fas fa-tachometer-alt"></i>
+                    <span>Дашборд</span>
+                </a>
+                <a href="tasks-supabase.html" class="nav-item">
+                    <i class="fas fa-tasks"></i>
+                    <span>Задачи</span>
+                </a>
+                <a href="complexes.html" class="nav-item">
+                    <i class="fas fa-building"></i>
+                    <span>Объекты</span>
+                </a>
+                <a href="deals.html" class="nav-item">
+                    <i class="fas fa-chart-line"></i>
+                    <span>Сделки</span>
+                </a>
+                <a href="counterparties.html" class="nav-item">
+                    <i class="fas fa-handshake"></i>
+                    <span>Контрагенты</span>
+                </a>
+                <a href="calendar.html" class="nav-item">
+                    <i class="fas fa-calendar"></i>
+                    <span>Календарь</span>
+                </a>
+                <a href="profile-supabase.html" class="nav-item">
+                    <i class="fas fa-user"></i>
+                    <span>Профиль</span>
+                </a>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <button class="collapse-btn" onclick="toggleSidebar()">
+                    <i class="fas fa-chevron-left"></i>
+                    <span>Свернуть</span>
+                </button>
+                <button class="logout-btn" onclick="handleLogout()" style="margin-top: 12px; width: 100%; padding: 10px; background: rgba(255, 107, 107, 0.2); border: none; border-radius: 12px; color: #ff6b6b; cursor: pointer;">
+                    <i class="fas fa-sign-out-alt"></i> Выйти
+                </button>
+            </div>
+        </aside>
+        
+        <!-- Основной контент -->
+        <main class="main-content">
+            <div class="top-bar">
+                <div class="user-profile" onclick="goToProfile()">
+                    <div class="user-info">
+                        <div class="user-name" id="userName">Загрузка...</div>
+                        <div class="user-role" id="userRole">—</div>
+                    </div>
+                    <div class="user-avatar" id="userAvatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Базовые KPI карточки -->
+            <div class="dashboard">
+                <div class="card" onclick="window.location.href='tasks-supabase.html'">
+                    <h3><i class="fas fa-play-circle"></i> Активные задачи</h3>
+                    <p id="tasksCount">0</p>
+                </div>
+                <div class="card" onclick="window.location.href='complexes.html'">
+                    <h3><i class="fas fa-building"></i> Объекты</h3>
+                    <p id="complexesCount">0</p>
+                </div>
+                <div class="card">
+                    <h3><i class="fas fa-users"></i> Пользователи</h3>
+                    <p id="usersCount">1</p>
+                </div>
+            </div>
+
+            <!-- Расширенная аналитика -->
+            <div class="analytics-section">
+                <div class="analytics-card">
+                    <div class="analytics-title">
+                        <i class="fas fa-chart-simple"></i> Ключевые показатели
+                    </div>
+                    <div class="kpi-compact">
+                        <div class="kpi-compact-item">
+                            <div class="kpi-compact-value" id="kpiCompletedWeek">0</div>
+                            <div class="kpi-compact-label">Завершено за неделю</div>
+                            <span id="kpiCompletedTrend" class="trend-up">▲ 0%</span>
+                        </div>
+                        <div class="kpi-compact-item">
+                            <div class="kpi-compact-value" id="kpiOverdue">0</div>
+                            <div class="kpi-compact-label">Просрочено</div>
+                            <span id="kpiOverdueTrend" class="trend-down">▼ 0%</span>
+                        </div>
+                        <div class="kpi-compact-item">
+                            <div class="kpi-compact-value" id="kpiConversion">0%</div>
+                            <div class="kpi-compact-label">Конверсия задач</div>
+                            <span id="kpiConversionTrend" class="trend-up">▲ 0%</span>
+                        </div>
+                        <div class="kpi-compact-item">
+                            <div class="kpi-compact-value" id="kpiAvgTime">0</div>
+                            <div class="kpi-compact-label">Среднее время (дни)</div>
+                            <span id="kpiAvgTimeTrend" class="trend-down">▼ 0</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="analytics-card">
+                    <div class="analytics-title">
+                        <i class="fas fa-chart-line"></i> Динамика задач
+                    </div>
+                    <div id="weeklyChart" class="chart-container">
+                        <div class="chart-bars-mini" id="weeklyBars">
+                            <div class="skeleton" style="height: 100px; width: 100%;"></div>
+                        </div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 0.65rem; color: var(--text-muted); margin-top: 8px;">
+                        <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Вс</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="analytics-section">
+                <div class="analytics-card">
+                    <div class="analytics-title">
+                        <i class="fas fa-trophy"></i> Топ агентов
+                    </div>
+                    <div id="agentRanking" class="agent-ranking">
+                        <div class="skeleton" style="height: 40px; margin: 8px 0;"></div>
+                        <div class="skeleton" style="height: 40px; margin: 8px 0;"></div>
+                        <div class="skeleton" style="height: 40px; margin: 8px 0;"></div>
+                    </div>
+                </div>
+                
+                <div class="analytics-card">
+                    <div class="analytics-title">
+                        <i class="fas fa-chart-line"></i> Прогресс проекта
+                    </div>
+                    <div class="progress-header" style="margin-bottom: 8px;">
+                        <h3 style="font-size: 0.9rem;">Общий прогресс</h3>
+                        <span id="progressPercentLarge">0%</span>
+                    </div>
+                    <div class="progress-bar-container" style="height: 8px;">
+                        <div class="progress-bar-fill" id="progressFillLarge" style="width: 0%"></div>
+                    </div>
+                    <div class="progress-stats" style="margin-top: 12px;">
+                        <span><i class="fas fa-check-circle"></i> <span id="completedTasksLarge">0</span> завершено</span>
+                        <span><i class="fas fa-list"></i> <span id="totalTasksLarge">0</span> всего</span>
+                    </div>
+                    <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--card-border);">
+                        <div style="display: flex; justify-content: space-between; font-size: 0.7rem;">
+                            <span><i class="fas fa-calendar"></i> По плану: <span id="projectedEnd">—</span></span>
+                            <span><i class="fas fa-bolt"></i> Скорость: <span id="completionSpeed">0</span> задач/день</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="info-panel">
+                <h2><i class="fas fa-rocket"></i> Добро пожаловать в CRM!</h2>
+                <p id="welcomeMessage">Загрузка...</p>
+                <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid rgba(108,108,255,0.2);">
+                    <p style="font-size: 0.85rem; opacity: 0.7;">
+                        <i class="fas fa-lightbulb"></i> <strong>Совет:</strong> Используйте Ctrl+K для быстрого поиска.
+                        Нажмите на имя пользователя, чтобы открыть профиль.
+                    </p>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <!-- Supabase модули -->
+    <script type="module">
+        import { supabase } from './js/core/supabase.js';
+        import { checkSupabaseSession, getCurrentSupabaseUser, requireSupabaseAuth, updateSupabaseUserInterface, logoutFromSupabase } from './js/core/supabase-session.js';
+        import { getTasks, getOverdueTasks, getTodayTasks } from './js/services/supabase-tasks.js';
+        
+        // ========== ГЛОБАЛЬНЫЕ ФУНКЦИИ ==========
+        
+        window.toggleSidebar = function() {
+            const sidebar = document.getElementById('sidebar');
+            if (sidebar) {
+                sidebar.classList.toggle('collapsed');
+                localStorage.setItem('sidebar_collapsed', sidebar.classList.contains('collapsed'));
+            }
+        };
+        
+        window.goToProfile = function() {
+            window.location.href = 'profile-supabase.html';
+        };
+        
+        window.handleLogout = async function() {
+            if (confirm('Вы уверены, что хотите выйти?')) {
+                await logoutFromSupabase();
+            }
+        };
+        
+        // ========== АНИМАЦИИ ==========
+        
+        function animateValue(element, targetValue, suffix = '') {
+            if (!element) return;
+            let current = 0;
+            const increment = targetValue / 30;
+            const interval = setInterval(() => {
+                current += increment;
+                if (current >= targetValue) {
+                    element.textContent = targetValue + suffix;
+                    clearInterval(interval);
+                } else {
+                    element.textContent = Math.floor(current) + suffix;
+                }
+            }, 20);
+        }
+        
+        // ========== ЗАГРУЗКА ДАННЫХ ==========
+        
+        async function loadDashboardData() {
+            try {
+                const tasks = await getTasks();
+                const currentUser = getCurrentSupabaseUser();
+                
+                // Фильтруем задачи для текущего пользователя
+                const userTasks = tasks.filter(t => t.assigned_to === currentUser?.email || t.created_by === currentUser?.id);
+                const allTasks = tasks;
+                
+                // Активные задачи (не завершенные)
+                const activeTasks = allTasks.filter(t => t.status !== 'completed');
+                document.getElementById('tasksCount').textContent = activeTasks.length;
+                animateValue(document.getElementById('tasksCount'), activeTasks.length);
+                
+                // Завершенные за неделю
+                const weekAgo = new Date();
+                weekAgo.setDate(weekAgo.getDate() - 7);
+                const completedThisWeek = allTasks.filter(t => {
+                    if (t.status !== 'completed') return false;
+                    if (!t.completed_at) return false;
+                    return new Date(t.completed_at) > weekAgo;
+                }).length;
+                document.getElementById('kpiCompletedWeek').textContent = completedThisWeek;
+                animateValue(document.getElementById('kpiCompletedWeek'), completedThisWeek);
+                
+                // Просроченные
+                const today = new Date().toISOString().split('T')[0];
+                const overdueTasks = allTasks.filter(t => {
+                    if (t.status === 'completed') return false;
+                    if (!t.deadline) return false;
+                    return t.deadline < today;
+                });
+                document.getElementById('kpiOverdue').textContent = overdueTasks.length;
+                animateValue(document.getElementById('kpiOverdue'), overdueTasks.length);
+                
+                // Конверсия
+                const completedTasks = allTasks.filter(t => t.status === 'completed').length;
+                const totalTasks = allTasks.length;
+                const conversion = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+                document.getElementById('kpiConversion').textContent = conversion + '%';
+                animateValue(document.getElementById('kpiConversion'), conversion, '%');
+                
+                // Прогресс
+                document.getElementById('completedTasksLarge').textContent = completedTasks;
+                document.getElementById('totalTasksLarge').textContent = totalTasks;
+                const progressPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+                document.getElementById('progressPercentLarge').textContent = progressPercent + '%';
+                const progressFill = document.getElementById('progressFillLarge');
+                if (progressFill) progressFill.style.width = progressPercent + '%';
+                
+                // Недельная динамика
+                renderWeeklyChart(allTasks);
+                
+                // Рейтинг агентов (пока заглушка, т.к. нет данных о пользователях в Supabase)
+                renderAgentRankingPlaceholder();
+                
+                // Объекты (пока заглушка)
+                document.getElementById('complexesCount').textContent = '—';
+                
+                // Приветствие
+                if (currentUser) {
+                    const hour = new Date().getHours();
+                    let greeting = '';
+                    if (hour < 12) greeting = 'Доброе утро';
+                    else if (hour < 18) greeting = 'Добрый день';
+                    else greeting = 'Добрый вечер';
+                    document.getElementById('welcomeMessage').innerHTML = greeting + ', ' + currentUser.name + '! 👋 Рады видеть вас в CRM.';
+                }
+                
+            } catch (error) {
+                console.error('[index-supabase] Ошибка загрузки данных:', error);
+            }
+        }
+        
+        function renderWeeklyChart(tasks) {
+            const days = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+            const today = new Date();
+            const startOfWeek = new Date(today);
+            startOfWeek.setDate(today.getDate() - today.getDay() + 1);
+            
+            const weeklyData = days.map((_, index) => {
+                const date = new Date(startOfWeek);
+                date.setDate(startOfWeek.getDate() + index);
+                const dateStr = date.toISOString().split('T')[0];
+                
+                return tasks.filter(t => {
+                    if (t.status !== 'completed') return false;
+                    if (!t.completed_at) return false;
+                    return t.completed_at.split('T')[0] === dateStr;
+                }).length;
+            });
+            
+            const maxValue = Math.max(...weeklyData, 1);
+            const barsContainer = document.getElementById('weeklyBars');
+            
+            if (barsContainer) {
+                barsContainer.innerHTML = weeklyData.map(value => {
+                    const height = (value / maxValue) * 80 + 20;
+                    return `<div class="chart-bar-mini" style="height: ${height}px;" title="${value} задач"></div>`;
+                }).join('');
+            }
+        }
+        
+        function renderAgentRankingPlaceholder() {
+            const container = document.getElementById('agentRanking');
+            if (!container) return;
+            
+            container.innerHTML = `
+                <div class="agent-ranking-item">
+                    <div class="agent-ranking-name">
+                        <div class="agent-ranking-badge">1</div>
+                        <span>Вы</span>
+                    </div>
+                    <div class="agent-ranking-value">0 задач</div>
+                </div>
+                <div class="agent-ranking-item">
+                    <div class="agent-ranking-name">
+                        <div class="agent-ranking-badge">2</div>
+                        <span>—</span>
+                    </div>
+                    <div class="agent-ranking-value">0 задач</div>
+                </div>
+                <div class="agent-ranking-item">
+                    <div class="agent-ranking-name">
+                        <div class="agent-ranking-badge">3</div>
+                        <span>—</span>
+                    </div>
+                    <div class="agent-ranking-value">0 задач</div>
+                </div>
+            `;
+        }
+        
+        // ========== ИНИЦИАЛИЗАЦИЯ ==========
+        
+        async function init() {
+            // Проверяем авторизацию
+            const isAuth = await requireSupabaseAuth('auth-supabase.html');
+            if (!isAuth) return;
+            
+            // Обновляем интерфейс пользователя
+            updateSupabaseUserInterface();
+            
+            // Загружаем данные
+            await loadDashboardData();
+            
+            // Восстанавливаем состояние сайдбара
+            const sidebar = document.getElementById('sidebar');
+            if (sidebar && localStorage.getItem('sidebar_collapsed') === 'true') {
+                sidebar.classList.add('collapsed');
+            }
+        }
+        
+        // Запуск
+        init();
+    </script>
+</body>
+</html>
