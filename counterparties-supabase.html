@@ -884,4 +884,38 @@
         // ========== ИНИЦИАЛИЗАЦИЯ ==========
         
         async function init() {
-            console.log('[counter
+            console.log('[counterparties-supabase] Инициализация...');
+            
+            const isAuth = await requireSupabaseAuth('auth-supabase.html');
+            if (!isAuth) return;
+            
+            currentUser = getCurrentSupabaseUser();
+            updateSupabaseUserInterface();
+            
+            await loadDeals();
+            await loadCounterparties();
+            renderCounterparties();
+            
+            document.getElementById('searchInput')?.addEventListener('input', renderCounterparties);
+            document.getElementById('typeFilter')?.addEventListener('change', renderCounterparties);
+            document.getElementById('personTypeFilter')?.addEventListener('change', renderCounterparties);
+            document.getElementById('addCounterpartyBtn')?.addEventListener('click', () => window.openCounterpartyModal());
+            document.getElementById('exportBtn')?.addEventListener('click', () => window.exportCounterparties());
+            
+            const sidebar = document.getElementById('sidebar');
+            if (sidebar && localStorage.getItem('sidebar_collapsed') === 'true') {
+                sidebar.classList.add('collapsed');
+            }
+            
+            if (window.CRM?.ui?.animations) {
+                console.log('[counterparties-supabase] Анимации инициализированы');
+            }
+            
+            console.log('[counterparties-supabase] Инициализация завершена');
+        }
+        
+        init();
+    </script>
+    <script src="layout.js"></script>
+</body>
+</html>
