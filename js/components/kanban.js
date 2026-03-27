@@ -79,6 +79,21 @@ function createTaskCard(task, options = {}) {
  * @param {Object} options - Опции { canEdit, onDelete }
  */
 function createDealCard(deal, options = {}) {
+    if (canEdit) {
+        card.ondragstart = function(e) {
+            console.log(`[kanban.js] Начат drag карточки ${deal.id}`);
+            card.classList.add('dragging');
+            e.dataTransfer.setData('text/plain', deal.id);
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setDragImage(new Image(), 0, 0);
+            return true;
+        };
+        
+        card.ondragend = function() {
+            console.log(`[kanban.js] Завершен drag карточки ${deal.id}`);
+            card.classList.remove('dragging');
+        };
+    }    
     const card = document.createElement('div');
     card.className = 'deal-card';
     card.setAttribute('data-deal-id', deal.id);
