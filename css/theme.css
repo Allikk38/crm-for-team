@@ -1,5 +1,11 @@
-:root {
-    /* Тёмная тема (по умолчанию) */
+/* ============================================
+ * ТЕМЫ ОФОРМЛЕНИЯ
+ * ============================================ */
+
+/* Тёмная тема (по умолчанию) */
+:root,
+:root.theme-dark,
+body.theme-dark {
     --bg-gradient-start: #0a0a1a;
     --bg-gradient-end: #050510;
     --card-bg: rgba(15, 15, 35, 0.7);
@@ -20,6 +26,8 @@
     --modal-bg: linear-gradient(135deg, #13132b, #1a1a3a);
 }
 
+/* Светлая тема */
+:root.theme-light,
 body.theme-light {
     --bg-gradient-start: #f5f7fa;
     --bg-gradient-end: #eef2f5;
@@ -38,13 +46,14 @@ body.theme-light {
     --modal-bg: linear-gradient(135deg, #ffffff, #f5f5ff);
 }
 
-body.theme-light::before {
-    background-image: 
-        linear-gradient(rgba(0, 0, 0, 0.05) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(0, 0, 0, 0.05) 1px, transparent 1px);
-}
-
+/* Применение фона */
 body {
     background: radial-gradient(ellipse at 20% 30%, var(--bg-gradient-start), var(--bg-gradient-end));
     color: var(--text-primary);
+    transition: background 0.3s ease, color 0.2s ease;
+}
+
+/* Анимация для плавного переключения темы */
+* {
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
 }

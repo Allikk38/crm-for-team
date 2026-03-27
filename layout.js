@@ -248,9 +248,11 @@ async function updateNotificationBadge() {
 window.updateNotificationBadge = updateNotificationBadge;
 
 function toggleTheme() {
+    // Используем централизованный модуль темы
     if (window.theme && window.theme.toggleTheme) {
         window.theme.toggleTheme();
     } else {
+        // Fallback если модуль темы не загружен
         const isDark = document.documentElement.classList.contains('theme-dark');
         if (isDark) {
             document.documentElement.classList.remove('theme-dark');
@@ -267,6 +269,7 @@ function toggleTheme() {
         }
     }
     
+    // Обновляем текст кнопки в сайдбаре
     const themeBtn = document.querySelector('.theme-btn');
     if (themeBtn) {
         const isDarkNow = document.documentElement.classList.contains('theme-dark');
