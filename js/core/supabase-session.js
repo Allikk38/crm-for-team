@@ -72,7 +72,8 @@ export async function checkSupabaseSession() {
                 role: profile?.role || 'agent',
                 github_username: profile?.github_username || user.email?.split('@')[0] || user.id
             };
-            
+            // После установки currentSupabaseUser
+            window.dispatchEvent(new CustomEvent('userLoaded', { detail: currentSupabaseUser }));
             // Обновляем глобальную переменную для layout.js
             updateGlobalUser();
             
