@@ -4,6 +4,31 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     
+    <!-- 
+    ============================================
+    ФАЙЛ: profile-supabase.html
+    РОЛЬ: Личный кабинет пользователя (Supabase версия)
+    
+    ОСОБЕННОСТИ:
+      - Просмотр и редактирование профиля
+      - Личная статистика (завершённые, активные, просроченные задачи)
+      - График активности за неделю
+      - Список последних завершённых задач
+      - Настройки интерфейса (сохраняются в localStorage)
+    
+    ЗАВИСИМОСТИ:
+      - CSS: base.css, theme.css, components.css, dashboard.css, modal.css, animations.css
+      - JS: js/core/supabase.js, js/core/supabase-session.js, 
+             js/services/tasks-supabase.js, js/ui/animations.js, layout.js
+      - Таблицы: profiles, tasks
+    
+    ИСТОРИЯ:
+      - 27.03.2026: Создание supabase-версии профиля
+      - 27.03.2026: Исправлены вызовы функций для window.sidebar
+      - 27.03.2026: Добавлена документация
+    ============================================
+    -->
+    
     <script>
         (function() {
             try {
@@ -358,11 +383,11 @@
             </div>
             <nav class="sidebar-nav" id="sidebar-nav"></nav>
             <div class="sidebar-footer">
-                <button class="collapse-btn" onclick="toggleSidebar()">
+                <button class="collapse-btn" onclick="window.sidebar?.toggleSidebar()">
                     <i class="fas fa-chevron-left"></i>
                     <span>Свернуть</span>
                 </button>
-                <button class="logout-btn" onclick="handleLogout()" style="margin-top: 12px; width: 100%; padding: 10px; background: rgba(255, 107, 107, 0.2); border: none; border-radius: 12px; color: #ff6b6b; cursor: pointer;">
+                <button class="logout-btn" onclick="window.sidebar?.logout()" style="margin-top: 12px; width: 100%; padding: 10px; background: rgba(255, 107, 107, 0.2); border: none; border-radius: 12px; color: #ff6b6b; cursor: pointer;">
                     <i class="fas fa-sign-out-alt"></i> Выйти
                 </button>
             </div>
@@ -370,7 +395,7 @@
         
         <main class="main-content">
             <div class="top-bar">
-                <div class="user-profile" onclick="goToProfile()">
+                <div class="user-profile" onclick="window.sidebar?.goToProfile()">
                     <div class="user-info">
                         <div class="user-name" id="userName">Загрузка...</div>
                         <div class="user-role" id="userRole">—</div>
@@ -394,8 +419,8 @@
                         <span id="profileEmail">—</span>
                     </div>
                     <div class="profile-info-item">
-                        <i class="fas fa-calendar-alt"></i>
-                        <span id="profileJoined">—</span>
+                        <i class="fab fa-github"></i>
+                        <span id="profileGithub">—</span>
                     </div>
                     
                     <div class="profile-stats">
@@ -489,60 +514,47 @@
             <h3><i class="fas fa-edit"></i> Редактировать профиль</h3>
             <input type="text" id="editName" placeholder="Имя">
             <div class="modal-buttons">
-                <button onclick="closeEditModal()">Отмена</button>
-                <button class="primary" onclick="saveProfileChanges()">Сохранить</button>
+                <button onclick="window.closeEditModal()">Отмена</button>
+                <button class="primary" onclick="window.saveProfileChanges()">Сохранить</button>
             </div>
         </div>
     </div>
     
+    <!-- Подключаем утилиты и компоненты -->
+    <script src="js/utils/helpers.js"></script>
+    <script src="js/ui/animations.js"></script>
+    
     <script type="module">
         import { supabase } from './js/core/supabase.js';
-        import { checkSupabaseSession, getCurrentSupabaseUser, requireSupabaseAuth, updateSupabaseUserInterface, logoutFromSupabase } from './js/core/supabase-session.js';
+        import { 
+            getCurrentSupabaseUser, 
+            requireSupabaseAuth, 
+            updateSupabaseUserInterface,
+            logoutFromSupabase
+        } from './js/core/supabase-session.js';
         import { getTasks } from './js/services/tasks-supabase.js';
         
         let currentUser = null;
         let tasks = [];
         
-        // ========== ГЛОБАЛЬНЫЕ ФУНКЦИИ ==========
+        console.log('[profile-supabase] Модуль загружен');
         
-        window.toggleSidebar = function() {
-            document.getElementById('sidebar').classList.toggle('collapsed');
-        };
+        // ========== ВСПОМОГАТЕЛЬНЫЕ ==========
         
-        window.goToProfile = function() {
-            // Уже на странице профиля
-        };
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
         
-        window.handleLogout = async function() {
-            if (confirm('Выйти?')) await logoutFromSupabase();
-        };
-        
-        window.closeEditModal = function() {
-            document.getElementById('editProfileModal').classList.remove('active');
-        };
-        
-        window.saveProfileChanges = async function() {
-            const newName = document.getElementById('editName').value.trim();
-            if (!newName) {
-                alert('Введите имя');
-                return;
-            }
-            
-            const { error } = await supabase
-                .from('profiles')
-                .update({ name: newName, updated_at: new Date().toISOString() })
-                .eq('id', currentUser.id);
-            
-            if (!error) {
-                currentUser.name = newName;
-                updateProfileUI();
-                updateSupabaseUserInterface();
-                closeEditModal();
-                showToast('success', 'Профиль обновлен');
-            } else {
-                alert('Ошибка сохранения');
-            }
-        };
+        function showToast(type, message) {
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.innerHTML = `<span>${escapeHtml(message)}</span>`;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
         
         // ========== ЗАГРУЗКА ДАННЫХ ==========
         
@@ -556,6 +568,7 @@
             if (data) {
                 currentUser.name = data.name || currentUser.name;
                 currentUser.role = data.role || currentUser.role;
+                currentUser.github_username = data.github_username || currentUser.github_username;
             }
         }
         
@@ -576,7 +589,6 @@
                 return t.due_date < today;
             }).length;
             
-            // Среднее время выполнения (упрощенно)
             const avgTime = tasks.filter(t => t.status === 'completed' && t.completed_at && t.created_at)
                 .reduce((sum, t) => {
                     const created = new Date(t.created_at);
@@ -641,54 +653,63 @@
         function updateProfileUI() {
             document.getElementById('profileName').textContent = currentUser.name;
             document.getElementById('profileEmail').textContent = currentUser.email;
-            document.getElementById('profileRole').textContent = currentUser.role === 'admin' ? 'Администратор' : 'Сотрудник';
-            document.getElementById('profileJoined').textContent = '—';
+            document.getElementById('profileGithub').textContent = currentUser.github_username || '—';
+            
+            let roleLabel = '';
+            if (currentUser.role === 'admin') roleLabel = 'Администратор';
+            else if (currentUser.role === 'manager') roleLabel = 'Менеджер';
+            else if (currentUser.role === 'agent') roleLabel = 'Агент';
+            else roleLabel = 'Сотрудник';
+            document.getElementById('profileRole').textContent = roleLabel;
             
             const avatar = document.getElementById('profileAvatar');
             const initials = currentUser.name.split(' ').map(n => n[0]).join('').toUpperCase();
             avatar.innerHTML = initials || '<i class="fas fa-user"></i>';
         }
         
-        function escapeHtml(text) {
-            if (!text) return '';
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
+        // ========== МОДАЛЬНОЕ ОКНО ==========
         
-        function showToast(type, message) {
-            const toast = document.createElement('div');
-            toast.className = `toast toast-${type}`;
-            toast.innerHTML = `<span>${message}</span>`;
-            document.body.appendChild(toast);
-            setTimeout(() => toast.remove(), 3000);
-        }
+        window.closeEditModal = function() {
+            document.getElementById('editProfileModal').classList.remove('active');
+        };
         
-        // ========== ИНИЦИАЛИЗАЦИЯ ==========
+        window.saveProfileChanges = async function() {
+            const newName = document.getElementById('editName').value.trim();
+            if (!newName) {
+                alert('Введите имя');
+                return;
+            }
+            
+            const { error } = await supabase
+                .from('profiles')
+                .update({ name: newName, updated_at: new Date().toISOString() })
+                .eq('id', currentUser.id);
+            
+            if (!error) {
+                currentUser.name = newName;
+                updateProfileUI();
+                updateSupabaseUserInterface();
+                window.closeEditModal();
+                showToast('success', 'Профиль обновлен');
+            } else {
+                alert('Ошибка сохранения');
+            }
+        };
         
-        async function init() {
-            const isAuth = await requireSupabaseAuth('auth-supabase.html');
-            if (!isAuth) return;
-            
-            currentUser = getCurrentSupabaseUser();
-            updateSupabaseUserInterface();
-            await loadUserProfile();
-            await loadUserTasks();
-            updateProfileUI();
-            
-            document.getElementById('editProfileBtn').addEventListener('click', () => {
-                document.getElementById('editName').value = currentUser.name;
-                document.getElementById('editProfileModal').classList.add('active');
-            });
-            
-            // Настройки из localStorage
+        // ========== НАСТРОЙКИ ==========
+        
+        function loadSettings() {
             const notificationsToggle = document.getElementById('notificationsToggle');
             const confirmActionsToggle = document.getElementById('confirmActionsToggle');
             const compactModeToggle = document.getElementById('compactModeToggle');
             
             notificationsToggle.checked = localStorage.getItem('crm_notifications') === 'true';
-            confirmActionsToggle.checked = localStorage.getItem('crm_confirm_actions') === 'true';
+            confirmActionsToggle.checked = localStorage.getItem('crm_confirm_actions') !== 'false';
             compactModeToggle.checked = localStorage.getItem('crm_compact_mode') === 'true';
+            
+            if (compactModeToggle.checked) {
+                document.body.classList.add('compact-mode');
+            }
             
             notificationsToggle.addEventListener('change', () => {
                 localStorage.setItem('crm_notifications', notificationsToggle.checked);
@@ -706,15 +727,39 @@
                     document.body.classList.remove('compact-mode');
                 }
             });
+        }
+        
+        // ========== ИНИЦИАЛИЗАЦИЯ ==========
+        
+        async function init() {
+            console.log('[profile-supabase] Инициализация...');
             
-            if (compactModeToggle.checked) {
-                document.body.classList.add('compact-mode');
-            }
+            const isAuth = await requireSupabaseAuth('auth-supabase.html');
+            if (!isAuth) return;
+            
+            currentUser = getCurrentSupabaseUser();
+            updateSupabaseUserInterface();
+            
+            await loadUserProfile();
+            await loadUserTasks();
+            updateProfileUI();
+            loadSettings();
+            
+            document.getElementById('editProfileBtn').addEventListener('click', () => {
+                document.getElementById('editName').value = currentUser.name;
+                document.getElementById('editProfileModal').classList.add('active');
+            });
             
             const sidebar = document.getElementById('sidebar');
             if (sidebar && localStorage.getItem('sidebar_collapsed') === 'true') {
                 sidebar.classList.add('collapsed');
             }
+            
+            if (window.CRM?.ui?.animations) {
+                console.log('[profile-supabase] Анимации инициализированы');
+            }
+            
+            console.log('[profile-supabase] Инициализация завершена');
         }
         
         init();
