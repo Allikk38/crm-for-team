@@ -12,19 +12,19 @@
     
     ОСОБЕННОСТИ:
       - Использует Supabase для хранения данных
-      - Сохранен дизайн из оригинального counterparties.html
-      - Работает параллельно со старой системой
-      - Фильтрация по роли пользователя
+      - Фильтрация по типу и типу лица
       - CRUD операции с контрагентами
       - Связанные сделки
       - Экспорт в CSV
     
     ЗАВИСИМОСТИ:
       - CSS: base.css, theme.css, components.css, modal.css, responsive.css, animations.css
-      - JS: js/core/supabase.js, js/core/supabase-session.js, layout.js
+      - JS: js/core/supabase.js, js/core/supabase-session.js, js/ui/animations.js, layout.js
+      - Таблицы: counterparties, deals, profiles
     
     ИСТОРИЯ:
       - 27.03.2026: Создание supabase-версии, полная замена CSV на Supabase
+      - 27.03.2026: Исправлены вызовы функций для использования window.sidebar
     ============================================
     -->
     
@@ -394,11 +394,11 @@
             </div>
             <nav class="sidebar-nav" id="sidebar-nav"></nav>
             <div class="sidebar-footer">
-                <button class="collapse-btn" onclick="toggleSidebar()">
+                <button class="collapse-btn" onclick="window.sidebar?.toggleSidebar()">
                     <i class="fas fa-chevron-left"></i>
                     <span>Свернуть</span>
                 </button>
-                <button class="logout-btn" onclick="handleLogout()" style="margin-top: 12px; width: 100%; padding: 10px; background: rgba(255, 107, 107, 0.2); border: none; border-radius: 12px; color: #ff6b6b; cursor: pointer;">
+                <button class="logout-btn" onclick="window.sidebar?.logout()" style="margin-top: 12px; width: 100%; padding: 10px; background: rgba(255, 107, 107, 0.2); border: none; border-radius: 12px; color: #ff6b6b; cursor: pointer;">
                     <i class="fas fa-sign-out-alt"></i> Выйти
                 </button>
             </div>
@@ -414,7 +414,7 @@
                         <i class="fas fa-download"></i> Экспорт
                     </button>
                 </div>
-                <div class="user-profile" onclick="goToProfile()">
+                <div class="user-profile" onclick="window.sidebar?.goToProfile()">
                     <div class="user-info">
                         <div class="user-name" id="userName">Загрузка...</div>
                         <div class="user-role" id="userRole">—</div>
@@ -517,11 +517,15 @@
             </div>
             
             <div class="modal-buttons">
-                <button onclick="closeCounterpartyFormModal()">Отмена</button>
-                <button class="primary" onclick="saveCounterparty()">Сохранить</button>
+                <button onclick="window.closeCounterpartyFormModal()">Отмена</button>
+                <button class="primary" onclick="window.saveCounterparty()">Сохранить</button>
             </div>
         </div>
     </div>
+    
+    <!-- Подключаем утилиты и компоненты -->
+    <script src="js/utils/helpers.js"></script>
+    <script src="js/ui/animations.js"></script>
     
     <script type="module">
         // ============================================
@@ -530,7 +534,6 @@
         
         import { supabase } from './js/core/supabase.js';
         import { 
-            checkSupabaseSession, 
             getCurrentSupabaseUser, 
             requireSupabaseAuth, 
             updateSupabaseUserInterface, 
@@ -549,6 +552,8 @@
             developer: { name: 'Застройщик', icon: '🏗️', class: 'type-developer' },
             investor: { name: 'Инвестор', icon: '💼', class: 'type-investor' }
         };
+        
+        console.log('[counterparties-supabase] Модуль загружен');
         
         // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
         function escapeHtml(text) {
@@ -593,9 +598,6 @@
         
         // ========== ЗАГРУЗКА ДАННЫХ ==========
         
-        /**
-         * Загрузка контрагентов из Supabase
-         */
         async function loadCounterparties() {
             const { data, error } = await supabase
                 .from('counterparties')
@@ -611,9 +613,6 @@
             }
         }
         
-        /**
-         * Загрузка сделок из Supabase для отображения связей
-         */
         async function loadDeals() {
             const { data, error } = await supabase
                 .from('deals')
@@ -628,13 +627,6 @@
             }
         }
         
-        // ========== ПОЛУЧЕНИЕ СВЯЗАННЫХ СДЕЛОК ==========
-        
-        /**
-         * Получить сделки, связанные с контрагентом
-         * @param {number|string} counterpartyId - ID контрагента
-         * @returns {Array} Массив сделок
-         */
         function getDealsByCounterparty(counterpartyId) {
             return deals.filter(d => 
                 d.seller_id == counterpartyId || 
@@ -642,13 +634,6 @@
             );
         }
         
-        // ========== ФИЛЬТРАЦИЯ ПО РОЛИ ==========
-        
-        /**
-         * Фильтрация контрагентов по роли пользователя
-         * @param {Array} list - Список контрагентов
-         * @returns {Array} Отфильтрованный список
-         */
         function filterByRole(list) {
             if (!currentUser) return [];
             if (currentUser.role === 'admin' || currentUser.role === 'manager') return list;
@@ -668,9 +653,6 @@
         
         // ========== РЕНДЕРИНГ КАРТОЧЕК ==========
         
-        /**
-         * Отрисовка списка контрагентов с фильтрацией и поиском
-         */
         function renderCounterparties() {
             const grid = document.getElementById('counterpartiesGrid');
             if (!grid) return;
@@ -681,7 +663,6 @@
             
             let filtered = filterByRole(counterparties);
             
-            // Поиск
             filtered = filtered.filter(c => {
                 const matchSearch = searchText === '' ||
                     c.name.toLowerCase().includes(searchText) ||
@@ -706,7 +687,7 @@
                 const avatarText = getInitials(c.name);
                 
                 html += `
-                    <div class="counterparty-card" onclick="openCounterpartyModal('${c.id}')">
+                    <div class="counterparty-card" onclick="window.openCounterpartyModal('${c.id}')">
                         <div class="counterparty-card-header">
                             <div class="counterparty-avatar">
                                 ${c.person_type === 'legal' ? '<i class="fas fa-building"></i>' : avatarText}
@@ -732,9 +713,9 @@
                             ${c.notes ? `<div class="counterparty-notes"><i class="fas fa-sticky-note"></i> ${escapeHtml(c.notes.substring(0, 80))}${c.notes.length > 80 ? '...' : ''}</div>` : ''}
                         </div>
                         <div class="counterparty-card-footer">
-                            <button class="counterparty-btn" onclick="event.stopPropagation(); editCounterparty('${c.id}')"><i class="fas fa-edit"></i> Редактировать</button>
-                            <button class="counterparty-btn" onclick="event.stopPropagation(); createDealForCounterparty('${c.id}', '${c.type}')"><i class="fas fa-handshake"></i> Создать сделку</button>
-                            <button class="counterparty-btn" onclick="event.stopPropagation(); deleteCounterparty('${c.id}')"><i class="fas fa-trash"></i> Удалить</button>
+                            <button class="counterparty-btn" onclick="event.stopPropagation(); window.editCounterparty('${c.id}')"><i class="fas fa-edit"></i> Редактировать</button>
+                            <button class="counterparty-btn" onclick="event.stopPropagation(); window.createDealForCounterparty('${c.id}', '${c.type}')"><i class="fas fa-handshake"></i> Создать сделку</button>
+                            <button class="counterparty-btn" onclick="event.stopPropagation(); window.deleteCounterparty('${c.id}')"><i class="fas fa-trash"></i> Удалить</button>
                         </div>
                     </div>
                 `;
@@ -745,10 +726,6 @@
         
         // ========== CRUD ОПЕРАЦИИ ==========
         
-        /**
-         * Открытие модального окна для просмотра/создания/редактирования
-         * @param {string} counterpartyId - ID контрагента (null для создания)
-         */
         window.openCounterpartyModal = async function(counterpartyId = null) {
             const modal = document.getElementById('counterpartyModal');
             const modalTitle = document.getElementById('modalTitle');
@@ -777,7 +754,7 @@
                             documents: '📋 Документы', closed: '✅ Закрыта', cancelled: '❌ Отказ'
                         };
                         dealsContainer.innerHTML = relatedDeals.map(d => `
-                            <div class="deal-item" onclick="goToDeal('${d.id}')">
+                            <div class="deal-item" onclick="window.goToDeal('${d.id}')">
                                 <span>Сделка №${d.id}</span>
                                 <span>${statusLabels[d.status] || d.status}</span>
                                 <span>${(d.price_current || 0).toLocaleString()} ₽</span>
@@ -837,7 +814,7 @@
             }
             
             if (!error) {
-                closeCounterpartyFormModal();
+                window.closeCounterpartyFormModal();
                 await loadCounterparties();
                 renderCounterparties();
                 showToast('success', id ? 'Контрагент обновлён' : 'Контрагент создан');
@@ -848,7 +825,7 @@
         };
         
         window.editCounterparty = function(id) {
-            openCounterpartyModal(id);
+            window.openCounterpartyModal(id);
         };
         
         window.deleteCounterparty = async function(id) {
@@ -904,52 +881,7 @@
             showToast('success', 'Экспорт завершён');
         };
         
-        // ========== ГЛОБАЛЬНЫЕ ФУНКЦИИ ДЛЯ HTML ==========
-        
-        window.toggleSidebar = function() {
-            document.getElementById('sidebar').classList.toggle('collapsed');
-        };
-        
-        window.goToProfile = function() {
-            window.location.href = 'profile-supabase.html';
-        };
-        
-        window.handleLogout = async function() {
-            if (confirm('Выйти?')) await logoutFromSupabase();
-        };
-        
         // ========== ИНИЦИАЛИЗАЦИЯ ==========
         
-        /**
-         * Главная функция инициализации страницы
-         */
         async function init() {
-            const isAuth = await requireSupabaseAuth('auth-supabase.html');
-            if (!isAuth) return;
-            
-            currentUser = getCurrentSupabaseUser();
-            updateSupabaseUserInterface();
-            
-            await loadDeals();
-            await loadCounterparties();
-            renderCounterparties();
-            
-            // Обработчики фильтров
-            document.getElementById('searchInput')?.addEventListener('input', renderCounterparties);
-            document.getElementById('typeFilter')?.addEventListener('change', renderCounterparties);
-            document.getElementById('personTypeFilter')?.addEventListener('change', renderCounterparties);
-            document.getElementById('addCounterpartyBtn')?.addEventListener('click', () => openCounterpartyModal());
-            document.getElementById('exportBtn')?.addEventListener('click', () => exportCounterparties());
-            
-            // Восстанавливаем состояние сайдбара
-            const sidebar = document.getElementById('sidebar');
-            if (sidebar && localStorage.getItem('sidebar_collapsed') === 'true') {
-                sidebar.classList.add('collapsed');
-            }
-        }
-        
-        init();
-    </script>
-    <script src="layout.js"></script>
-</body>
-</html>
+            console.log('[counter
