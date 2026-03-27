@@ -35,7 +35,6 @@
     <link rel="stylesheet" href="css/animations.css">
     
     <style>
-        /* Стили страницы (оставляем без изменений) */
         .deals-header {
             display: flex;
             justify-content: space-between;
@@ -137,9 +136,14 @@
             border-radius: 16px;
             padding: 12px;
             margin-bottom: 12px;
-            cursor: pointer;
+            cursor: grab;
             transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
             border-left: 3px solid var(--accent);
+            user-select: none;
+        }
+        
+        .deal-card:active {
+            cursor: grabbing;
         }
         
         .deal-card:hover {
@@ -259,20 +263,6 @@
         .input-group textarea:focus {
             outline: none;
             border-color: var(--accent);
-        }
-        
-        .small-btn {
-            background: rgba(108, 108, 255, 0.15);
-            border: 1px solid var(--card-border);
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 0.7rem;
-            cursor: pointer;
-            margin-top: 4px;
-        }
-        
-        .small-btn:hover {
-            background: rgba(108, 108, 255, 0.3);
         }
         
         .loading-state {
@@ -455,19 +445,10 @@
         </div>
     </div>
     
-    <!-- Подключаем утилиты и компоненты -->
+    <!-- Подключаем утилиты -->
     <script src="js/utils/helpers.js"></script>
-    <script src="js/components/kanban.js"></script>
     
     <script type="module">
-        /**
-         * ============================================
-         * МОДУЛЬ: deals-supabase.html
-         * РОЛЬ: Управление заявками (сделки) с канбан-доской
-         * ВЕРСИЯ: 2.0 - с использованием компонентов
-         * ============================================
-         */
-        
         import { supabase } from './js/core/supabase.js';
         import { 
             getCurrentSupabaseUser, 
@@ -476,14 +457,14 @@
             logoutFromSupabase 
         } from './js/core/supabase-session.js';
         
-        // ========== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ==========
-        let dealsData = [];          // Все сделки пользователя
-        let complexesData = [];      // Объекты недвижимости
-        let counterpartiesData = []; // Контрагенты (продавцы/покупатели)
-        let usersData = [];          // Пользователи системы
-        let currentUser = null;      // Текущий пользователь
+        // Глобальные переменные
+        let dealsData = [];
+        let complexesData = [];
+        let counterpartiesData = [];
+        let usersData = [];
+        let currentUser = null;
+        let draggedDealId = null;
         
-        // Статусы сделок для канбан-доски
         const DEAL_STATUSES = [
             { id: 'new', name: 'Новая', icon: 'N', color: '#9e9e9e' },
             { id: 'showing', name: 'Показ', icon: 'V', color: '#2196f3' },
@@ -495,52 +476,27 @@
         
         console.log('[deals-supabase] Модуль загружен');
         
-        // ========== ЗАГРУЗКА ДАННЫХ ИЗ SUPABASE ==========
+        // ========== ЗАГРУЗКА ДАННЫХ ==========
         
-        /**
-         * Загрузка объектов недвижимости
-         */
         async function loadComplexes() {
             const { data, error } = await supabase.from('complexes').select('*');
-            if (!error && data) {
-                complexesData = data;
-                console.log(`[deals-supabase] Загружено ${complexesData.length} объектов`);
-            } else {
-                console.error('[deals-supabase] Ошибка загрузки объектов:', error);
-            }
+            if (!error && data) complexesData = data;
         }
         
-        /**
-         * Загрузка контрагентов (продавцы и покупатели)
-         */
         async function loadCounterparties() {
             const { data, error } = await supabase.from('counterparties').select('*');
-            if (!error && data) {
-                counterpartiesData = data;
-                console.log(`[deals-supabase] Загружено ${counterpartiesData.length} контрагентов`);
-            } else {
-                console.error('[deals-supabase] Ошибка загрузки контрагентов:', error);
-            }
+            if (!error && data) counterpartiesData = data;
         }
         
-        /**
-         * Загрузка пользователей системы
-         */
         async function loadUsers() {
             const { data, error } = await supabase.from('profiles').select('*');
             if (!error && data) {
                 usersData = data;
-                console.log(`[deals-supabase] Загружено ${usersData.length} пользователей`);
                 updateAgentSelects();
                 updateAgentFilter();
-            } else {
-                console.error('[deals-supabase] Ошибка загрузки пользователей:', error);
             }
         }
         
-        /**
-         * Загрузка сделок текущего пользователя
-         */
         async function loadDeals() {
             const { data, error } = await supabase
                 .from('deals')
@@ -550,33 +506,19 @@
                 dealsData = data;
                 console.log(`[deals-supabase] Загружено ${dealsData.length} сделок`);
                 renderKanban();
-            } else {
-                console.error('[deals-supabase] Ошибка загрузки сделок:', error);
-                dealsData = [];
             }
         }
         
-        // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
-        
-        /**
-         * Получение названия объекта по ID
-         */
         function getComplexName(complexId) {
             const complex = complexesData.find(c => c.id == complexId);
             return complex ? complex.name : '—';
         }
         
-        /**
-         * Получение имени контрагента по ID
-         */
         function getCounterpartyName(id) {
             const cp = counterpartiesData.find(c => c.id == id);
             return cp ? cp.name : '—';
         }
         
-        /**
-         * Обновление селекта объектов в модальном окне
-         */
         function updateComplexSelect() {
             const select = document.getElementById('dealComplex');
             if (!select) return;
@@ -586,9 +528,6 @@
             }
         }
         
-        /**
-         * Обновление селектов продавцов и покупателей
-         */
         function updateCounterpartySelects() {
             const sellerSelect = document.getElementById('dealSeller');
             const buyerSelect = document.getElementById('dealBuyer');
@@ -612,9 +551,6 @@
             }
         }
         
-        /**
-         * Обновление селекта агентов
-         */
         function updateAgentSelects() {
             const agentSelect = document.getElementById('dealAgent');
             if (!agentSelect) return;
@@ -629,9 +565,6 @@
             }
         }
         
-        /**
-         * Обновление фильтра по агентам
-         */
         function updateAgentFilter() {
             const filterSelect = document.getElementById('agentFilter');
             if (!filterSelect) return;
@@ -643,16 +576,13 @@
             }
         }
         
-        // ========== CRUD ОПЕРАЦИИ ==========
+        // ========== CRUD ==========
         
-        /**
-         * Обновление статуса сделки (вызывается при drag-and-drop)
-         */
         async function updateDealStatus(dealId, newStatus) {
             const deal = dealsData.find(d => d.id == dealId);
             if (!deal || deal.status === newStatus) return;
             
-            console.log(`[deals-supabase] Изменение статуса сделки ${dealId}: ${deal.status} → ${newStatus}`);
+            console.log(`[deals-supabase] Изменение статуса: ${dealId} → ${newStatus}`);
             
             const { error } = await supabase
                 .from('deals')
@@ -662,16 +592,11 @@
             if (!error) {
                 await loadDeals();
                 if (window.showToast) {
-                    window.showToast('success', `Статус заявки изменён на "${DEAL_STATUSES.find(s => s.id === newStatus)?.name || newStatus}"`);
+                    window.showToast('success', `Статус изменён на "${DEAL_STATUSES.find(s => s.id === newStatus)?.name}"`);
                 }
-            } else {
-                console.error('[deals-supabase] Ошибка обновления статуса:', error);
             }
         }
         
-        /**
-         * Удаление сделки
-         */
         window.deleteDeal = async function(dealId) {
             const deal = dealsData.find(d => d.id == dealId);
             if (!deal) return;
@@ -681,41 +606,78 @@
                 const { error } = await supabase.from('deals').delete().eq('id', dealId);
                 if (!error) {
                     await loadDeals();
-                    if (window.showToast) {
-                        window.showToast('success', 'Заявка удалена');
-                    }
-                } else {
-                    console.error('[deals-supabase] Ошибка удаления:', error);
+                    if (window.showToast) window.showToast('success', 'Заявка удалена');
                 }
             }
         };
         
-        // ========== РЕНДЕРИНГ КАНБАН-ДОСКИ ==========
+        // ========== СОЗДАНИЕ КАРТОЧКИ ==========
         
-        /**
-         * Создание карточки сделки с данными
-         */
-        function createDealCardWithData(deal) {
-            // Проверяем права на редактирование
+        function createDealCard(deal) {
             const canEdit = currentUser?.role === 'admin' || 
                            currentUser?.role === 'manager' || 
                            deal.agent_id === currentUser?.github_username;
             
-            // Подготавливаем данные для компонента
-            const dealWithNames = {
-                ...deal,
-                complex_name: getComplexName(deal.complex_id),
-                seller_name: getCounterpartyName(deal.seller_id),
-                buyer_name: getCounterpartyName(deal.buyer_id),
-                price_current: deal.price_current || deal.price_initial,
-                deadline: deal.deadline
+            const typeLabels = {
+                primary: '🏗️ Первичка',
+                secondary: '🏠 Вторичка',
+                exchange: '🔄 Альтернатива',
+                urgent: '⚡ Срочный выкуп'
             };
+            const typeText = typeLabels[deal.type] || 'Вторичка';
+            const priceFormatted = (deal.price_current || deal.price_initial || 0).toLocaleString();
             
-            // Создаем карточку через компонент
-            const card = window.CRM.Kanban.createDealCard(dealWithNames, { canEdit });
+            const card = document.createElement('div');
+            card.className = 'deal-card';
             card.setAttribute('data-deal-id', deal.id);
+            card.draggable = canEdit;
+            card.setAttribute('draggable', canEdit ? 'true' : 'false');
             
-            // Добавляем обработчик клика для редактирования
+            card.innerHTML = `
+                <div class="deal-title">
+                    <span>Заявка N${deal.id}</span>
+                    <span class="deal-number">${window.escapeHtml(getComplexName(deal.complex_id))}</span>
+                </div>
+                <div class="deal-participants">
+                    <span>S: ${window.escapeHtml(getCounterpartyName(deal.seller_id))}</span>
+                    <span>→</span>
+                    <span>B: ${window.escapeHtml(getCounterpartyName(deal.buyer_id))}</span>
+                </div>
+                <div class="deal-price">
+                    <span class="deal-type type-secondary">${typeText}</span>
+                    <span>${priceFormatted} RUB</span>
+                </div>
+                <div class="deal-meta">
+                    <span><i class="fas fa-user-tie"></i> ${window.escapeHtml(deal.agent_id || '—')}</span>
+                    <span><i class="fas fa-calendar"></i> ${deal.deadline ? window.formatDate(deal.deadline, 'DD.MM.YYYY') : '—'}</span>
+                </div>
+                ${canEdit ? `
+                <div class="deal-meta" style="margin-top: 8px;">
+                    <button class="delete-deal" data-id="${deal.id}"><i class="fas fa-trash"></i> Удалить</button>
+                </div>
+                ` : ''}
+            `;
+            
+            // Drag start
+            card.addEventListener('dragstart', (e) => {
+                if (!canEdit) {
+                    e.preventDefault();
+                    return false;
+                }
+                draggedDealId = deal.id;
+                card.classList.add('dragging');
+                e.dataTransfer.setData('text/plain', deal.id);
+                e.dataTransfer.effectAllowed = 'move';
+                // Отключаем выделение текста
+                e.dataTransfer.setDragImage(new Image(), 0, 0);
+            });
+            
+            card.addEventListener('dragend', (e) => {
+                card.classList.remove('dragging');
+                draggedDealId = null;
+            });
+            
+            // Клик для редактирования
             card.addEventListener('click', (e) => {
                 if (!e.target.classList.contains('delete-deal') && 
                     !e.target.closest('.delete-deal')) {
@@ -723,7 +685,7 @@
                 }
             });
             
-            // Добавляем обработчик удаления
+            // Удаление
             const deleteBtn = card.querySelector('.delete-deal');
             if (deleteBtn) {
                 deleteBtn.onclick = (e) => {
@@ -735,19 +697,16 @@
             return card;
         }
         
-        /**
-         * Рендеринг всей канбан-доски
-         */
+        // ========== РЕНДЕРИНГ КАНБАНА ==========
+        
         function renderKanban() {
             const board = document.getElementById('kanbanBoard');
             if (!board) return;
             
-            // Получаем значения фильтров
             const searchText = document.getElementById('searchInput')?.value.toLowerCase() || '';
             const typeFilter = document.getElementById('typeFilter')?.value || 'all';
             const agentFilter = document.getElementById('agentFilter')?.value || 'all';
             
-            // Фильтрация сделок
             let filteredDeals = dealsData.filter(deal => {
                 const matchSearch = searchText === '' ||
                     deal.id.toString().includes(searchText) ||
@@ -759,7 +718,6 @@
                 return matchSearch && matchType && matchAgent;
             });
             
-            // Группируем по статусам
             const dealsByStatus = {};
             for (const s of DEAL_STATUSES) dealsByStatus[s.id] = [];
             for (const deal of filteredDeals) {
@@ -770,7 +728,6 @@
                 }
             }
             
-            // Рендерим колонки
             let html = '';
             for (const status of DEAL_STATUSES) {
                 const statusDeals = dealsByStatus[status.id] || [];
@@ -786,13 +743,13 @@
             }
             board.innerHTML = html;
             
-            // Заполняем контейнеры карточками
+            // Заполняем контейнеры
             for (const status of DEAL_STATUSES) {
                 const container = document.getElementById(`container-${status.id}`);
                 if (container) {
                     const statusDeals = dealsByStatus[status.id] || [];
                     for (const deal of statusDeals) {
-                        container.appendChild(createDealCardWithData(deal));
+                        container.appendChild(createDealCard(deal));
                     }
                     if (statusDeals.length === 0) {
                         container.innerHTML = '<div class="empty-deals"><i class="fas fa-inbox"></i><p>Нет заявок</p></div>';
@@ -800,19 +757,15 @@
                 }
             }
             
-            // Настраиваем drag-and-drop
             setupDragAndDrop();
         }
         
-        /**
-         * Настройка drag-and-drop для колонок канбан-доски
-         */
         function setupDragAndDrop() {
             const containers = document.querySelectorAll('.deals-container');
             console.log(`[deals-supabase] Настройка drag-and-drop для ${containers.length} контейнеров`);
             
             containers.forEach(container => {
-                // Удаляем старые обработчики, чтобы избежать дублирования
+                // Удаляем старые обработчики
                 const newContainer = container.cloneNode(true);
                 container.parentNode.replaceChild(newContainer, container);
                 
@@ -832,7 +785,7 @@
                     const dealId = e.dataTransfer.getData('text/plain');
                     const newStatus = newContainer.getAttribute('data-status');
                     
-                    console.log(`[deals-supabase] Drop: сделка ${dealId} → статус ${newStatus}`);
+                    console.log(`[deals-supabase] Drop: сделка ${dealId} → ${newStatus}`);
                     
                     if (dealId && newStatus) {
                         await updateDealStatus(dealId, newStatus);
@@ -843,14 +796,10 @@
         
         // ========== МОДАЛЬНОЕ ОКНО ==========
         
-        /**
-         * Открытие модального окна для создания/редактирования сделки
-         */
         async function openDealModal(dealId = null) {
             const modal = document.getElementById('dealModal');
             const modalTitle = document.getElementById('modalTitle');
             
-            // Загружаем данные для селектов
             await loadComplexes();
             await loadCounterparties();
             await loadUsers();
@@ -858,7 +807,6 @@
             updateCounterpartySelects();
             
             if (dealId) {
-                // Редактирование существующей сделки
                 modalTitle.textContent = 'Редактировать заявку';
                 const deal = dealsData.find(d => d.id == dealId);
                 if (deal) {
@@ -878,7 +826,6 @@
                     document.getElementById('dealNotes').value = deal.notes || '';
                 }
             } else {
-                // Создание новой сделки
                 modalTitle.textContent = 'Создать заявку';
                 document.getElementById('dealId').value = '';
                 document.getElementById('dealComplex').value = '';
@@ -899,16 +846,10 @@
             modal.classList.add('active');
         }
         
-        /**
-         * Закрытие модального окна
-         */
         window.closeDealModal = function() {
             document.getElementById('dealModal').classList.remove('active');
         };
         
-        /**
-         * Сохранение сделки (создание или обновление)
-         */
         window.saveDeal = async function() {
             const dealId = document.getElementById('dealId').value;
             const dealData = {
@@ -927,8 +868,6 @@
                 notes: document.getElementById('dealNotes').value || null,
                 status: 'new'
             };
-            
-            console.log(`[deals-supabase] Сохранение сделки: ${dealId ? 'обновление' : 'создание'}`, dealData);
             
             let error;
             if (dealId) {
@@ -956,7 +895,7 @@
             }
         };
         
-        // ========== ГЛОБАЛЬНЫЕ ФУНКЦИИ ДЛЯ HTML ==========
+        // ========== ГЛОБАЛЬНЫЕ ФУНКЦИИ ==========
         
         window.toggleSidebar = function() {
             document.getElementById('sidebar').classList.toggle('collapsed');
@@ -986,13 +925,11 @@
             await loadUsers();
             await loadDeals();
             
-            // Обработчики событий
             document.getElementById('addDealBtn').addEventListener('click', () => openDealModal());
             document.getElementById('searchInput').addEventListener('input', () => renderKanban());
             document.getElementById('typeFilter').addEventListener('change', () => renderKanban());
             document.getElementById('agentFilter').addEventListener('change', () => renderKanban());
             
-            // Восстанавливаем состояние сайдбара
             const sidebar = document.getElementById('sidebar');
             if (sidebar && localStorage.getItem('sidebar_collapsed') === 'true') {
                 sidebar.classList.add('collapsed');
