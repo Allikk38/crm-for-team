@@ -14,7 +14,7 @@
       - Работает параллельно со старой системой
     ЗАВИСИМОСТИ:
       - CSS: base.css, theme.css, components.css, dashboard.css, responsive.css, animations.css
-      - JS: js/core/supabase.js, js/core/supabase-session.js, js/services/supabase-tasks.js
+      - JS: js/core/supabase.js, js/core/supabase-session.js, js/services/tasks-supabase.js, js/ui/animations.js
     ============================================
     -->
     
@@ -384,11 +384,11 @@
             <nav class="sidebar-nav" id="sidebar-nav"></nav>
             
             <div class="sidebar-footer">
-                <button class="collapse-btn" onclick="toggleSidebar()">
+                <button class="collapse-btn" onclick="window.sidebar?.toggleSidebar()">
                     <i class="fas fa-chevron-left"></i>
                     <span>Свернуть</span>
                 </button>
-                <button class="logout-btn" onclick="handleLogout()" style="margin-top: 12px; width: 100%; padding: 10px; background: rgba(255, 107, 107, 0.2); border: none; border-radius: 12px; color: #ff6b6b; cursor: pointer;">
+                <button class="logout-btn" onclick="window.sidebar?.logout()" style="margin-top: 12px; width: 100%; padding: 10px; background: rgba(255, 107, 107, 0.2); border: none; border-radius: 12px; color: #ff6b6b; cursor: pointer;">
                     <i class="fas fa-sign-out-alt"></i> Выйти
                 </button>
             </div>
@@ -397,7 +397,7 @@
         <!-- Основной контент -->
         <main class="main-content">
             <div class="top-bar">
-                <div class="user-profile" onclick="goToProfile()">
+                <div class="user-profile" onclick="window.sidebar?.goToProfile()">
                     <div class="user-info">
                         <div class="user-name" id="userName">Загрузка...</div>
                         <div class="user-role" id="userRole">—</div>
@@ -414,7 +414,7 @@
                     <h3><i class="fas fa-play-circle"></i> Активные задачи</h3>
                     <p id="tasksCount">0</p>
                 </div>
-                <div class="card" onclick="window.location.href='complexes.html'">
+                <div class="card" onclick="window.location.href='complexes-supabase.html'">
                     <h3><i class="fas fa-building"></i> Объекты</h3>
                     <p id="complexesCount">0</p>
                 </div>
@@ -523,26 +523,6 @@
         import { supabase } from './js/core/supabase.js';
         import { checkSupabaseSession, getCurrentSupabaseUser, requireSupabaseAuth, updateSupabaseUserInterface, logoutFromSupabase } from './js/core/supabase-session.js';
         import { getTasks, getOverdueTasks, getTodayTasks } from './js/services/tasks-supabase.js';
-        
-        // ========== ГЛОБАЛЬНЫЕ ФУНКЦИИ ==========
-        
-        window.toggleSidebar = function() {
-            const sidebar = document.getElementById('sidebar');
-            if (sidebar) {
-                sidebar.classList.toggle('collapsed');
-                localStorage.setItem('sidebar_collapsed', sidebar.classList.contains('collapsed'));
-            }
-        };
-        
-        window.goToProfile = function() {
-            window.location.href = 'profile-supabase.html';
-        };
-        
-        window.handleLogout = async function() {
-            if (confirm('Вы уверены, что хотите выйти?')) {
-                await logoutFromSupabase();
-            }
-        };
         
         // ========== АНИМАЦИИ ==========
         
@@ -704,11 +684,19 @@
             if (sidebar && localStorage.getItem('sidebar_collapsed') === 'true') {
                 sidebar.classList.add('collapsed');
             }
+            
+            // Инициализация анимаций
+            if (window.CRM?.ui?.animations) {
+                console.log('[index-supabase] Анимации инициализированы');
+            } else {
+                console.warn('[index-supabase] AnimationManager не загружен');
+            }
         }
         
         // Запуск
         init();
     </script>
+    <script src="js/ui/animations.js"></script>
     <script src="layout.js"></script>
 </body>
 </html>
