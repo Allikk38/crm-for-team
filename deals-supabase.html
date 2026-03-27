@@ -601,8 +601,18 @@
         // ========== CRUD ==========
         
         async function handleUpdateDealStatus(dealId, newStatus) {
+            console.log(`[deals-supabase] handleUpdateDealStatus вызван: ${dealId} → ${newStatus}`);
+            
             const deal = dealsData.find(d => d.id == dealId);
-            if (!deal || deal.status === newStatus) return;
+            if (!deal) {
+                console.log(`[deals-supabase] Сделка ${dealId} не найдена`);
+                return;
+            }
+            
+            if (deal.status === newStatus) {
+                console.log(`[deals-supabase] Статус уже ${newStatus}, пропускаем`);
+                return;
+            }
             
             console.log(`[deals-supabase] Изменение статуса: ${dealId} → ${newStatus}`);
             
@@ -612,23 +622,10 @@
                 if (window.showToast) {
                     window.showToast('success', `Статус изменён на "${DEAL_STATUSES.find(s => s.id === newStatus)?.name}"`);
                 }
+            } else {
+                console.error(`[deals-supabase] Ошибка обновления статуса ${dealId}`);
             }
-        }
-        
-        window.deleteDeal = async function(dealId) {
-            const deal = dealsData.find(d => d.id == dealId);
-            if (!deal) return;
-            
-            if (confirm(`Удалить заявку N${deal.id}?`)) {
-                console.log(`[deals-supabase] Удаление сделки ${dealId}`);
-                const success = await deleteDeal(dealId);
-                if (success) {
-                    await loadDealsData();
-                    if (window.showToast) window.showToast('success', 'Заявка удалена');
-                }
-            }
-        };
-        
+        }        
         // ========== СОЗДАНИЕ КАРТОЧКИ ==========
         
         function createDealCardWithData(deal) {
@@ -694,7 +691,7 @@
                     getCounterpartyName(deal.seller_id).toLowerCase().includes(searchText) ||
                     getCounterpartyName(deal.buyer_id).toLowerCase().includes(searchText);
                 const matchType = typeFilter === 'all' || deal.type === typeFilter;
-                const matchAgent = agentFilter === 'all' || deal.agent_id === agentFilter;
+                const matchAgent = agentFilter === 'all' || deal.agent_id?.toLowerCase() === agentFilter?.toLowerCase();
                 return matchSearch && matchType && matchAgent;
             });
             
@@ -723,6 +720,7 @@
             }
             board.innerHTML = html;
             
+            // Сначала заполняем карточками
             for (const status of DEAL_STATUSES) {
                 const container = document.getElementById(`container-${status.id}`);
                 if (container) {
@@ -736,7 +734,10 @@
                 }
             }
             
+            // После заполнения карточек настраиваем drag-and-drop
+            console.log('[deals] Настройка drag-and-drop...');
             window.CRM.Kanban.setupDragAndDrop('.deals-container', async (dealId, newStatus) => {
+                console.log(`[deals] Drag-and-drop вызван: deal ${dealId} → ${newStatus}`);
                 await handleUpdateDealStatus(dealId, newStatus);
             });
         }
