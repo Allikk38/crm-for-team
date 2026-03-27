@@ -4,6 +4,23 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     
+    <!-- 
+    ============================================
+    ФАЙЛ: complexes-supabase.html
+    РОЛЬ: Управление объектами недвижимости (ЖК) с Supabase
+    ОСОБЕННОСТИ:
+      - Карточки объектов с фильтрацией и сортировкой
+      - Прогресс выполнения задач по объекту
+      - Публичные/приватные объекты
+      - Быстрое добавление через панель
+      - Модальные окна для просмотра и редактирования
+    ЗАВИСИМОСТИ:
+      - CSS: base.css, theme.css, components.css, dashboard.css, modal.css, animations.css
+      - JS: js/core/supabase.js, js/core/supabase-session.js, js/ui/animations.js, layout.js
+      - Таблицы: complexes, profiles, tasks
+    ============================================
+    -->
+    
     <script>
         (function() {
             try {
@@ -381,11 +398,11 @@
             </div>
             <nav class="sidebar-nav" id="sidebar-nav"></nav>
             <div class="sidebar-footer">
-                <button class="collapse-btn" onclick="toggleSidebar()">
+                <button class="collapse-btn" onclick="window.sidebar?.toggleSidebar()">
                     <i class="fas fa-chevron-left"></i>
                     <span>Свернуть</span>
                 </button>
-                <button class="logout-btn" onclick="handleLogout()" style="margin-top: 12px; width: 100%; padding: 10px; background: rgba(255, 107, 107, 0.2); border: none; border-radius: 12px; color: #ff6b6b; cursor: pointer;">
+                <button class="logout-btn" onclick="window.sidebar?.logout()" style="margin-top: 12px; width: 100%; padding: 10px; background: rgba(255, 107, 107, 0.2); border: none; border-radius: 12px; color: #ff6b6b; cursor: pointer;">
                     <i class="fas fa-sign-out-alt"></i> Выйти
                 </button>
             </div>
@@ -398,7 +415,7 @@
                         <i class="fas fa-plus"></i> Новый объект
                     </button>
                 </div>
-                <div class="user-profile" onclick="goToProfile()">
+                <div class="user-profile" onclick="window.sidebar?.goToProfile()">
                     <div class="user-info">
                         <div class="user-name" id="userName">Загрузка...</div>
                         <div class="user-role" id="userRole">—</div>
@@ -451,7 +468,7 @@
             <h3 id="complexModalTitle"><i class="fas fa-building"></i> Карточка объекта</h3>
             <div id="complexModalBody"></div>
             <div class="modal-buttons">
-                <button onclick="closeComplexModal()">Закрыть</button>
+                <button onclick="window.closeComplexModal()">Закрыть</button>
                 <button id="editComplexBtn" class="primary" style="display: none;">Редактировать</button>
             </div>
         </div>
@@ -480,15 +497,24 @@
                 <label><input type="checkbox" id="complexPublic" checked> <i class="fas fa-globe"></i> Публичный объект</label>
             </div>
             <div class="modal-buttons">
-                <button onclick="closeComplexFormModal()">Отмена</button>
-                <button class="primary" onclick="saveComplex()">Сохранить</button>
+                <button onclick="window.closeComplexFormModal()">Отмена</button>
+                <button class="primary" onclick="window.saveComplex()">Сохранить</button>
             </div>
         </div>
     </div>
     
+    <!-- Подключаем утилиты и компоненты -->
+    <script src="js/utils/helpers.js"></script>
+    <script src="js/ui/animations.js"></script>
+    
     <script type="module">
         import { supabase } from './js/core/supabase.js';
-        import { checkSupabaseSession, getCurrentSupabaseUser, requireSupabaseAuth, updateSupabaseUserInterface, logoutFromSupabase } from './js/core/supabase-session.js';
+        import { 
+            getCurrentSupabaseUser, 
+            requireSupabaseAuth, 
+            updateSupabaseUserInterface, 
+            logoutFromSupabase 
+        } from './js/core/supabase-session.js';
         
         let complexes = [];
         let users = [];
@@ -498,14 +524,10 @@
         let sortDirection = 'asc';
         let showMyObjectsOnly = false;
         
-        // ========== ГЛОБАЛЬНЫЕ ==========
-        window.toggleSidebar = () => document.getElementById('sidebar').classList.toggle('collapsed');
-        window.goToProfile = () => window.location.href = 'profile-supabase.html';
-        window.handleLogout = async () => { if (confirm('Выйти?')) await logoutFromSupabase(); };
-        window.closeComplexModal = () => document.getElementById('complexModal').classList.remove('active');
-        window.closeComplexFormModal = () => document.getElementById('complexFormModal').classList.remove('active');
+        console.log('[complexes-supabase] Модуль загружен');
         
         // ========== ЗАГРУЗКА ==========
+        
         async function loadUsers() {
             const { data } = await supabase.from('profiles').select('*');
             if (data) users = data;
@@ -577,7 +599,7 @@
                 const publicBadge = c.is_public ? '<span class="public-badge"><i class="fas fa-globe"></i> Публичный</span>' : '<span class="private-badge"><i class="fas fa-lock"></i> Приватный</span>';
                 const canEdit = canEditComplex(c);
                 
-                return `<div class="complex-card" onclick="openComplexModal('${c.id}')">
+                return `<div class="complex-card" onclick="window.openComplexModal('${c.id}')">
                     <div class="complex-card-header">
                         <div class="complex-card-image"><i class="fas fa-building"></i></div>
                         <div class="complex-card-info">
@@ -601,9 +623,9 @@
                         </div>
                     </div>
                     <div class="complex-card-footer">
-                        <button class="complex-btn" onclick="event.stopPropagation(); createTaskForComplex('${c.id}')"><i class="fas fa-plus"></i> Задача</button>
-                        <button class="complex-btn" onclick="event.stopPropagation(); copyComplexLink('${c.id}')"><i class="fas fa-link"></i> Ссылка</button>
-                        ${canEdit ? `<button class="complex-btn" onclick="event.stopPropagation(); editComplex('${c.id}')"><i class="fas fa-edit"></i> Ред.</button>` : ''}
+                        <button class="complex-btn" onclick="event.stopPropagation(); window.createTaskForComplex('${c.id}')"><i class="fas fa-plus"></i> Задача</button>
+                        <button class="complex-btn" onclick="event.stopPropagation(); window.copyComplexLink('${c.id}')"><i class="fas fa-link"></i> Ссылка</button>
+                        ${canEdit ? `<button class="complex-btn" onclick="event.stopPropagation(); window.editComplex('${c.id}')"><i class="fas fa-edit"></i> Ред.</button>` : ''}
                     </div>
                 </div>`;
             }).join('');
@@ -637,9 +659,17 @@
                 <div class="complex-detail-row"><div class="complex-detail-label">Связанные задачи:</div><div class="complex-detail-value tasks-list">${complexTasks.map(t => `<div class="task-item"><span>${escapeHtml(t.title)}</span><span>${t.status === 'completed' ? '✓ Выполнена' : '○ Активна'}</span></div>`).join('') || '<p>Нет задач</p>'}</div></div>
             `;
             
-            editBtn.onclick = () => { closeComplexModal(); editComplex(complex.id); };
+            editBtn.onclick = () => { window.closeComplexModal(); window.editComplex(complex.id); };
             editBtn.style.display = canEditComplex(complex) ? 'block' : 'none';
             document.getElementById('complexModal').classList.add('active');
+        };
+        
+        window.closeComplexModal = function() {
+            document.getElementById('complexModal').classList.remove('active');
+        };
+        
+        window.closeComplexFormModal = function() {
+            document.getElementById('complexFormModal').classList.remove('active');
         };
         
         window.editComplex = function(complexId) {
@@ -686,12 +716,14 @@
                 error = result.error;
             }
             if (!error) {
-                closeComplexFormModal();
+                window.closeComplexFormModal();
                 await loadComplexes();
+                if (window.showToast) window.showToast('success', id ? 'Объект обновлен' : 'Объект создан');
             } else alert('Ошибка сохранения');
         };
         
         window.createTaskForComplex = (complexId) => window.location.href = `tasks-supabase.html?complex=${complexId}`;
+        
         window.copyComplexLink = (complexId) => {
             const url = `${window.location.origin}${window.location.pathname}?complex=${complexId}`;
             navigator.clipboard.writeText(url);
@@ -719,10 +751,14 @@
         function escapeHtml(text) { if (!text) return ''; const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
         
         async function init() {
+            console.log('[complexes-supabase] Инициализация...');
+            
             const isAuth = await requireSupabaseAuth('auth-supabase.html');
             if (!isAuth) return;
+            
             currentUser = getCurrentSupabaseUser();
             updateSupabaseUserInterface();
+            
             await loadUsers();
             await loadTasks();
             await loadComplexes();
@@ -764,6 +800,7 @@
                     document.getElementById('quickPriceTo').value = '';
                     document.getElementById('quickAddPanel').classList.remove('active');
                     await loadComplexes();
+                    if (window.showToast) window.showToast('success', 'Объект создан');
                 } else alert('Ошибка сохранения');
             });
             
@@ -776,7 +813,19 @@
                 else { currentSort = btn.dataset.sort; sortDirection = 'asc'; }
                 renderComplexes();
             }));
+            
+            const sidebar = document.getElementById('sidebar');
+            if (sidebar && localStorage.getItem('sidebar_collapsed') === 'true') {
+                sidebar.classList.add('collapsed');
+            }
+            
+            if (window.CRM?.ui?.animations) {
+                console.log('[complexes-supabase] Анимации инициализированы');
+            }
+            
+            console.log('[complexes-supabase] Инициализация завершена');
         }
+        
         init();
     </script>
     <script src="layout.js"></script>
