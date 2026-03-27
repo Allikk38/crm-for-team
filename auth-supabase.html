@@ -3,7 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Вход в CRM (Supabase)</title>
+    
+    <!-- 
+    ============================================
+    ФАЙЛ: auth-supabase.html
+    РОЛЬ: Страница авторизации (вход/регистрация) через Supabase
+    
+    ОСОБЕННОСТИ:
+      - Вход по email и паролю
+      - Регистрация нового пользователя
+      - Автоматическое создание профиля в таблице profiles
+      - Перенаправление на дашборд после успешного входа
+    
+    ЗАВИСИМОСТИ:
+      - CSS: (встроенные стили)
+      - JS: js/pages/auth.js
+    
+    ИСТОРИЯ:
+      - 27.03.2026: Создание supabase-версии страницы входа
+      - 27.03.2026: Рефакторинг — логика вынесена в js/pages/auth.js
+    ============================================
+    -->
+    
     <style>
         * {
             margin: 0;
@@ -155,8 +176,8 @@
                 <label>Пароль</label>
                 <input type="password" id="password" placeholder="••••••" value="test123456">
             </div>
-            <button onclick="handleLogin()">Войти</button>
-            <div class="switch-mode" onclick="showRegister()">Нет аккаунта? Зарегистрироваться</div>
+            <button onclick="window.handleLogin()">Войти</button>
+            <div class="switch-mode" onclick="window.showRegister()">Нет аккаунта? Зарегистрироваться</div>
         </div>
         
         <div id="register-form" style="display: none;">
@@ -172,8 +193,8 @@
                 <label>Пароль</label>
                 <input type="password" id="reg-password" placeholder="минимум 6 символов">
             </div>
-            <button onclick="handleRegister()">Зарегистрироваться</button>
-            <div class="switch-mode" onclick="showLogin()">Уже есть аккаунт? Войти</div>
+            <button onclick="window.handleRegister()">Зарегистрироваться</button>
+            <div class="switch-mode" onclick="window.showLogin()">Уже есть аккаунт? Войти</div>
         </div>
         
         <hr>
@@ -183,112 +204,10 @@
         </div>
     </div>
 
+    <!-- Подключаем модуль страницы (логика вынесена) -->
     <script type="module">
-        import { supabase } from './js/core/supabase.js';
-        
-        const messageDiv = document.getElementById('message');
-        
-        window.handleLogin = async function() {
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-            
-            if (!email || !password) {
-                showMessage('Заполните все поля', 'error');
-                return;
-            }
-            
-            showMessage('Вход...', 'info');
-            
-            const { data, error } = await supabase.auth.signInWithPassword({
-                email,
-                password
-            });
-            
-            if (error) {
-                showMessage('Ошибка: ' + error.message, 'error');
-                return;
-            }
-            
-            if (data.user) {
-                showMessage('✅ Вход выполнен! Перенаправление...', 'success');
-                setTimeout(() => {
-                    window.location.href = 'index-supabase.html';
-                }, 1000);
-            }
-        };
-        
-        window.handleRegister = async function() {
-            const email = document.getElementById('reg-email').value;
-            const password = document.getElementById('reg-password').value;
-            const fullName = document.getElementById('reg-name').value;
-            
-            if (!email || !password || !fullName) {
-                showMessage('Заполните все поля', 'error');
-                return;
-            }
-            
-            if (password.length < 6) {
-                showMessage('Пароль должен быть не менее 6 символов', 'error');
-                return;
-            }
-            
-            showMessage('Регистрация...', 'info');
-            
-            const { data, error } = await supabase.auth.signUp({
-                email,
-                password,
-                options: {
-                    data: { full_name: fullName }
-                }
-            });
-            
-            if (error) {
-                showMessage('Ошибка: ' + error.message, 'error');
-                return;
-            }
-            
-            if (data.user) {
-                showMessage('✅ Регистрация успешна! Теперь войдите.', 'success');
-                setTimeout(() => {
-                    showLogin();
-                }, 2000);
-            }
-        };
-        
-        window.showRegister = function() {
-            document.getElementById('login-form').style.display = 'none';
-            document.getElementById('register-form').style.display = 'block';
-            messageDiv.style.display = 'block';
-            messageDiv.className = 'message info';
-            messageDiv.innerHTML = 'Зарегистрируйтесь для доступа к системе';
-        };
-        
-        window.showLogin = function() {
-            document.getElementById('login-form').style.display = 'block';
-            document.getElementById('register-form').style.display = 'none';
-            messageDiv.style.display = 'block';
-            messageDiv.className = 'message info';
-            messageDiv.innerHTML = 'Используйте тестовые данные:<br>Email: test@crm.com<br>Пароль: test123456';
-        };
-        
-        function showMessage(text, type) {
-            messageDiv.style.display = 'block';
-            messageDiv.className = 'message ' + type;
-            messageDiv.innerHTML = text;
-        }
-        
-        // Проверяем, если уже авторизован
-        async function checkExistingSession() {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) {
-                showMessage(`✅ Вы уже авторизованы как ${user.email}. Перенаправление...`, 'success');
-                setTimeout(() => {
-                    window.location.href = 'test-tasks.html';
-                }, 1000);
-            }
-        }
-        
-        checkExistingSession();
+        import { initAuthPage } from './js/pages/auth.js';
+        initAuthPage();
     </script>
 </body>
 </html>
