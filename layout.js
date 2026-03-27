@@ -88,6 +88,7 @@ function initSidebar() {
         document.getElementById('sidebar')?.classList.add('collapsed');
     }
     
+    // Первоначальная отрисовка (пока пользователь не загружен)
     renderNavigation();
     initMobileMenu();
     addSidebarButtons();
@@ -98,6 +99,18 @@ function initSidebar() {
         console.log('[layout] Событие userLoaded, обновляем навигацию');
         renderNavigation();
     });
+    
+    // Также проверяем через интервал, пока пользователь не загрузится
+    const checkInterval = setInterval(() => {
+        if (window.currentSupabaseUser && window.currentSupabaseUser.role) {
+            console.log('[layout] Проверка интервала: пользователь загружен, роль:', window.currentSupabaseUser.role);
+            renderNavigation();
+            clearInterval(checkInterval);
+        }
+    }, 100);
+    
+    // Очищаем интервал через 5 секунд на всякий случай
+    setTimeout(() => clearInterval(checkInterval), 5000);
 }
 
 function toggleSidebar() {
