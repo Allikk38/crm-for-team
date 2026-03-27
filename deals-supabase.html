@@ -452,9 +452,18 @@
         </div>
     </div>
     
+    <!-- Подключаем утилиты и компоненты -->
+    <script src="js/utils/helpers.js"></script>
+    <script src="js/components/kanban.js"></script>
+    
     <script type="module">
         import { supabase } from './js/core/supabase.js';
-        import { checkSupabaseSession, getCurrentSupabaseUser, requireSupabaseAuth, updateSupabaseUserInterface, logoutFromSupabase } from './js/core/supabase-session.js';
+        import { 
+            getCurrentSupabaseUser, 
+            requireSupabaseAuth, 
+            updateSupabaseUserInterface, 
+            logoutFromSupabase 
+        } from './js/core/supabase-session.js';
         
         // Глобальные переменные
         let dealsData = [];
@@ -462,7 +471,6 @@
         let counterpartiesData = [];
         let usersData = [];
         let currentUser = null;
-        let draggedDeal = null;
         
         const DEAL_STATUSES = [
             { id: 'new', name: 'Новая', icon: 'N', color: '#9e9e9e' },
@@ -473,29 +481,16 @@
             { id: 'cancelled', name: 'Отказ', icon: 'X', color: '#9e9e9e' }
         ];
         
-        const DEAL_TYPES = {
-            primary: { name: 'Первичка', icon: 'P', class: 'type-primary' },
-            secondary: { name: 'Вторичка', icon: 'S', class: 'type-secondary' },
-            exchange: { name: 'Альтернатива', icon: 'A', class: 'type-exchange' },
-            urgent: { name: 'Срочный выкуп', icon: 'U', class: 'type-urgent' }
-        };
-        
         // ========== ЗАГРУЗКА ДАННЫХ ==========
         
         async function loadComplexes() {
             const { data, error } = await supabase.from('complexes').select('*');
-            if (!error && data) {
-                complexesData = data;
-                updateComplexSelect();
-            }
+            if (!error && data) complexesData = data;
         }
         
         async function loadCounterparties() {
             const { data, error } = await supabase.from('counterparties').select('*');
-            if (!error && data) {
-                counterpartiesData = data;
-                updateCounterpartySelects();
-            }
+            if (!error && data) counterpartiesData = data;
         }
         
         async function loadUsers() {
@@ -518,12 +513,22 @@
             }
         }
         
+        function getComplexName(complexId) {
+            const complex = complexesData.find(c => c.id == complexId);
+            return complex ? complex.name : '—';
+        }
+        
+        function getCounterpartyName(id) {
+            const cp = counterpartiesData.find(c => c.id == id);
+            return cp ? cp.name : '—';
+        }
+        
         function updateComplexSelect() {
             const select = document.getElementById('dealComplex');
             if (!select) return;
             select.innerHTML = '<option value="">Выберите объект</option>';
             for (const c of complexesData) {
-                select.innerHTML += `<option value="${c.id}">${c.name} (${c.address || ''})</option>`;
+                select.innerHTML += `<option value="${c.id}">${window.escapeHtml(c.name)} (${window.escapeHtml(c.address || '')})</option>`;
             }
         }
         
@@ -535,7 +540,7 @@
                 sellerSelect.innerHTML = '<option value="">Выберите продавца</option>';
                 for (const c of counterpartiesData) {
                     if (c.type === 'seller') {
-                        sellerSelect.innerHTML += `<option value="${c.id}">${c.name}</option>`;
+                        sellerSelect.innerHTML += `<option value="${c.id}">${window.escapeHtml(c.name)}</option>`;
                     }
                 }
             }
@@ -544,7 +549,7 @@
                 buyerSelect.innerHTML = '<option value="">Выберите покупателя</option>';
                 for (const c of counterpartiesData) {
                     if (c.type === 'buyer') {
-                        buyerSelect.innerHTML += `<option value="${c.id}">${c.name}</option>`;
+                        buyerSelect.innerHTML += `<option value="${c.id}">${window.escapeHtml(c.name)}</option>`;
                     }
                 }
             }
@@ -556,7 +561,7 @@
             agentSelect.innerHTML = '<option value="">Выберите агента</option>';
             for (const u of usersData) {
                 if (u.role === 'agent' || u.role === 'manager') {
-                    agentSelect.innerHTML += `<option value="${u.github_username}">${u.name}</option>`;
+                    agentSelect.innerHTML += `<option value="${u.github_username}">${window.escapeHtml(u.name)}</option>`;
                 }
             }
             if (currentUser) {
@@ -570,66 +575,72 @@
             filterSelect.innerHTML = '<option value="all">Все агенты</option>';
             for (const u of usersData) {
                 if (u.role === 'agent' || u.role === 'manager') {
-                    filterSelect.innerHTML += `<option value="${u.github_username}">${u.name}</option>`;
+                    filterSelect.innerHTML += `<option value="${u.github_username}">${window.escapeHtml(u.name)}</option>`;
                 }
             }
         }
         
-        // ========== RENDER KANBAN ==========
+        // ========== CRUD ==========
         
-        function getComplexName(complexId) {
-            const complex = complexesData.find(c => c.id == complexId);
-            return complex ? complex.name : '—';
-        }
-        
-        function getCounterpartyName(id) {
-            const cp = counterpartiesData.find(c => c.id == id);
-            return cp ? cp.name : '—';
-        }
-        
-        function createDealCard(deal) {
-            const typeInfo = DEAL_TYPES[deal.type] || DEAL_TYPES.secondary;
-            const priceFormatted = (deal.price_current || deal.price_initial).toLocaleString();
-            const canEdit = currentUser?.role === 'admin' || currentUser?.role === 'manager' || deal.agent_id === currentUser?.github_username;
+        async function updateDealStatus(dealId, newStatus) {
+            const deal = dealsData.find(d => d.id == dealId);
+            if (!deal || deal.status === newStatus) return;
             
-            const card = document.createElement('div');
-            card.className = 'deal-card';
+            const { error } = await supabase
+                .from('deals')
+                .update({ status: newStatus, updated_at: new Date().toISOString() })
+                .eq('id', dealId);
+            
+            if (!error) {
+                await loadDeals();
+            }
+        }
+        
+        window.deleteDeal = async function(dealId) {
+            if (confirm('Удалить заявку?')) {
+                const { error } = await supabase.from('deals').delete().eq('id', dealId);
+                if (!error) await loadDeals();
+            }
+        };
+        
+        // ========== РЕНДЕРИНГ КАНБАНА ==========
+        
+        function createDealCardWithData(deal) {
+            // Подготавливаем данные для компонента
+            const dealWithNames = {
+                ...deal,
+                complex_name: getComplexName(deal.complex_id),
+                seller_name: getCounterpartyName(deal.seller_id),
+                buyer_name: getCounterpartyName(deal.buyer_id),
+                price_current: deal.price_current || deal.price_initial,
+                deadline: deal.deadline
+            };
+            
+            const canEdit = currentUser?.role === 'admin' || 
+                           currentUser?.role === 'manager' || 
+                           deal.agent_id === currentUser?.github_username;
+            
+            const card = window.CRM.Kanban.createDealCard(dealWithNames, { canEdit });
             card.setAttribute('data-deal-id', deal.id);
-            card.draggable = canEdit;
             
-            card.innerHTML = `
-                <div class="deal-title">
-                    <span>Заявка N${deal.id}</span>
-                    <span class="deal-number">${getComplexName(deal.complex_id)}</span>
-                </div>
-                <div class="deal-participants">
-                    <span>S: ${getCounterpartyName(deal.seller_id)}</span>
-                    <span>→</span>
-                    <span>B: ${getCounterpartyName(deal.buyer_id)}</span>
-                </div>
-                <div class="deal-price">
-                    <span class="deal-type ${typeInfo.class}">${typeInfo.icon} ${typeInfo.name}</span>
-                    <span>${priceFormatted} RUB</span>
-                </div>
-                <div class="deal-meta">
-                    <span><i class="fas fa-user-tie"></i> ${deal.agent_id || '—'}</span>
-                    <span><i class="fas fa-calendar"></i> ${deal.deadline || '—'}</span>
-                </div>
-                ${canEdit ? '<div class="deal-meta" style="margin-top: 8px;"><button class="delete-deal" onclick="event.stopPropagation(); window.deleteDeal(\'' + deal.id + '\')"><i class="fas fa-trash"></i> Удалить</button></div>' : ''}
-            `;
-            
-            card.addEventListener('dragstart', (e) => {
-                draggedDeal = card;
-                card.classList.add('dragging');
-                e.dataTransfer.setData('text/plain', deal.id);
+            // Добавляем обработчик клика для редактирования
+            card.addEventListener('click', (e) => {
+                if (!e.target.classList.contains('delete-deal') && 
+                    !e.target.closest('.delete-deal')) {
+                    openDealModal(deal.id);
+                }
             });
             
-            card.addEventListener('dragend', () => {
-                card.classList.remove('dragging');
-                draggedDeal = null;
-            });
-            
-            card.addEventListener('click', () => openDealModal(deal.id));
+            // Добавляем кнопку удаления если есть права
+            if (canEdit) {
+                const deleteBtn = card.querySelector('.delete-deal');
+                if (deleteBtn) {
+                    deleteBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        window.deleteDeal(deal.id);
+                    };
+                }
+            }
             
             return card;
         }
@@ -681,7 +692,7 @@
                 if (container) {
                     const statusDeals = dealsByStatus[status.id] || [];
                     for (const deal of statusDeals) {
-                        container.appendChild(createDealCard(deal));
+                        container.appendChild(createDealCardWithData(deal));
                     }
                     if (statusDeals.length === 0) {
                         container.innerHTML = '<div class="empty-deals"><i class="fas fa-inbox"></i><p>Нет заявок</p></div>';
@@ -707,21 +718,7 @@
             });
         }
         
-        async function updateDealStatus(dealId, newStatus) {
-            const deal = dealsData.find(d => d.id == dealId);
-            if (!deal || deal.status === newStatus) return;
-            
-            const { error } = await supabase
-                .from('deals')
-                .update({ status: newStatus, updated_at: new Date().toISOString() })
-                .eq('id', dealId);
-            
-            if (!error) {
-                await loadDeals();
-            }
-        }
-        
-        // ========== CRUD ==========
+        // ========== МОДАЛЬНОЕ ОКНО ==========
         
         async function openDealModal(dealId = null) {
             const modal = document.getElementById('dealModal');
@@ -730,6 +727,8 @@
             await loadComplexes();
             await loadCounterparties();
             await loadUsers();
+            updateComplexSelect();
+            updateCounterpartySelects();
             
             if (dealId) {
                 modalTitle.textContent = 'Редактировать заявку';
@@ -810,13 +809,6 @@
             closeDealModal();
         };
         
-        window.deleteDeal = async function(dealId) {
-            if (confirm('Удалить заявку?')) {
-                const { error } = await supabase.from('deals').delete().eq('id', dealId);
-                if (!error) await loadDeals();
-            }
-        };
-        
         // ========== ГЛОБАЛЬНЫЕ ФУНКЦИИ ==========
         
         window.toggleSidebar = function() {
@@ -849,6 +841,11 @@
             document.getElementById('searchInput').addEventListener('input', () => renderKanban());
             document.getElementById('typeFilter').addEventListener('change', () => renderKanban());
             document.getElementById('agentFilter').addEventListener('change', () => renderKanban());
+            
+            const sidebar = document.getElementById('sidebar');
+            if (sidebar && localStorage.getItem('sidebar_collapsed') === 'true') {
+                sidebar.classList.add('collapsed');
+            }
         }
         
         init();
