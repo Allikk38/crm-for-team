@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    
+    <!-- 
+    ============================================
+    ФАЙЛ: admin-supabase.html
+    РОЛЬ: Панель администратора для управления пользователями (Supabase версия)
+    ВЕРСИЯ: Supabase (замена CSV)
+    
+    ОСОБЕННОСТИ:
+      - Использует Supabase для хранения данных
+      - Сохранен дизайн из оригинального admin.html
+      - Список всех пользователей с анимациями
+      - Создание нового пользователя
+      - Сброс пин-кода
+      - Изменение роли пользователя
+      - Удаление пользователя
+      - Только для администраторов
+    
+    ЗАВИСИМОСТИ:
+      - CSS: base.css, theme.css, components.css, modal.css, responsive.css, animations.css
+      - JS: js/core/supabase.js, js/core/supabase-session.js, layout.js
+    
+    ИСТОРИЯ:
+      - 27.03.2026: Создание supabase-версии панели администратора
+    ============================================
+    -->
+    
+    <script>
+        (function() {
+            try {
+                const savedTheme = localStorage.getItem('crm_theme');
+                if (savedTheme === 'light') {
+                    if (document.documentElement) document.documentElement.classList.add('theme-light');
+                    if (document.body) document.body.classList.add('theme-light');
+                } else if (savedTheme === 'dark') {
+                    if (document.documentElement) document.documentElement.classList.add('theme-dark');
+                    if (document.body) document.body.classList.add('theme-dark');
+                }
+            } catch(e) {}
+        })();
+    </script>
+    
+    <title>Управление пользователями - CRM (Supabase)</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+    <link rel="stylesheet" href="css/kanban.css">
+    <link rel="stylesheet" href="css/manager.css">
+    <link rel="stylesheet" href="css/calendar.css">
+    <link rel="stylesheet" href="css/modal.css">
+    <link rel="stylesheet" href="css/responsive.css">
+    <link rel="stylesheet" href="css/animations.css">
+    
+    <style>
+        .admin-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+        
+        .add-user-btn {
+            background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+            border: none;
+            padding: 12px 24px;
+            border-radius: 40px;
+            color: white;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 500;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .add-user-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(108, 108, 255, 0.4);
+        }
+        
+        .users-table {
+            width: 100%;
+            background: var(--card-bg);
+            border-radius: 24px;
+            border: 1px solid var(--card-border);
+            overflow-x: auto;
+            animation: fadeInUp 0.4s ease;
+        }
+        
+        .users-table table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 700px;
+        }
+        
+        .users-table th,
+        .users-table td {
+            padding: 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--card-border);
+        }
+        
+        .users-table th {
+            background: rgba(108, 108, 255, 0.1);
+            font-weight: 600;
+        }
+        
+        .users-table tbody tr {
+            transition: all 0.2s ease;
+        }
+        
+        .users-table tbody tr:hover {
+            background: rgba(108, 108, 255, 0.05);
+        }
+        
+        .role-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        
+        .role-badge:hover {
+            transform: scale(1.05);
+        }
+        
+        .role-admin { background: rgba(108, 108, 255, 0.2); color: #6c6cff; }
+        .role-manager { background: rgba(76, 175, 80, 0.2); color: #4caf50; }
+        .role-agent { background: rgba(255, 193, 68, 0.2); color: #ffc107; }
+        .role-viewer { background: rgba(158, 158, 158, 0.2); color: #9e9e9e; }
+        
+        .action-btn {
+            background: none;
+            border: none;
+            color: var(--accent);
+            cursor: pointer;
+            margin: 0 4px;
+            padding: 4px 8px;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+        }
+        
+        .action-btn:hover {
+            background: rgba(108, 108, 255, 0.2);
+            transform: translateY(-2px);
+        }
+        
+        .action-btn.danger {
+            color: #ff6b6b;
+        }
+        
+        .action-btn.danger:hover {
+            background: rgba(255, 107, 107, 0.2);
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px;
+            color: var(--text-muted);
+        }
+        
+        .skeleton-row {
+            background: linear-gradient(90deg, var(--card-border) 25%, var(--card-hover) 50%, var(--card-border) 75%);
+            background-size: 200% 100%;
+            animation: skeletonLoading 1.5s infinite;
+            height: 50px;
+            border-radius: 8px;
+            margin: 8px;
+        }
+        
+        @keyframes skeletonLoading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        
+        @keyframes highlightRow {
+            0% { background: rgba(108, 108, 255, 0.4); }
+            100% { background: transparent; }
+        }
+        
+        .table-row-highlight {
+            animation: highlightRow 1s ease;
+        }
+        
+        .row-removing {
+            animation: fadeOutScale 0.2s ease forwards;
+        }
+        
+        @keyframes fadeOutScale {
+            from { opacity: 1; transform: scale(1); }
+            to { opacity: 0; transform: scale(0.95); }
+        }
+        
+        .role-select {
+            background: var(--input-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 20px;
+            padding: 4px 8px;
+            color: var(--text-primary);
+            cursor: pointer;
+            font-size: 0.75rem;
+        }
+        
+        .role-select:hover {
+            border-color: var(--accent);
+        }
+    </style>
+</head>
+<body>
+    <div class="app-layout">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-logo">
+                <i class="fas fa-chart-line"></i>
+                <span>CRM Team</span>
+            </div>
+            <nav class="sidebar-nav" id="sidebar-nav"></nav>
+            <div class="sidebar-footer">
+                <button class="collapse-btn" onclick="toggleSidebar()">
+                    <i class="fas fa-chevron-left"></i>
+                    <span>Свернуть</span>
+                </button>
+                <button class="logout-btn" onclick="handleLogout()" style="margin-top: 12px; width: 100%; padding: 10px; background: rgba(255, 107, 107, 0.2); border: none; border-radius: 12px; color: #ff6b6b; cursor: pointer;">
+                    <i class="fas fa-sign-out-alt"></i> Выйти
+                </button>
+            </div>
+        </aside>
+        
+        <main class="main-content">
+            <div class="top-bar">
+                <div class="user-profile" onclick="goToProfile()">
+                    <div class="user-info">
+                        <div class="user-name" id="userName">Загрузка...</div>
+                        <div class="user-role" id="userRole">—</div>
+                    </div>
+                    <div class="user-avatar" id="userAvatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="admin-header">
+                <h2><i class="fas fa-users-cog"></i> Управление пользователями</h2>
+                <button class="add-user-btn" id="addUserBtn">
+                    <i class="fas fa-plus"></i> Добавить пользователя
+                </button>
+            </div>
+            
+            <div class="users-table" id="usersTable">
+                <div class="skeleton-row"></div>
+                <div class="skeleton-row"></div>
+                <div class="skeleton-row"></div>
+            </div>
+        </main>
+    </div>
+    
+    <!-- Модальное окно добавления пользователя -->
+    <div id="addUserModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h3><i class="fas fa-user-plus"></i> Добавить пользователя</h3>
+            <input type="text" id="newUsername" placeholder="Логин (github_username)" required>
+            <input type="text" id="newName" placeholder="Полное имя" required>
+            <select id="newRole">
+                <option value="agent">Агент</option>
+                <option value="manager">Менеджер</option>
+                <option value="viewer">Наблюдатель</option>
+                <option value="admin">Администратор</option>
+            </select>
+            <input type="email" id="newEmail" placeholder="Email">
+            <div class="modal-buttons">
+                <button onclick="closeAddUserModal()">Отмена</button>
+                <button class="primary" id="confirmAddUserBtn">Создать</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Модальное окно сброса пин-кода -->
+    <div id="resetPinModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h3><i class="fas fa-key"></i> Сброс пин-кода</h3>
+            <p>Вы уверены, что хотите сбросить пин-код пользователя <strong id="resetUserName"></strong>?</p>
+            <p style="font-size: 0.85rem; color: var(--text-muted);">Новый пин-код будет сгенерирован автоматически.</p>
+            <input type="hidden" id="resetUserId">
+            <div class="modal-buttons">
+                <button onclick="closeResetPinModal()">Отмена</button>
+                <button class="primary" id="confirmResetPinBtn">Сбросить</button>
+            </div>
+        </div>
+    </div>
+    
+    <script type="module">
+        // ============================================
+        // МОДУЛЬ: admin-supabase.js
+        // ============================================
+        
+        import { supabase } from './js/core/supabase.js';
+        import { 
+            checkSupabaseSession, 
+            getCurrentSupabaseUser, 
+            requireSupabaseAuth, 
+            updateSupabaseUserInterface, 
+            logoutFromSupabase 
+        } from './js/core/supabase-session.js';
+        
+        // ========== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ==========
+        let usersList = [];
+        let currentAdmin = null;
+        
+        // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
+        
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function showToast(type, message) {
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.innerHTML = `<span>${escapeHtml(message)}</span>`;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+        
+        function generateRandomPin() {
+            return Math.floor(1000 + Math.random() * 9000).toString();
+        }
+        
+        // ========== ЗАГРУЗКА ПОЛЬЗОВАТЕЛЕЙ ==========
+        
+        async function loadUsers() {
+            const { data, error } = await supabase
+                .from('profiles')
+                .select('*');
+            
+            if (!error && data) {
+                usersList = data;
+                console.log(`[admin-supabase] Загружено ${usersList.length} пользователей`);
+                renderUsersTable();
+            } else {
+                console.error('[admin-supabase] Ошибка загрузки пользователей:', error);
+                usersList = [];
+            }
+        }
+        
+        // ========== РЕНДЕРИНГ ТАБЛИЦЫ ==========
+        
+        function getRoleLabel(role) {
+            const labels = {
+                admin: 'Администратор',
+                manager: 'Менеджер',
+                agent: 'Агент',
+                viewer: 'Наблюдатель'
+            };
+            return labels[role] || role;
+        }
+        
+        function getRoleClass(role) {
+            return `role-${role}`;
+        }
+        
+        async function updateUserRole(userId, newRole) {
+            const { error } = await supabase
+                .from('profiles')
+                .update({ role: newRole, updated_at: new Date().toISOString() })
+                .eq('id', userId);
+            
+            if (!error) {
+                await loadUsers();
+                showToast('success', 'Роль пользователя обновлена');
+            } else {
+                showToast('error', 'Ошибка обновления роли');
+            }
+        }
+        
+        function renderUsersTable() {
+            const container = document.getElementById('usersTable');
+            if (!container) return;
+            
+            if (usersList.length === 0) {
+                container.innerHTML = '<div class="empty-state"><i class="fas fa-users-slash"></i><p>Нет пользователей</p></div>';
+                return;
+            }
+            
+            let html = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Логин</th>
+                            <th>Имя</th>
+                            <th>Роль</th>
+                            <th>Email</th>
+                            <th>Дата регистрации</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            for (const user of usersList) {
+                const canDelete = user.id !== currentAdmin?.id;
+                
+                html += `
+                    <tr data-user-id="${user.id}">
+                        <td>${escapeHtml(user.github_username || '—')}</td>
+                        <td>${escapeHtml(user.name)}</td>
+                        <td>
+                            <select class="role-select" data-user-id="${user.id}" data-current-role="${user.role}" onchange="changeUserRole('${user.id}', this.value)">
+                                <option value="agent" ${user.role === 'agent' ? 'selected' : ''}>Агент</option>
+                                <option value="manager" ${user.role === 'manager' ? 'selected' : ''}>Менеджер</option>
+                                <option value="viewer" ${user.role === 'viewer' ? 'selected' : ''}>Наблюдатель</option>
+                                <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>Администратор</option>
+                            </select>
+                        </td>
+                        <td>${escapeHtml(user.email || '—')}</td>
+                        <td>${escapeHtml(user.created_at ? user.created_at.split('T')[0] : '—')}</td>
+                        <td>
+                            <button class="action-btn" onclick="openResetPinModal('${user.id}', '${escapeHtml(user.name)}')" title="Сбросить пин-код">
+                                <i class="fas fa-key"></i>
+                            </button>
+                            ${canDelete ? `
+                            <button class="action-btn danger" onclick="deleteUser('${user.id}')" title="Удалить пользователя">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                            ` : ''}
+                        </td>
+                    </tr>
+                `;
+            }
+            
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+        
+        // ========== CRUD ОПЕРАЦИИ ==========
+        
+        async function createUser(username, name, role, email) {
+            // Сначала создаем пользователя в auth.users
+            const { data: authData, error: authError } = await supabase.auth.signUp({
+                email: email || `${username}@temp.com`,
+                password: generateRandomPin(),
+                options: {
+                    data: { 
+                        full_name: name,
+                        github_username: username
+                    }
+                }
+            });
+            
+            if (authError) {
+                console.error('[admin-supabase] Ошибка создания auth пользователя:', authError);
+                return { success: false, error: authError.message };
+            }
+            
+            if (authData.user) {
+                // Добавляем профиль
+                const { error: profileError } = await supabase
+                    .from('profiles')
+                    .insert([{
+                        id: authData.user.id,
+                        github_username: username,
+                        name: name,
+                        role: role,
+                        email: email || `${username}@temp.com`,
+                        pin: generateRandomPin(),
+                        created_at: new Date().toISOString()
+                    }]);
+                
+                if (profileError) {
+                    console.error('[admin-supabase] Ошибка создания профиля:', profileError);
+                    return { success: false, error: profileError.message };
+                }
+                
+                return { success: true, tempPin: generateRandomPin() };
+            }
+            
+            return { success: false, error: 'Неизвестная ошибка' };
+        }
+        
+        async function resetUserPin(userId) {
+            const newPin = generateRandomPin();
+            
+            const { error } = await supabase
+                .from('profiles')
+                .update({ pin: newPin, updated_at: new Date().toISOString() })
+                .eq('id', userId);
+            
+            if (!error) {
+                // Также обновляем пароль в auth.users
+                const { data: userData } = await supabase.auth.admin.getUserById(userId);
+                if (userData?.user) {
+                    await supabase.auth.admin.updateUserById(userId, {
+                        password: newPin
+                    });
+                }
+                return { success: true, newPin };
+            }
+            
+            return { success: false, error: 'Ошибка сброса пин-кода' };
+        }
+        
+        async function deleteUserById(userId) {
+            // Удаляем профиль
+            const { error: profileError } = await supabase
+                .from('profiles')
+                .delete()
+                .eq('id', userId);
+            
+            if (profileError) {
+                console.error('[admin-supabase] Ошибка удаления профиля:', profileError);
+                return { success: false, error: profileError.message };
+            }
+            
+            // Удаляем пользователя из auth
+            const { error: authError } = await supabase.auth.admin.deleteUser(userId);
+            
+            if (authError) {
+                console.error('[admin-supabase] Ошибка удаления auth пользователя:', authError);
+                return { success: false, error: authError.message };
+            }
+            
+            return { success: true };
+        }
+        
+        // ========== ГЛОБАЛЬНЫЕ ФУНКЦИИ ДЛЯ HTML ==========
+        
+        window.changeUserRole = async function(userId, newRole) {
+            await updateUserRole(userId, newRole);
+        };
+        
+        window.openResetPinModal = function(userId, userName) {
+            document.getElementById('resetUserId').value = userId;
+            document.getElementById('resetUserName').textContent = userName;
+            const modal = document.getElementById('resetPinModal');
+            modal.style.display = 'flex';
+        };
+        
+        window.closeResetPinModal = function() {
+            const modal = document.getElementById('resetPinModal');
+            modal.style.display = 'none';
+        };
+        
+        window.resetPin = async function() {
+            const userId = document.getElementById('resetUserId').value;
+            const result = await resetUserPin(userId);
+            
+            if (result.success) {
+                showToast('success', `Пин-код сброшен! Новый пин-код: ${result.newPin}`);
+                closeResetPinModal();
+                await loadUsers();
+            } else {
+                showToast('error', result.error || 'Ошибка сброса');
+            }
+        };
+        
+        window.deleteUser = async function(userId) {
+            const user = usersList.find(u => u.id === userId);
+            if (!user) return;
+            
+            if (!confirm(`Вы уверены, что хотите удалить пользователя "${user.name}"? Это действие необратимо.`)) return;
+            
+            const row = document.querySelector(`tr[data-user-id="${userId}"]`);
+            if (row) row.classList.add('row-removing');
+            
+            setTimeout(async () => {
+                const result = await deleteUserById(userId);
+                if (result.success) {
+                    showToast('success', 'Пользователь удалён');
+                    await loadUsers();
+                } else {
+                    showToast('error', result.error || 'Ошибка удаления');
+                    if (row) row.classList.remove('row-removing');
+                }
+            }, 200);
+        };
+        
+        window.openAddUserModal = function() {
+            const modal = document.getElementById('addUserModal');
+            modal.style.display = 'flex';
+        };
+        
+        window.closeAddUserModal = function() {
+            const modal = document.getElementById('addUserModal');
+            modal.style.display = 'none';
+            document.getElementById('newUsername').value = '';
+            document.getElementById('newName').value = '';
+            document.getElementById('newEmail').value = '';
+            document.getElementById('newRole').value = 'agent';
+        };
+        
+        window.addUser = async function() {
+            const username = document.getElementById('newUsername').value.trim();
+            const name = document.getElementById('newName').value.trim();
+            const role = document.getElementById('newRole').value;
+            const email = document.getElementById('newEmail').value.trim();
+            
+            if (!username || !name) {
+                showToast('warning', 'Заполните логин и имя');
+                return;
+            }
+            
+            const result = await createUser(username, name, role, email);
+            
+            if (result.success) {
+                showToast('success', `Пользователь создан! Пин-код: ${result.tempPin}`, 5000);
+                closeAddUserModal();
+                await loadUsers();
+                
+                // Подсвечиваем новую строку
+                setTimeout(() => {
+                    const newRow = document.querySelector(`tr:last-child`);
+                    if (newRow) newRow.classList.add('table-row-highlight');
+                }, 100);
+            } else {
+                showToast('error', result.error || 'Ошибка создания');
+            }
+        };
+        
+        // ========== ГЛОБАЛЬНЫЕ ФУНКЦИИ ДЛЯ HTML ==========
+        
+        window.toggleSidebar = function() {
+            document.getElementById('sidebar').classList.toggle('collapsed');
+        };
+        
+        window.goToProfile = function() {
+            window.location.href = 'profile-supabase.html';
+        };
+        
+        window.handleLogout = async function() {
+            if (confirm('Выйти?')) await logoutFromSupabase();
+        };
+        
+        // ========== ИНИЦИАЛИЗАЦИЯ ==========
+        
+        async function init() {
+            const isAuth = await requireSupabaseAuth('auth-supabase.html');
+            if (!isAuth) return;
+            
+            currentAdmin = getCurrentSupabaseUser();
+            updateSupabaseUserInterface();
+            
+            // Проверка прав доступа (только администратор)
+            if (currentAdmin.role !== 'admin') {
+                const main = document.querySelector('.main-content');
+                if (main) {
+                    main.innerHTML = `
+                        <div class="info-panel" style="text-align: center;">
+                            <h2><i class="fas fa-lock"></i> Доступ ограничен</h2>
+                            <p>Эта страница доступна только администраторам.</p>
+                            <a href="index-supabase.html" class="nav-btn" style="margin-top: 20px; display: inline-block;">Вернуться на главную</a>
+                        </div>
+                    `;
+                }
+                return;
+            }
+            
+            await loadUsers();
+            
+            // Обработчики кнопок
+            document.getElementById('addUserBtn').addEventListener('click', openAddUserModal);
+            document.getElementById('confirmAddUserBtn').addEventListener('click', addUser);
+            document.getElementById('confirmResetPinBtn').addEventListener('click', resetPin);
+            
+            // Закрытие модальных окон по клику вне
+            window.onclick = function(event) {
+                const addModal = document.getElementById('addUserModal');
+                const resetModal = document.getElementById('resetPinModal');
+                if (event.target === addModal) closeAddUserModal();
+                if (event.target === resetModal) closeResetPinModal();
+            };
+            
+            const sidebar = document.getElementById('sidebar');
+            if (sidebar && localStorage.getItem('sidebar_collapsed') === 'true') {
+                sidebar.classList.add('collapsed');
+            }
+        }
+        
+        init();
+    </script>
+    <script src="layout.js"></script>
+</body>
+</html>
