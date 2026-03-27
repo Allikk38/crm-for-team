@@ -24,7 +24,12 @@ const NAVIGATION_ITEMS = [
 ];
 
 function getCurrentUserRole() {
-    // Пробуем получить пользователя из Supabase (если есть)
+    // Пробуем получить пользователя из Supabase через глобальный объект
+    if (window.currentSupabaseUser) {
+        return window.currentSupabaseUser.role;
+    }
+    
+    // Пробуем через supabaseSession
     if (window.supabaseSession && window.supabaseSession.getCurrentSupabaseUser) {
         const user = window.supabaseSession.getCurrentSupabaseUser();
         if (user) return user.role;
@@ -38,7 +43,6 @@ function getCurrentUserRole() {
     
     return null;
 }
-
 function renderNavigation() {
     const container = document.getElementById('sidebar-nav');
     if (!container) return;
