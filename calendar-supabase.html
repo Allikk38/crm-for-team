@@ -8,6 +8,7 @@
     ============================================
     ФАЙЛ: calendar-supabase.html
     РОЛЬ: Календарь задач с возможностью drag-and-drop (Supabase версия)
+    ВЕРСИЯ: Модульная архитектура с универсальным загрузчиком
     
     ОСОБЕННОСТИ:
       - Отображение задач на календаре
@@ -18,12 +19,10 @@
     
     ЗАВИСИМОСТИ:
       - CSS: base.css, theme.css, components.css, calendar.css, modal.css, responsive.css, animations.css
-      - JS: js/pages/calendar.js, layout.js
+      - JS: универсальный загрузчик moduleLoader.js + layout.js
     
     ИСТОРИЯ:
-      - 27.03.2026: Создание supabase-версии календаря
-      - 27.03.2026: Исправлена сетка для равных ячеек
-      - 27.03.2026: Рефакторинг — логика вынесена в js/pages/calendar.js
+      - 30.03.2026: Переход на модульную архитектуру с универсальным загрузчиком
     ============================================
     -->
     
@@ -58,6 +57,7 @@
     <link rel="stylesheet" href="css/animations.css">
     
     <style>
+        /* Все стили остаются без изменений */
         .calendar-container {
             background: var(--card-bg);
             backdrop-filter: blur(12px);
@@ -397,15 +397,9 @@
         </main>
     </div>
     
-    <!-- Подключаем утилиты и компоненты -->
-    <script src="js/utils/helpers.js"></script>
-    <script src="js/ui/animations.js"></script>
-
-    <!-- Подключаем модуль страницы (логика вынесена) -->
-    <script type="module">
-        import { initCalendarPage } from './js/pages/calendar.js';
-        initCalendarPage();
-    </script>
+    <!-- ========== УНИВЕРСАЛЬНЫЙ ЗАГРУЗЧИК МОДУЛЕЙ ========== -->
+    <!-- Всего 2 строки для всех страниц! -->
+    <script type="module" src="js/core/moduleLoader.js"></script>
     <script src="layout.js"></script>
 </body>
 </html>
