@@ -6,6 +6,7 @@
  * ИСТОРИЯ:
  *   - 30.03.2026: Создание контейнера
  *   - 30.03.2026: Исправлено дублирование виджетов
+ *   - 30.03.2026: Добавлены новые виджеты (KPI, прогресс, приветствие)
  * ============================================
  */
 
@@ -229,14 +230,20 @@ class DashboardContainer {
     
     getWidgetTitle(widgetId) {
         const titles = {
-            'my-tasks': 'Мои задачи'
+            'my-tasks': 'Мои задачи',
+            'kpi-summary': 'Ключевые показатели',
+            'project-progress': 'Прогресс проекта',
+            'welcome': 'Приветствие'
         };
         return titles[widgetId] || widgetId;
     }
     
     getWidgetIcon(widgetId) {
         const icons = {
-            'my-tasks': 'fa-tasks'
+            'my-tasks': 'fa-tasks',
+            'kpi-summary': 'fa-chart-line',
+            'project-progress': 'fa-chart-simple',
+            'welcome': 'fa-rocket'
         };
         return icons[widgetId] || 'fa-puzzle-piece';
     }
@@ -289,7 +296,10 @@ class DashboardContainer {
     
     getWidgetClass(widgetId) {
         const widgetsMap = {
-            'my-tasks': window.CRM?.Widgets?.MyTasksWidget
+            'my-tasks': window.CRM?.Widgets?.MyTasksWidget,
+            'kpi-summary': window.CRM?.Widgets?.KpiSummaryWidget,
+            'project-progress': window.CRM?.Widgets?.ProjectProgressWidget,
+            'welcome': window.CRM?.Widgets?.WelcomeWidget
         };
         return widgetsMap[widgetId];
     }
@@ -363,6 +373,27 @@ class DashboardContainer {
                 title: 'Мои задачи',
                 description: 'Показывает ваши текущие задачи',
                 settings: { limit: 10 }
+            },
+            {
+                id: 'kpi-summary',
+                moduleId: 'index',
+                title: 'Ключевые показатели',
+                description: 'Активные задачи, объекты, пользователи',
+                settings: { refreshInterval: 300000 }
+            },
+            {
+                id: 'project-progress',
+                moduleId: 'index',
+                title: 'Прогресс проекта',
+                description: 'Общий прогресс выполнения задач',
+                settings: {}
+            },
+            {
+                id: 'welcome',
+                moduleId: 'index',
+                title: 'Приветствие',
+                description: 'Персональное приветствие и советы',
+                settings: {}
             }
         ];
         
@@ -474,6 +505,14 @@ class DashboardContainer {
         });
         
         window.CRM.EventBus.on('task:deleted', () => {
+            this.refreshAllWidgets();
+        });
+        
+        window.CRM.EventBus.on('complex:created', () => {
+            this.refreshAllWidgets();
+        });
+        
+        window.CRM.EventBus.on('user:created', () => {
             this.refreshAllWidgets();
         });
     }

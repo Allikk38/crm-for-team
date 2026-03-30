@@ -146,6 +146,30 @@ async function loadWidgets() {
         console.error('[moduleLoader] ❌ Ошибка загрузки MyTasksWidget:', error);
     }
     
+    try {
+        const { default: KpiSummaryWidget } = await import('../components/widgets/kpi-summary-widget.js');
+        window.CRM.Widgets.KpiSummaryWidget = KpiSummaryWidget;
+        console.log('[moduleLoader] ✅ Виджет KpiSummaryWidget загружен');
+    } catch (error) {
+        console.error('[moduleLoader] ❌ Ошибка загрузки KpiSummaryWidget:', error);
+    }
+    
+    try {
+        const { default: ProjectProgressWidget } = await import('../components/widgets/project-progress-widget.js');
+        window.CRM.Widgets.ProjectProgressWidget = ProjectProgressWidget;
+        console.log('[moduleLoader] ✅ Виджет ProjectProgressWidget загружен');
+    } catch (error) {
+        console.error('[moduleLoader] ❌ Ошибка загрузки ProjectProgressWidget:', error);
+    }
+    
+    try {
+        const { default: WelcomeWidget } = await import('../components/widgets/welcome-widget.js');
+        window.CRM.Widgets.WelcomeWidget = WelcomeWidget;
+        console.log('[moduleLoader] ✅ Виджет WelcomeWidget загружен');
+    } catch (error) {
+        console.error('[moduleLoader] ❌ Ошибка загрузки WelcomeWidget:', error);
+    }
+    
     console.log('[moduleLoader] Виджеты загружены, доступно:', Object.keys(window.CRM.Widgets || {}));
 }
 
