@@ -740,31 +740,49 @@
             </div>
         </div>
     </div>
- <!-- Подключаем зависимости -->
+<!-- ========== ПОДКЛЮЧАЕМ ЗАВИСИМОСТИ (обычные скрипты) ========== -->
     <script src="js/utils/helpers.js"></script>
     <script src="js/components/kanban.js"></script>
     <script src="js/ui/animations.js"></script>
     <script src="js/core/permissions.js"></script>
-    <script src="js/core/registry.js"></script>  <!-- НОВЫЙ -->
+    <script src="js/core/registry.js"></script>
     
-    <!-- Загружаем модуль через реестр -->
-    <script type="module">
-        import { tasksModule } from './js/modules/tasks/index.js';
-        
-        // Регистрируем и загружаем модуль
-        if (window.CRM?.Registry) {
-            window.CRM.Registry.registerModule(tasksModule);
-            window.CRM.Registry.loadModule('tasks').then(() => {
-                console.log('[tasks] Модуль загружен через реестр');
-            });
-        } else {
-            console.error('[tasks] Реестр не загружен, используем fallback');
-            import('./js/pages/tasks.js').then(module => {
-                module.initTasksPage();
-            });
-        }
+    <!-- Загружаем модуль задач (обычный скрипт, без type="module") -->
+    <script src="js/modules/tasks/index.js"></script>
+    
+    <!-- Инициализация -->
+    <script>
+        // Ждем загрузки всех скриптов и инициализируем
+        (function init() {
+            // Проверяем, что реестр и модуль загружены
+            if (window.CRM?.Registry && window.tasksModule) {
+                console.log('[init] Реестр и модуль загружены');
+                
+                // Регистрируем модуль
+                window.CRM.Registry.registerModule(window.tasksModule);
+                
+                // Загружаем модуль
+                window.CRM.Registry.loadModule('tasks').then(() => {
+                    console.log('[tasks] Модуль загружен через реестр');
+                }).catch(err => {
+                    console.error('[tasks] Ошибка загрузки модуля:', err);
+                    // Fallback
+                    import('./js/pages/tasks.js').then(module => {
+                        module.initTasksPage();
+                    });
+                });
+            } else if (window.CRM?.Registry) {
+                console.warn('[init] Модуль tasks не найден, ждем...');
+                setTimeout(init, 100);
+            } else {
+                console.error('[init] Реестр не загружен, используем fallback');
+                import('./js/pages/tasks.js').then(module => {
+                    module.initTasksPage();
+                });
+            }
+        })();
     </script>
     
-    <script src="layout.js"></script>   
+    <script src="layout.js"></script> 
 </body>
 </html>
