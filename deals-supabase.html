@@ -23,6 +23,7 @@
     
     ИСТОРИЯ:
       - 30.03.2026: Переход на модульную архитектуру
+      - 30.03.2026: Исправлен конфликт PLANS, добавлен PlanManager
     ============================================
     -->
     
@@ -468,18 +469,18 @@
         </div>
     </div>
     
-    <!-- ========== ПОДКЛЮЧАЕМ ЗАВИСИМОСТИ (МОДУЛЬНАЯ АРХИТЕКТУРА) ========== -->
+    <!-- ========== ПОДКЛЮЧАЕМ ЗАВИСИМОСТИ ========== -->
     <script src="js/utils/helpers.js"></script>
     <script src="js/components/kanban.js"></script>
     <script src="js/ui/animations.js"></script>
-    <script type="module" src="js/core/supabase.js"></script>
-    <script src="js/core/eventBus.js"></script>   
+    <script src="js/core/supabase.js" type="module"></script>
+    <script src="js/core/eventBus.js"></script>
     <script src="js/core/planManager.js"></script>
     <script src="js/core/permissions.js"></script>
     <script src="js/core/registry.js"></script>
     <script src="js/modules/deals/index.js"></script>
     
-    <!-- Инициализация модуля -->
+    <!-- Инициализация модуля с таймаутом -->
     <script type="module">
         import { checkSupabaseSession } from './js/core/supabase-session.js';
         
@@ -488,10 +489,15 @@
         // Загружаем пользователя
         await checkSupabaseSession();
         
-        console.log('[deals-init] Пользователь загружен:', window.currentSupabaseUser);
+        console.log('[deals-init] Пользователь загружен:', window.currentSupabaseUser?.name);
         
-        // Ждем загрузки реестра и модуля
+        // Ждем загрузки реестра и модуля с таймаутом
+        let attempts = 0;
+        const maxAttempts = 50;
+        
         function waitForRegistryAndModule() {
+            attempts++;
+            
             if (window.CRM?.Registry && window.dealsModule) {
                 console.log('[deals-init] Реестр и модуль готовы');
                 
@@ -509,14 +515,22 @@
                         module.initDealsPage();
                     });
                 });
+            } else if (attempts >= maxAttempts) {
+                console.error('[deals-init] Таймаут ожидания реестра и модуля');
+                // Fallback
+                import('./js/pages/deals.js').then(module => {
+                    module.initDealsPage();
+                });
             } else {
-                console.log('[deals-init] Ожидаем загрузку реестра и модуля...');
+                if (attempts === 1 || attempts % 10 === 0) {
+                    console.log(`[deals-init] Ожидаем загрузку реестра и модуля... (${attempts}/${maxAttempts})`);
+                }
                 setTimeout(waitForRegistryAndModule, 100);
             }
         }
         
         // Начинаем ожидание
-        waitForRegistryAndModule();
+        setTimeout(waitForRegistryAndModule, 100);
     </script>
     
     <script src="layout.js"></script>
