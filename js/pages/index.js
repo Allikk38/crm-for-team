@@ -113,11 +113,14 @@ async function loadDashboardData() {
         // Недельная динамика
         renderWeeklyChart();
         
-        // Объекты (пока заглушка — позже загрузим из БД)
-        document.getElementById('complexesCount').textContent = '0';
+        // Загружаем объекты
+        await loadComplexesCount();
         
-        // Загружаем пользователей для рейтинга
+        // Загружаем рейтинг агентов
         await loadAgentRanking();
+        
+        // Загружаем количество пользователей
+        await loadUsersCount();
         
         // Приветствие
         if (currentUser) {
