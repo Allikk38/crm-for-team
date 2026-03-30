@@ -19,6 +19,7 @@
  * ============================================
  */
 
+// Правильный импорт базового класса
 import Widget from '../widget.js';
 import { getTasks, updateTask } from '../../services/tasks-supabase.js';
 import { getCurrentSupabaseUser } from '../../core/supabase-session.js';
@@ -127,7 +128,7 @@ class MyTasksWidget extends Widget {
                     <div class="widget-title">
                         <i class="fas fa-tasks"></i>
                         Мои задачи
-                        ${this.tasks.length > 0 ? `<span class="widget-badge">${this.tasks.length}</span>` : ''}
+                        ${this.tasks.length > 0 ? `<span class="widget-badge" style="margin-left: 8px; background: var(--accent); color: white; padding: 2px 6px; border-radius: 12px; font-size: 11px;">${this.tasks.length}</span>` : ''}
                     </div>
                     <div class="widget-actions">
                         <button class="widget-refresh-btn" title="Обновить">
@@ -136,7 +137,7 @@ class MyTasksWidget extends Widget {
                         <button class="widget-settings-btn" title="Настройки">
                             <i class="fas fa-cog"></i>
                         </button>
-                        <button class="widget-expand-btn" title="Развернуть">
+                        <button class="widget-expand-btn" title="Все задачи">
                             <i class="fas fa-external-link-alt"></i>
                         </button>
                     </div>
@@ -159,7 +160,7 @@ class MyTasksWidget extends Widget {
                 <div class="widget-empty">
                     <i class="fas fa-check-circle"></i>
                     <span>Нет задач для отображения</span>
-                    <small style="margin-top: 8px;">Отличная работа! 🎉</small>
+                    <small style="margin-top: 8px; display: block;">Отличная работа! 🎉</small>
                 </div>
             `;
         }
@@ -172,21 +173,22 @@ class MyTasksWidget extends Widget {
                     const statusClass = this.getStatusClass(task.status);
                     
                     return `
-                        <div class="widget-list-item" data-task-id="${task.id}" data-task-status="${task.status}">
+                        <div class="widget-list-item" data-task-id="${task.id}" data-task-status="${task.status}" style="cursor: pointer;">
                             <div style="flex: 1;">
-                                <div class="widget-list-item-title" style="display: flex; align-items: center; gap: 8px;">
+                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
                                     <input type="checkbox" 
                                            class="task-checkbox" 
                                            ${task.status === 'completed' ? 'checked' : ''}
                                            data-task-id="${task.id}"
-                                           onclick="event.stopPropagation()">
-                                    <span style="${task.status === 'completed' ? 'text-decoration: line-through; opacity: 0.7;' : ''}">
+                                           onclick="event.stopPropagation()"
+                                           style="cursor: pointer;">
+                                    <span style="${task.status === 'completed' ? 'text-decoration: line-through; opacity: 0.7;' : ''} font-weight: 500;">
                                         ${window.escapeHtml(task.title)}
                                     </span>
-                                    ${task.priority !== 'low' ? `<span class="widget-status ${priorityClass}">${this.getPriorityText(task.priority)}</span>` : ''}
-                                    ${isOverdue ? '<span class="widget-status widget-status-high">Просрочена</span>' : ''}
+                                    ${task.priority !== 'low' ? `<span class="widget-status ${priorityClass}" style="font-size: 10px; padding: 2px 6px;">${this.getPriorityText(task.priority)}</span>` : ''}
+                                    ${isOverdue ? '<span class="widget-status widget-status-high" style="font-size: 10px; padding: 2px 6px;">Просрочена</span>' : ''}
                                 </div>
-                                <div style="display: flex; gap: 12px; margin-top: 4px; font-size: 11px; color: var(--text-muted);">
+                                <div style="display: flex; gap: 12px; font-size: 11px; color: var(--text-muted);">
                                     ${task.due_date ? `<span><i class="far fa-calendar-alt"></i> ${window.formatDate ? window.formatDate(task.due_date) : task.due_date}</span>` : ''}
                                     <span><i class="fas fa-tag"></i> ${this.getStatusText(task.status)}</span>
                                 </div>
@@ -196,8 +198,8 @@ class MyTasksWidget extends Widget {
                 }).join('')}
             </div>
             ${this.tasks.length >= this.settings.limit ? `
-                <div style="margin-top: 12px; text-align: center;">
-                    <a href="tasks-supabase.html" style="color: var(--accent); font-size: 12px;">
+                <div style="margin-top: 12px; text-align: center; padding-top: 8px; border-top: 1px solid var(--card-border);">
+                    <a href="tasks-supabase.html" style="color: var(--accent); font-size: 12px; text-decoration: none;">
                         Показать все задачи <i class="fas fa-arrow-right"></i>
                     </a>
                 </div>
@@ -209,19 +211,26 @@ class MyTasksWidget extends Widget {
         // Обновление по кнопке
         const refreshBtn = this.container.querySelector('.widget-refresh-btn');
         if (refreshBtn) {
-            refreshBtn.onclick = () => this.refresh();
+            refreshBtn.onclick = (e) => {
+                e.stopPropagation();
+                this.refresh();
+            };
         }
         
         // Настройки
         const settingsBtn = this.container.querySelector('.widget-settings-btn');
         if (settingsBtn) {
-            settingsBtn.onclick = () => this.showSettings();
+            settingsBtn.onclick = (e) => {
+                e.stopPropagation();
+                this.showSettings();
+            };
         }
         
         // Развернуть (перейти на страницу задач)
         const expandBtn = this.container.querySelector('.widget-expand-btn');
         if (expandBtn) {
-            expandBtn.onclick = () => {
+            expandBtn.onclick = (e) => {
+                e.stopPropagation();
                 window.location.href = 'tasks-supabase.html';
             };
         }
@@ -284,28 +293,25 @@ class MyTasksWidget extends Widget {
             }
             
             this.showNotification(
-                completed ? 'Задача завершена!' : 'Задача восстановлена',
+                completed ? '✅ Задача завершена!' : '🔄 Задача восстановлена',
                 'success'
             );
             
         } catch (error) {
             console.error('[my-tasks-widget] Ошибка изменения статуса:', error);
-            this.showNotification('Ошибка при изменении статуса', 'error');
+            this.showNotification('❌ Ошибка при изменении статуса', 'error');
             // Возвращаем чекбокс в исходное состояние
             await this.refresh();
         }
     }
     
     openTask(taskId) {
-        // Можно открыть модальное окно или перейти на страницу
         console.log('[my-tasks-widget] Открываем задачу:', taskId);
-        // В будущем: открыть модальное окно с задачей
-        // Пока просто показываем уведомление
-        this.showNotification(`Задача #${taskId.slice(0, 8)}`, 'info');
+        // TODO: открыть модальное окно с задачей
+        this.showNotification(`📋 Задача #${taskId.slice(0, 8)}`, 'info');
     }
     
     showSettings() {
-        // Простые настройки через prompt
         const newLimit = prompt('Количество задач для отображения (0 - все):', this.settings.limit);
         if (newLimit !== null) {
             const limit = parseInt(newLimit);
@@ -313,11 +319,6 @@ class MyTasksWidget extends Widget {
                 this.settings.limit = limit;
                 this.clearCache();
                 this.refresh();
-                
-                // Сохраняем настройки в дашборде
-                if (window.CRM?.Dashboards && this.options.dashboardId) {
-                    // В будущем: сохранять настройки в БД
-                }
             }
         }
     }
@@ -360,6 +361,8 @@ class MyTasksWidget extends Widget {
     
     // Подписка на события
     setupEventListeners() {
+        if (!window.CRM?.EventBus) return;
+        
         // Обновляем при создании задачи
         this.subscribe('task:created', (task) => {
             if (task.assigned_to === this.user?.github_username) {
@@ -376,7 +379,6 @@ class MyTasksWidget extends Widget {
         
         // Обновляем при удалении задачи
         this.subscribe('task:deleted', (taskId) => {
-            // Проверяем, была ли удалена наша задача
             const hadTask = this.tasks.some(t => t.id === taskId);
             if (hadTask) {
                 this.refresh();
@@ -403,7 +405,7 @@ if (typeof window !== 'undefined') {
     window.CRM = window.CRM || {};
     window.CRM.Widgets = window.CRM.Widgets || {};
     window.CRM.Widgets.MyTasksWidget = MyTasksWidget;
+    console.log('[my-tasks-widget] Виджет зарегистрирован в window.CRM.Widgets');
 }
 
 export default MyTasksWidget;
-console.log('[my-tasks-widget] Виджет загружен');
