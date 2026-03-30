@@ -17,6 +17,8 @@
  * ============================================
  */
 
+console.log('[permissions] Загрузка модуля...');
+
 // ========== ОПРЕДЕЛЕНИЯ НАБОРОВ РАЗРЕШЕНИЙ ==========
 
 const PERMISSION_SETS = {
@@ -94,13 +96,18 @@ function getAllPermissionsFromSets(permissionSets) {
         const setDef = PERMISSION_SETS[setName];
         if (setDef) {
             // Добавляем разрешения текущего набора
-            setDef.permissions.forEach(p => permissions.add(p));
+            if (setDef.permissions) {
+                setDef.permissions.forEach(p => permissions.add(p));
+            }
             
             // Рекурсивно добавляем разрешения родительских наборов
             let parentSet = setDef.extends;
             while (parentSet && PERMISSION_SETS[parentSet]) {
-                PERMISSION_SETS[parentSet].permissions.forEach(p => permissions.add(p));
-                parentSet = PERMISSION_SETS[parentSet].extends;
+                const parent = PERMISSION_SETS[parentSet];
+                if (parent.permissions) {
+                    parent.permissions.forEach(p => permissions.add(p));
+                }
+                parentSet = parent.extends;
             }
         }
     }
@@ -120,26 +127,34 @@ function getPermissionsFromLegacyRole(role) {
         case 'admin':
             // Администратор имеет все разрешения
             Object.values(PERMISSION_SETS).forEach(set => {
-                set.permissions.forEach(p => permissions.add(p));
+                if (set.permissions) {
+                    set.permissions.forEach(p => permissions.add(p));
+                }
             });
             break;
         case 'manager':
             // Менеджер имеет разрешения MANAGER и ниже
             ['BASE', 'AGENT', 'MANAGER'].forEach(setName => {
                 const set = PERMISSION_SETS[setName];
-                if (set) set.permissions.forEach(p => permissions.add(p));
+                if (set && set.permissions) {
+                    set.permissions.forEach(p => permissions.add(p));
+                }
             });
             break;
         case 'agent':
             // Агент имеет разрешения AGENT и BASE
             ['BASE', 'AGENT'].forEach(setName => {
                 const set = PERMISSION_SETS[setName];
-                if (set) set.permissions.forEach(p => permissions.add(p));
+                if (set && set.permissions) {
+                    set.permissions.forEach(p => permissions.add(p));
+                }
             });
             break;
         default:
             // По умолчанию только базовые разрешения
-            PERMISSION_SETS.BASE.permissions.forEach(p => permissions.add(p));
+            if (PERMISSION_SETS.BASE && PERMISSION_SETS.BASE.permissions) {
+                PERMISSION_SETS.BASE.permissions.forEach(p => permissions.add(p));
+            }
     }
     
     return permissions;
@@ -177,7 +192,9 @@ function updatePermissionsCache(user) {
     }
     // Приоритет 3: Минимальные права (BASE)
     else {
-        PERMISSION_SETS.BASE.permissions.forEach(p => permissions.add(p));
+        if (PERMISSION_SETS.BASE && PERMISSION_SETS.BASE.permissions) {
+            PERMISSION_SETS.BASE.permissions.forEach(p => permissions.add(p));
+        }
         console.log('[permissions] Использованы минимальные права (BASE)');
     }
     
@@ -193,7 +210,7 @@ function updatePermissionsCache(user) {
  * @param {Object} user - опционально, конкретный пользователь (по умолчанию текущий)
  * @returns {boolean}
  */
-export function hasPermission(permission, user = null) {
+function hasPermission(permission, user = null) {
     const targetUser = user || window.currentSupabaseUser;
     
     if (!targetUser) {
@@ -206,7 +223,7 @@ export function hasPermission(permission, user = null) {
         updatePermissionsCache(targetUser);
     }
     
-    const has = cachedPermissions.has(permission);
+    const has = cachedPermissions ? cachedPermissions.has(permission) : false;
     
     if (!has) {
         console.debug('[permissions] Доступ запрещен:', permission, 'для пользователя:', targetUser.name);
@@ -221,7 +238,7 @@ export function hasPermission(permission, user = null) {
  * @param {Object} user - опционально
  * @returns {boolean}
  */
-export function hasAnyPermission(permissions, user = null) {
+function hasAnyPermission(permissions, user = null) {
     return permissions.some(p => hasPermission(p, user));
 }
 
@@ -231,7 +248,7 @@ export function hasAnyPermission(permissions, user = null) {
  * @param {Object} user - опционально
  * @returns {boolean}
  */
-export function hasAllPermissions(permissions, user = null) {
+function hasAllPermissions(permissions, user = null) {
     return permissions.every(p => hasPermission(p, user));
 }
 
@@ -239,12 +256,12 @@ export function hasAllPermissions(permissions, user = null) {
  * Получить все разрешения текущего пользователя
  * @returns {Array}
  */
-export function getUserPermissions() {
+function getUserPermissions() {
     if (!window.currentSupabaseUser) return [];
     if (!cachedPermissions || cachedUser?.id !== window.currentSupabaseUser.id) {
         updatePermissionsCache(window.currentSupabaseUser);
     }
-    return Array.from(cachedPermissions);
+    return cachedPermissions ? Array.from(cachedPermissions) : [];
 }
 
 /**
@@ -252,7 +269,7 @@ export function getUserPermissions() {
  * @param {string} moduleId - идентификатор модуля
  * @returns {boolean}
  */
-export function canAccessModule(moduleId) {
+function canAccessModule(moduleId) {
     // Маппинг модулей на необходимые разрешения
     const modulePermissions = {
         'tasks': ['view_tasks'],
@@ -271,53 +288,10 @@ export function canAccessModule(moduleId) {
 }
 
 /**
- * Получить информацию о наборе разрешений
- * @param {string} setName - название набора
- * @returns {Object|null}
- */
-export function getPermissionSetInfo(setName) {
-    return PERMISSION_SETS[setName] || null;
-}
-
-/**
- * Получить все доступные наборы разрешений
- * @returns {Object}
- */
-export function getAllPermissionSets() {
-    return { ...PERMISSION_SETS };
-}
-
-/**
- * Проверить, может ли пользователь управлять другим пользователем
- * @param {Object} targetUser - пользователь, над которым выполняется действие
- * @returns {boolean}
- */
-export function canManageUser(targetUser) {
-    if (!window.currentSupabaseUser) return false;
-    
-    // Администратор может управлять всеми
-    if (hasPermission('manage_users')) return true;
-    
-    // Менеджер может управлять только агентами и ниже
-    if (hasPermission('manage_team')) {
-        const targetRole = targetUser.role;
-        const currentRole = window.currentSupabaseUser.role;
-        
-        // Менеджер не может управлять другими менеджерами и админами
-        if (targetRole === 'admin') return false;
-        if (targetRole === 'manager' && currentRole === 'manager') return false;
-        
-        return true;
-    }
-    
-    return false;
-}
-
-/**
  * Получить доступные модули для текущего пользователя
  * @returns {Array}
  */
-export function getAccessibleModules() {
+function getAccessibleModules() {
     const allModules = ['tasks', 'deals', 'complexes', 'calendar', 'manager', 'admin', 'profile'];
     return allModules.filter(module => canAccessModule(module));
 }
@@ -356,9 +330,20 @@ window.CRM.Permissions = {
     getUserPermissions,
     canAccessModule,
     getAccessibleModules,
-    canManageUser,
-    getPermissionSetInfo,
-    getAllPermissionSets
+    canManageUser: (targetUser) => {
+        if (!window.currentSupabaseUser) return false;
+        if (hasPermission('manage_users')) return true;
+        if (hasPermission('manage_team')) {
+            const targetRole = targetUser?.role;
+            const currentRole = window.currentSupabaseUser?.role;
+            if (targetRole === 'admin') return false;
+            if (targetRole === 'manager' && currentRole === 'manager') return false;
+            return true;
+        }
+        return false;
+    },
+    getPermissionSetInfo: (setName) => PERMISSION_SETS[setName] || null,
+    getAllPermissionSets: () => ({ ...PERMISSION_SETS })
 };
 
 console.log('[permissions] Модуль загружен');
