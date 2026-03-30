@@ -38,9 +38,11 @@ const PERMISSION_SETS = {
             'create_tasks',
             'edit_own_tasks',
             'delete_own_tasks',
-            'view_own_deals',
-            'create_deals',
-            'edit_own_deals',
+            // Права для сделок
+            'view_own_deals',      // Просмотр своих сделок
+            'create_deals',         // Создание сделок
+            'edit_own_deals',       // Редактирование своих сделок
+            'update_deal_status',   // Изменение статуса сделки
             'view_complexes',
             'add_comments'
         ]
@@ -52,8 +54,10 @@ const PERMISSION_SETS = {
             'view_team_tasks',
             'assign_tasks',
             'edit_any_task',
-            'view_team_deals',
-            'edit_any_deal',
+            // Права для сделок (менеджерские)
+            'view_team_deals',      // Просмотр сделок команды
+            'edit_any_deal',        // Редактирование любых сделок
+            'delete_deals',         // Удаление сделок
             'view_team_kpi',
             'manage_team',
             'view_all_complexes',
