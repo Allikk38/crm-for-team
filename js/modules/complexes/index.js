@@ -11,7 +11,6 @@
  * ЗАВИСИМОСТИ:
  *   - js/core/registry.js
  *   - js/core/permissions.js
- *   - ./permissions.js
  * 
  * ИСТОРИЯ:
  *   - 30.03.2026: Создание модуля объектов
@@ -20,8 +19,15 @@
 
 console.log('[complexes-module] Загрузка модуля объектов...');
 
-// Импортируем локальные права
-import { COMPLEX_PERMISSIONS, canViewComplex, canEditComplex, canDeleteComplex } from './permissions.js';
+// Права для модуля объектов (определены в основном permissions.js)
+const COMPLEX_PERMISSIONS = {
+    VIEW_COMPLEXES: 'view_complexes',
+    CREATE_COMPLEXES: 'create_complexes',
+    EDIT_OWN_COMPLEXES: 'edit_own_complexes',
+    EDIT_ALL_COMPLEXES: 'edit_all_complexes',
+    DELETE_COMPLEXES: 'delete_complexes',
+    VIEW_TASKS_BY_COMPLEX: 'view_tasks_by_complex'
+};
 
 // Определение модуля
 const complexesModule = {
@@ -97,7 +103,6 @@ const complexesModule = {
                 window.CRM.EventBus.on('task:created', (taskData) => {
                     if (taskData.complex_id) {
                         console.log('[complexes-module] Создана задача для объекта:', taskData.complex_id);
-                        // Обновляем прогресс объекта
                         updateComplexProgress(taskData.complex_id);
                     }
                 });
@@ -161,12 +166,6 @@ async function updateComplexProgress(complexId) {
         console.error('[complexes-module] Ошибка обновления прогресса:', error);
     }
 }
-
-// Экспортируем также права для использования в других модулях
-complexesModule.permissions = COMPLEX_PERMISSIONS;
-complexesModule.canViewComplex = canViewComplex;
-complexesModule.canEditComplex = canEditComplex;
-complexesModule.canDeleteComplex = canDeleteComplex;
 
 // Делаем глобальным для доступа из других скриптов
 window.complexesModule = complexesModule;
