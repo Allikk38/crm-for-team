@@ -77,17 +77,18 @@ async function loadComplexesCount() {
             .from('complexes')
             .select('*', { count: 'exact', head: true });
         
-        if (!error) {
-            const complexesCount = count || 0;
-            const complexesElement = document.getElementById('complexesCount');
-            if (complexesElement) {
-                complexesElement.textContent = complexesCount;
-                console.log('[index] Загружено объектов:', complexesCount);
-            }
-        } else {
+        if (error) {
             console.error('[index] Ошибка загрузки объектов:', error);
             const complexesElement = document.getElementById('complexesCount');
             if (complexesElement) complexesElement.textContent = '0';
+            return;
+        }
+        
+        const complexesCount = count !== null ? count : 0;
+        const complexesElement = document.getElementById('complexesCount');
+        if (complexesElement) {
+            complexesElement.textContent = complexesCount;
+            console.log('[index] Загружено объектов:', complexesCount);
         }
     } catch (error) {
         console.error('[index] Ошибка загрузки объектов:', error);
@@ -103,17 +104,18 @@ async function loadUsersCount() {
             .from('profiles')
             .select('*', { count: 'exact', head: true });
         
-        if (!error) {
-            const usersCount = count || 0;
-            const usersElement = document.getElementById('usersCount');
-            if (usersElement) {
-                usersElement.textContent = usersCount;
-                console.log('[index] Загружено пользователей:', usersCount);
-            }
-        } else {
+        if (error) {
             console.error('[index] Ошибка загрузки пользователей:', error);
             const usersElement = document.getElementById('usersCount');
             if (usersElement) usersElement.textContent = '1';
+            return;
+        }
+        
+        const usersCount = count !== null ? count : 0;
+        const usersElement = document.getElementById('usersCount');
+        if (usersElement) {
+            usersElement.textContent = usersCount;
+            console.log('[index] Загружено пользователей:', usersCount);
         }
     } catch (error) {
         console.error('[index] Ошибка загрузки пользователей:', error);
