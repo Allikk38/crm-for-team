@@ -18,6 +18,7 @@
  * ИСТОРИЯ:
  *   - 27.03.2026: Создание файла, вынос логики из index-supabase.html
  *   - 30.03.2026: Добавлена загрузка объектов и пользователей
+ *   - 30.03.2026: Исправлен подсчет объектов и пользователей
  * ============================================
  */
 
@@ -72,12 +73,12 @@ function animateValue(element, targetValue, suffix = '') {
 // Загрузка количества объектов
 async function loadComplexesCount() {
     try {
-        const { data, error } = await supabase
+        const { count, error } = await supabase
             .from('complexes')
             .select('*', { count: 'exact', head: true });
         
-        if (!error && data) {
-            const complexesCount = data.length;
+        if (!error) {
+            const complexesCount = count || 0;
             const complexesElement = document.getElementById('complexesCount');
             if (complexesElement) {
                 complexesElement.textContent = complexesCount;
@@ -98,12 +99,12 @@ async function loadComplexesCount() {
 // Загрузка количества пользователей
 async function loadUsersCount() {
     try {
-        const { data, error } = await supabase
+        const { count, error } = await supabase
             .from('profiles')
             .select('*', { count: 'exact', head: true });
         
-        if (!error && data) {
-            const usersCount = data.length;
+        if (!error) {
+            const usersCount = count || 0;
             const usersElement = document.getElementById('usersCount');
             if (usersElement) {
                 usersElement.textContent = usersCount;
