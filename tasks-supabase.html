@@ -740,23 +740,33 @@
             </div>
         </div>
     </div>
-<!-- ========== ПОДКЛЮЧАЕМ ЗАВИСИМОСТИ (обычные скрипты) ========== -->
-    <script src="js/utils/helpers.js"></script>
-    <script src="js/components/kanban.js"></script>
-    <script src="js/ui/animations.js"></script>
-    <script src="js/core/permissions.js"></script>
-    <script src="js/core/registry.js"></script>
-    
-    <!-- Загружаем модуль задач (обычный скрипт, без type="module") -->
-    <script src="js/modules/tasks/index.js"></script>
-    
-    <!-- Инициализация -->
+<!-- Инициализация -->
     <script>
-        // Ждем загрузки всех скриптов и инициализируем
         (function init() {
             // Проверяем, что реестр и модуль загружены
-            if (window.CRM?.Registry && window.tasksModule) {
-                console.log('[init] Реестр и модуль загружены');
+            if (!window.CRM?.Registry || !window.tasksModule) {
+                console.warn('[init] Ожидаем загрузку реестра или модуля...');
+                setTimeout(init, 100);
+                return;
+            }
+            
+            // Проверяем, что пользователь загружен
+            if (!window.currentSupabaseUser) {
+                console.warn('[init] Ожидаем загрузку пользователя...');
+                // Подписываемся на событие загрузки пользователя
+                window.addEventListener('userLoaded', function onUserLoaded() {
+                    console.log('[init] Пользователь загружен, продолжаем');
+                    window.removeEventListener('userLoaded', onUserLoaded);
+                    loadTasksModule();
+                });
+                return;
+            }
+            
+            // Пользователь уже загружен, загружаем модуль
+            loadTasksModule();
+            
+            function loadTasksModule() {
+                console.log('[init] Загружаем модуль задач');
                 
                 // Регистрируем модуль
                 window.CRM.Registry.registerModule(window.tasksModule);
@@ -766,23 +776,13 @@
                     console.log('[tasks] Модуль загружен через реестр');
                 }).catch(err => {
                     console.error('[tasks] Ошибка загрузки модуля:', err);
-                    // Fallback
+                    // Fallback на прямую загрузку
                     import('./js/pages/tasks.js').then(module => {
                         module.initTasksPage();
                     });
                 });
-            } else if (window.CRM?.Registry) {
-                console.warn('[init] Модуль tasks не найден, ждем...');
-                setTimeout(init, 100);
-            } else {
-                console.error('[init] Реестр не загружен, используем fallback');
-                import('./js/pages/tasks.js').then(module => {
-                    module.initTasksPage();
-                });
             }
         })();
     </script>
-    
-    <script src="layout.js"></script> 
 </body>
 </html>
