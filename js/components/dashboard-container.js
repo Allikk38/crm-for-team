@@ -5,7 +5,7 @@
  * 
  * ИСТОРИЯ:
  *   - 30.03.2026: Создание контейнера
- *   - 30.03.2026: Исправлено ожидание пользователя
+ *   - 30.03.2026: Исправлено дублирование виджетов
  * ============================================
  */
 
@@ -19,9 +19,10 @@ class DashboardContainer {
         this.container = container;
         this.options = options;
         this.dashboard = null;
-        this.widgets = new Map();
+        this.widgets = new Map(); // widgetId -> widgetInstance
         this.editMode = false;
         this.initialized = false;
+        this.renderInProgress = false;
         
         console.log('[dashboard-container] Создан');
     }
@@ -29,12 +30,11 @@ class DashboardContainer {
     async init() {
         console.log('[dashboard-container] Инициализация...');
         
-        // Ждем загрузки пользователя (увеличиваем таймаут)
-        await this.waitForUser(5000); // 5 секунд максимум
+        await this.waitForUser(5000);
         
         try {
             this.dashboard = await getActiveDashboard();
-            if (!this.dashboard) {
+            if (!this.dashboard || !this.dashboard.layout) {
                 console.error('[dashboard-container] Дашборд не найден');
                 this.showEmptyState();
                 return;
@@ -62,9 +62,8 @@ class DashboardContainer {
                     return;
                 }
                 
-                const elapsed = Date.now() - startTime;
-                if (elapsed >= maxWaitMs) {
-                    console.warn('[dashboard-container] Таймаут ожидания пользователя, продолжаем без него');
+                if (Date.now() - startTime >= maxWaitMs) {
+                    console.warn('[dashboard-container] Таймаут ожидания пользователя');
                     resolve(false);
                     return;
                 }
@@ -81,8 +80,8 @@ class DashboardContainer {
         this.container.innerHTML = `
             <div class="dashboard-empty" style="text-align: center; padding: 60px 20px;">
                 <i class="fas fa-puzzle-piece" style="font-size: 64px; opacity: 0.5; margin-bottom: 20px; display: block;"></i>
-                <h3 style="margin-bottom: 12px;">Нет виджетов</h3>
-                <p style="margin-bottom: 20px; color: var(--text-muted);">Нажмите "Настроить", чтобы добавить виджеты</p>
+                <h3>Нет виджетов</h3>
+                <p>Нажмите "Настроить", чтобы добавить виджеты</p>
                 <button class="dashboard-btn primary" id="initAddWidgetBtn" style="padding: 10px 24px; background: var(--accent); color: white; border: none; border-radius: 12px; cursor: pointer;">
                     <i class="fas fa-plus"></i> Добавить виджет
                 </button>
@@ -100,8 +99,8 @@ class DashboardContainer {
         this.container.innerHTML = `
             <div class="dashboard-empty" style="text-align: center; padding: 60px 20px;">
                 <i class="fas fa-exclamation-triangle" style="font-size: 64px; color: #ff6b6b; margin-bottom: 20px; display: block;"></i>
-                <h3 style="margin-bottom: 12px;">Ошибка загрузки</h3>
-                <p style="margin-bottom: 20px; color: var(--text-muted);">${message || 'Не удалось загрузить дашборд'}</p>
+                <h3>Ошибка загрузки</h3>
+                <p>${message || 'Не удалось загрузить дашборд'}</p>
                 <button class="dashboard-btn" id="retryInitBtn" style="padding: 10px 24px; background: var(--hover-bg); border: none; border-radius: 12px; cursor: pointer;">
                     <i class="fas fa-sync-alt"></i> Повторить
                 </button>
@@ -115,49 +114,85 @@ class DashboardContainer {
     }
     
     async render() {
-        if (!this.container) return;
+        if (!this.container || this.renderInProgress) return;
         
-        if (!this.dashboard || !this.dashboard.layout) {
-            console.warn('[dashboard-container] Дашборд не загружен');
-            this.showEmptyState();
-            return;
-        }
+        this.renderInProgress = true;
         
-        const widgets = this.dashboard.layout.widgets || [];
-        
-        if (widgets.length === 0) {
-            this.showEmptyState();
-            return;
-        }
-        
-        const gridHtml = `
-            <div class="dashboard-toolbar" style="display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; background: var(--card-bg); border-bottom: 1px solid var(--card-border); flex-wrap: wrap; gap: 12px;">
-                <div class="dashboard-title" style="font-size: 18px; font-weight: 600;">
-                    <i class="fas fa-chart-line" style="color: var(--accent);"></i> 
-                    ${this.dashboard.name || 'Мой дашборд'}
+        try {
+            if (!this.dashboard || !this.dashboard.layout) {
+                this.showEmptyState();
+                return;
+            }
+            
+            // Удаляем существующие виджеты
+            this.widgets.forEach((widget, id) => {
+                if (widget && widget.destroy) {
+                    widget.destroy();
+                }
+            });
+            this.widgets.clear();
+            
+            const widgets = this.dashboard.layout.widgets || [];
+            
+            if (widgets.length === 0) {
+                this.showEmptyState();
+                return;
+            }
+            
+            // Удаляем дубликаты по id
+            const uniqueWidgets = [];
+            const seenIds = new Set();
+            for (const widget of widgets) {
+                if (!seenIds.has(widget.id)) {
+                    seenIds.add(widget.id);
+                    uniqueWidgets.push(widget);
+                } else {
+                    console.warn(`[dashboard-container] Дубликат виджета ${widget.id} удален`);
+                }
+            }
+            
+            // Если были дубликаты, обновляем дашборд
+            if (uniqueWidgets.length !== widgets.length) {
+                this.dashboard.layout.widgets = uniqueWidgets;
+                await saveDashboardLayout(this.dashboard.id, this.dashboard.layout);
+            }
+            
+            const gridHtml = `
+                <div class="dashboard-toolbar" style="display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; background: var(--card-bg); border-bottom: 1px solid var(--card-border); flex-wrap: wrap; gap: 12px;">
+                    <div class="dashboard-title" style="font-size: 18px; font-weight: 600;">
+                        <i class="fas fa-chart-line" style="color: var(--accent);"></i> 
+                        ${this.dashboard.name || 'Мой дашборд'}
+                    </div>
+                    <div class="dashboard-controls" style="display: flex; gap: 12px;">
+                        <button class="dashboard-btn" id="refreshDashboard" style="padding: 8px 16px; border-radius: 10px; background: var(--hover-bg); border: none; cursor: pointer;">
+                            <i class="fas fa-sync-alt"></i> Обновить
+                        </button>
+                        <button class="dashboard-btn" id="editDashboard" style="padding: 8px 16px; border-radius: 10px; background: var(--hover-bg); border: none; cursor: pointer;">
+                            <i class="fas fa-edit"></i> 
+                            ${this.editMode ? 'Сохранить' : 'Настроить'}
+                        </button>
+                        <button class="dashboard-btn primary" id="addWidgetBtn" style="padding: 8px 16px; border-radius: 10px; background: var(--accent); color: white; border: none; cursor: pointer;">
+                            <i class="fas fa-plus"></i> Добавить
+                        </button>
+                    </div>
                 </div>
-                <div class="dashboard-controls" style="display: flex; gap: 12px;">
-                    <button class="dashboard-btn" id="refreshDashboard" style="padding: 8px 16px; border-radius: 10px; background: var(--hover-bg); border: none; cursor: pointer;">
-                        <i class="fas fa-sync-alt"></i> Обновить
-                    </button>
-                    <button class="dashboard-btn" id="editDashboard" style="padding: 8px 16px; border-radius: 10px; background: var(--hover-bg); border: none; cursor: pointer;">
-                        <i class="fas fa-edit"></i> 
-                        ${this.editMode ? 'Сохранить' : 'Настроить'}
-                    </button>
-                    <button class="dashboard-btn primary" id="addWidgetBtn" style="padding: 8px 16px; border-radius: 10px; background: var(--accent); color: white; border: none; cursor: pointer;">
-                        <i class="fas fa-plus"></i> Добавить
-                    </button>
+                <div class="dashboard-grid" id="dashboardGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 20px; padding: 20px;">
+                    ${uniqueWidgets.map((widget, index) => this.renderWidgetPlaceholder(widget, index)).join('')}
                 </div>
-            </div>
-            <div class="dashboard-grid" id="dashboardGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 20px; padding: 20px;">
-                ${widgets.map((widget, index) => this.renderWidgetPlaceholder(widget, index)).join('')}
-            </div>
-        `;
-        
-        this.container.innerHTML = gridHtml;
-        
-        await this.loadWidgets(widgets);
-        this.bindEvents();
+            `;
+            
+            this.container.innerHTML = gridHtml;
+            
+            // Загружаем виджеты
+            for (const widgetConfig of uniqueWidgets) {
+                await this.loadWidget(widgetConfig);
+            }
+            
+            this.bindEvents();
+            
+        } finally {
+            this.renderInProgress = false;
+        }
     }
     
     renderWidgetPlaceholder(widgetConfig, index) {
@@ -194,31 +229,27 @@ class DashboardContainer {
     
     getWidgetTitle(widgetId) {
         const titles = {
-            'my-tasks': 'Мои задачи',
-            'tasks-summary': 'Сводка задач',
-            'overdue-tasks': 'Просроченные задачи'
+            'my-tasks': 'Мои задачи'
         };
         return titles[widgetId] || widgetId;
     }
     
     getWidgetIcon(widgetId) {
         const icons = {
-            'my-tasks': 'fa-tasks',
-            'tasks-summary': 'fa-chart-simple',
-            'overdue-tasks': 'fa-exclamation-triangle'
+            'my-tasks': 'fa-tasks'
         };
         return icons[widgetId] || 'fa-puzzle-piece';
-    }
-    
-    async loadWidgets(widgets) {
-        for (const widgetConfig of widgets) {
-            await this.loadWidget(widgetConfig);
-        }
     }
     
     async loadWidget(widgetConfig) {
         const contentContainer = this.container.querySelector(`[data-widget-content="${widgetConfig.id}"]`);
         if (!contentContainer) return;
+        
+        // Проверяем, не загружен ли уже этот виджет
+        if (this.widgets.has(widgetConfig.id)) {
+            console.log(`[dashboard-container] Виджет ${widgetConfig.id} уже загружен`);
+            return;
+        }
         
         try {
             const WidgetClass = this.getWidgetClass(widgetConfig.id);
@@ -260,11 +291,6 @@ class DashboardContainer {
         const widgetsMap = {
             'my-tasks': window.CRM?.Widgets?.MyTasksWidget
         };
-        
-        if (!widgetsMap[widgetId]) {
-            console.log(`[dashboard-container] Виджет ${widgetId} не найден`);
-        }
-        
         return widgetsMap[widgetId];
     }
     
@@ -395,6 +421,13 @@ class DashboardContainer {
                 const widgetDef = availableWidgets.find(w => w.id === widgetId);
                 
                 if (this.dashboard && this.dashboard.layout) {
+                    // Проверяем, нет ли уже такого виджета
+                    const exists = this.dashboard.layout.widgets.some(w => w.id === widgetId);
+                    if (exists) {
+                        alert('Этот виджет уже добавлен');
+                        return;
+                    }
+                    
                     this.dashboard.layout.widgets.push({
                         id: widgetId,
                         module: moduleId,

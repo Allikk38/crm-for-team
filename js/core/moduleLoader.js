@@ -13,10 +13,7 @@
  * 
  * ИСТОРИЯ:
  *   - 30.03.2026: Создание универсального загрузчика
- *   - 30.03.2026: Добавлена загрузка supabase-session
- *   - 30.03.2026: Добавлена загрузка сервиса дашбордов
- *   - 30.03.2026: Исправлен порядок загрузки зависимостей модулей
- *   - 30.03.2026: Добавлена загрузка виджетов для дашборда
+ *   - 30.03.2026: Исправлена загрузка модулей
  * ============================================
  */
 
@@ -63,7 +60,8 @@ function getCurrentPage() {
 function loadScript(src, isModule = false) {
     return new Promise((resolve, reject) => {
         // Проверяем, не загружен ли уже
-        if (document.querySelector(`script[src="${src}"]`)) {
+        const existing = document.querySelector(`script[src="${src}"]`);
+        if (existing) {
             resolve();
             return;
         }
@@ -82,10 +80,13 @@ async function loadUser() {
     await loadScript('js/core/supabase-session.js', true);
     
     // Импортируем и вызываем checkSupabaseSession
-    const { checkSupabaseSession } = await import('./supabase-session.js');
-    await checkSupabaseSession();
-    
-    console.log('[moduleLoader] Пользователь загружен:', window.currentSupabaseUser?.name);
+    try {
+        const { checkSupabaseSession } = await import('./supabase-session.js');
+        await checkSupabaseSession();
+        console.log('[moduleLoader] Пользователь загружен:', window.currentSupabaseUser?.name);
+    } catch (error) {
+        console.error('[moduleLoader] Ошибка загрузки пользователя:', error);
+    }
 }
 
 // Функция для загрузки сервисов
@@ -100,8 +101,8 @@ async function loadServices() {
     }
 }
 
-// Функция для загрузки всех модулей (для зависимостей)
-async function loadAllModules() {
+// Функция для загрузки модулей
+async function loadModuleFiles() {
     const modulesToLoad = ['tasks', 'deals', 'complexes', 'calendar', 'counterparties'];
     
     for (const moduleId of modulesToLoad) {
@@ -110,35 +111,33 @@ async function loadAllModules() {
             await loadScript(moduleScript);
             console.log(`[moduleLoader] Модуль ${moduleId} загружен`);
         } catch (error) {
-            console.warn(`[moduleLoader] Модуль ${moduleId} не найден или не загружен:`, error);
+            console.warn(`[moduleLoader] Модуль ${moduleId} не загружен:`, error);
         }
     }
 }
 
-// Функция для регистрации всех модулей
-async function registerAllModules() {
+// Функция для регистрации модулей
+async function registerModules() {
     const modulesToRegister = ['tasks', 'deals', 'complexes', 'calendar', 'counterparties'];
     
     for (const moduleId of modulesToRegister) {
         const moduleVar = window[`${moduleId}Module`];
         if (moduleVar && window.CRM?.Registry) {
             window.CRM.Registry.registerModule(moduleVar);
-            console.log(`[moduleLoader] Модуль ${moduleId} зарегистрирован в реестре`);
+            console.log(`[moduleLoader] Модуль ${moduleId} зарегистрирован`);
         }
     }
 }
 
-// Функция для загрузки виджетов (для дашборда)
+// Функция для загрузки виджетов
 async function loadWidgets() {
     console.log('[moduleLoader] Загрузка виджетов...');
     
-    // Инициализируем глобальный объект для виджетов
     if (typeof window !== 'undefined') {
         window.CRM = window.CRM || {};
         window.CRM.Widgets = window.CRM.Widgets || {};
     }
     
-    // Загружаем виджет MyTasksWidget
     try {
         const { default: MyTasksWidget } = await import('../components/widgets/my-tasks-widget.js');
         window.CRM.Widgets.MyTasksWidget = MyTasksWidget;
@@ -147,16 +146,7 @@ async function loadWidgets() {
         console.error('[moduleLoader] ❌ Ошибка загрузки MyTasksWidget:', error);
     }
     
-    // TODO: Загрузить другие виджеты
-    // try {
-    //     const { default: TasksSummaryWidget } = await import('../components/widgets/tasks-summary-widget.js');
-    //     window.CRM.Widgets.TasksSummaryWidget = TasksSummaryWidget;
-    //     console.log('[moduleLoader] ✅ Виджет TasksSummaryWidget загружен');
-    // } catch (error) {
-    //     console.error('[moduleLoader] ❌ Ошибка загрузки TasksSummaryWidget:', error);
-    // }
-    
-    console.log('[moduleLoader] Виджеты загружены, доступно:', Object.keys(window.CRM.Widgets));
+    console.log('[moduleLoader] Виджеты загружены, доступно:', Object.keys(window.CRM.Widgets || {}));
 }
 
 // Основная функция загрузки
@@ -166,7 +156,7 @@ async function loadModule() {
     
     console.log(`[moduleLoader] Страница: ${pageName}, модуль: ${moduleId || 'нет модуля'}`);
     
-    // Загружаем базовые зависимости
+    // Загружаем базовые зависимости (не модули)
     const baseScripts = [
         'js/utils/helpers.js',
         'js/ui/animations.js'
@@ -176,7 +166,7 @@ async function loadModule() {
         await loadScript(script);
     }
     
-    // Загружаем core зависимости
+    // Загружаем core зависимости как модули
     const coreScripts = [
         'js/core/supabase.js',
         'js/core/eventBus.js',
@@ -186,8 +176,14 @@ async function loadModule() {
     ];
     
     for (const script of coreScripts) {
-        const isModule = script === 'js/core/supabase.js';
-        await loadScript(script, isModule);
+        await loadScript(script, true);
+    }
+    
+    // Ждем инициализации CRM
+    let attempts = 0;
+    while (!window.CRM && attempts < 50) {
+        await new Promise(r => setTimeout(r, 100));
+        attempts++;
     }
     
     // Загружаем пользователя
@@ -196,13 +192,13 @@ async function loadModule() {
     // Загружаем сервисы
     await loadServices();
     
-    // Загружаем ВСЕ модули для поддержки зависимостей
-    await loadAllModules();
+    // Загружаем файлы модулей
+    await loadModuleFiles();
     
-    // Регистрируем ВСЕ модули в реестре
-    await registerAllModules();
+    // Регистрируем модули
+    await registerModules();
     
-    // Загружаем виджеты (особенно важно для дашборда)
+    // Загружаем виджеты
     await loadWidgets();
     
     // Если есть модуль для текущей страницы
@@ -211,67 +207,34 @@ async function loadModule() {
         const moduleScript = `js/modules/${moduleId}/index.js`;
         await loadScript(moduleScript);
         
-        // Ждем регистрации модуля в реестре
-        let attempts = 0;
-        const maxAttempts = 50;
+        // Ждем регистрации
+        attempts = 0;
+        while (!window[`${moduleId}Module`] && attempts < 50) {
+            await new Promise(r => setTimeout(r, 100));
+            attempts++;
+        }
         
-        await new Promise((resolve) => {
-            function checkModule() {
-                attempts++;
-                const moduleVar = window[`${moduleId}Module`];
-                if (window.CRM?.Registry && moduleVar) {
-                    console.log(`[moduleLoader] Модуль ${moduleId} загружен, регистрируем...`);
-                    window.CRM.Registry.registerModule(moduleVar);
-                    window.CRM.Registry.loadModule(moduleId).then(() => {
-                        console.log(`[moduleLoader] Модуль ${moduleId} загружен через реестр`);
-                        resolve();
-                    }).catch((err) => {
-                        console.error(`[moduleLoader] Ошибка загрузки модуля:`, err);
-                        // Fallback
-                        MODULE_INIT[moduleId]().then(resolve);
-                    });
-                } else if (attempts >= maxAttempts) {
-                    console.warn(`[moduleLoader] Таймаут, используем fallback`);
-                    MODULE_INIT[moduleId]().then(resolve);
-                } else {
-                    setTimeout(checkModule, 100);
-                }
-            }
-            checkModule();
-        });
+        const moduleVar = window[`${moduleId}Module`];
+        if (moduleVar && window.CRM?.Registry) {
+            window.CRM.Registry.registerModule(moduleVar);
+            await window.CRM.Registry.loadModule(moduleId);
+        } else {
+            await MODULE_INIT[moduleId]();
+        }
     } else {
         // Если нет модуля, инициализируем страницу напрямую
         const initName = pageName.replace('-supabase.html', '');
         if (MODULE_INIT[initName]) {
             await MODULE_INIT[initName]();
-        } else {
-            console.log(`[moduleLoader] Нет модуля для страницы ${pageName}`);
-        }
-    }
-    
-    // После загрузки страницы, если это главная, инициализируем дашборд
-    if (pageName === 'index-supabase.html' && window.CRM?.Dashboards) {
-        try {
-            const dashboard = await window.CRM.Dashboards.getActiveDashboard();
-            if (dashboard) {
-                console.log('[moduleLoader] Дашборд загружен:', dashboard.name);
-                
-                // Отправляем событие о загрузке дашборда
-                if (window.CRM?.EventBus) {
-                    window.CRM.EventBus.emit('dashboard:loaded', dashboard);
-                }
-                
-                // Если есть виджеты, можно их отобразить
-                if (window.CRM.Widgets && dashboard.layout?.widgets) {
-                    console.log('[moduleLoader] Виджеты для отображения:', dashboard.layout.widgets.length);
-                }
-            }
-        } catch (error) {
-            console.error('[moduleLoader] Ошибка загрузки дашборда:', error);
         }
     }
     
     console.log(`[moduleLoader] Страница ${pageName} загружена`);
+    
+    // Отправляем событие о готовности
+    if (window.CRM?.EventBus) {
+        window.CRM.EventBus.emit('page:loaded', { page: pageName, module: moduleId });
+    }
 }
 
 // Запускаем загрузчик
