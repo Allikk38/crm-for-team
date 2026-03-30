@@ -11,12 +11,15 @@
     
     ОСОБЕННОСТИ:
       - Каталог доступных модулей
-      - Покупка модулей для команды
-      - Управление лицензиями (для админа)
-      - Интеграция с системой прав
+      - Покупка модулей для команды (интеграция с Supabase)
+      - Управление лицензиями
+      - Интеграция с системой прав (permissions.js)
+      - Автоматическое обновление навигации после покупки
     
     ИСТОРИЯ:
       - 30.03.2026: Создание страницы маркетплейса
+      - 30.03.2026: Переход на асинхронные операции с Supabase
+      - 30.03.2026: Интеграция с license-supabase.js
     ============================================
     -->
     
@@ -398,113 +401,75 @@
     </div>
     
     <script type="module">
-        import { getCurrentSupabaseUser, requireSupabaseAuth, updateSupabaseUserInterface } from './js/core/supabase-session.js';
+        /**
+         * ============================================
+         * МАРКЕТПЛЕЙС - ОСНОВНАЯ ЛОГИКА
+         * ============================================
+         */
         
-        // Каталог модулей
-        const MODULES_CATALOG = [
-            {
-                id: 'real_estate',
-                name: 'Недвижимость',
-                icon: 'fa-building',
-                description: 'Полноценный CRM для агентов недвижимости',
-                price: 500,
-                period: 'мес',
-                licenseType: 'team',
-                features: ['Объекты недвижимости', 'Сделки', 'Контрагенты', 'Ипотечный калькулятор', 'Документооборот']
-            },
-            {
-                id: 'finance',
-                name: 'Финансы',
-                icon: 'fa-coins',
-                description: 'Управление личными и семейными финансами',
-                price: 300,
-                period: 'мес',
-                licenseType: 'team',
-                features: ['Бюджет', 'Расходы/Доходы', 'Отчеты', 'Категории', 'Экспорт в Excel']
-            },
-            {
-                id: 'education',
-                name: 'Образование',
-                icon: 'fa-graduation-cap',
-                description: 'Для студентов, учителей и родителей',
-                price: 200,
-                period: 'мес',
-                licenseType: 'team',
-                features: ['Расписание', 'Оценки', 'Домашние задания', 'Успеваемость', 'Заметки']
-            },
-            {
-                id: 'health',
-                name: 'Здоровье',
-                icon: 'fa-heartbeat',
-                description: 'Трекер здоровья и физической активности',
-                price: 150,
-                period: 'мес',
-                licenseType: 'team',
-                features: ['Тренировки', 'Питание', 'Замеры тела', 'Водный баланс', 'Сон']
-            },
-            {
-                id: 'productivity',
-                name: 'Продуктивность',
-                icon: 'fa-rocket',
-                description: 'Базовые инструменты для организации работы',
-                price: 0,
-                period: '',
-                licenseType: 'free',
-                features: ['Задачи', 'Календарь', 'Заметки', 'Привычки', 'Таймер Pomodoro']
-            }
-        ];
+        import { getCurrentSupabaseUser, requireSupabaseAuth, updateSupabaseUserInterface } from './js/core/supabase-session.js';
+        import { 
+            getModulesCatalog, 
+            purchaseModuleForTeam, 
+            getCompanyLicenses, 
+            assignModuleToUser,
+            revokeModuleFromUser,
+            getAllAssignments,
+            getUserModules
+        } from './js/services/license-supabase.js';
         
         let currentUser = null;
         let isAdmin = false;
-        
-        // Демо-данные для лицензий (в реальности из БД)
         let licenses = [];
+        let assignments = {};
         
-        // Демо-данные для назначений
-        let assignments = [];
+        // Каталог модулей (фиксированный, из конфигурации)
+        const MODULES_CATALOG = Object.entries(getModulesCatalog()).map(([id, data]) => ({
+            id,
+            name: data.name,
+            icon: id === 'real_estate' ? 'fa-building' : 
+                  id === 'finance' ? 'fa-coins' :
+                  id === 'education' ? 'fa-graduation-cap' :
+                  id === 'health' ? 'fa-heartbeat' : 'fa-rocket',
+            description: data.description || 'Расширение функционала',
+            price: data.price,
+            period: 'мес',
+            licenseType: 'team',
+            features: data.features || ['Расширенные возможности'],
+            isFree: data.price === 0
+        }));
         
-        function loadDemoData() {
-            // Загружаем из localStorage или создаем демо
-            const saved = localStorage.getItem('marketplace_licenses');
-            if (saved) {
-                licenses = JSON.parse(saved);
-            } else {
-                licenses = [
-                    { moduleId: 'productivity', name: 'Продуктивность', price: 0, users: [], maxUsers: 100, purchasedAt: '2026-01-01', status: 'active' },
-                    { moduleId: 'real_estate', name: 'Недвижимость', price: 500, users: [], maxUsers: 10, purchasedAt: '2026-03-01', status: 'active' }
-                ];
-            }
-            
-            const savedAssignments = localStorage.getItem('marketplace_assignments');
-            if (savedAssignments) {
-                assignments = JSON.parse(savedAssignments);
-            } else {
-                assignments = [
-                    { userId: 'admin', userName: 'Администратор', moduleId: 'real_estate', assignedAt: '2026-03-01' },
-                    { userId: 'agent1', userName: 'Анна Петрова', moduleId: 'real_estate', assignedAt: '2026-03-01' },
-                    { userId: 'agent2', userName: 'Иван Соколов', moduleId: 'real_estate', assignedAt: '2026-03-01' }
-                ];
-            }
+        /**
+         * Загрузка данных о лицензиях из Supabase
+         */
+        async function loadData() {
+            licenses = await getCompanyLicenses();
+            assignments = await getAllAssignments();
+            console.log('[marketplace] Данные загружены, лицензий:', licenses.length);
         }
         
-        function saveDemoData() {
-            localStorage.setItem('marketplace_licenses', JSON.stringify(licenses));
-            localStorage.setItem('marketplace_assignments', JSON.stringify(assignments));
-        }
-        
+        /**
+         * Проверка, куплен ли модуль
+         */
         function isModulePurchased(moduleId) {
-            return licenses.some(l => l.moduleId === moduleId);
+            return licenses.some(l => l.module_id === moduleId);
         }
         
+        /**
+         * Получение информации о лицензии модуля
+         */
         function getModuleLicense(moduleId) {
-            return licenses.find(l => l.moduleId === moduleId);
+            return licenses.find(l => l.module_id === moduleId);
         }
         
-        function purchaseModule(moduleId) {
+        /**
+         * Обработка покупки модуля
+         */
+        async function handlePurchaseModule(moduleId) {
             const module = MODULES_CATALOG.find(m => m.id === moduleId);
             if (!module) return;
             
-            if (module.price === 0) {
+            if (module.isFree) {
                 alert('Базовый модуль уже доступен бесплатно');
                 return;
             }
@@ -514,70 +479,67 @@
                 return;
             }
             
-            const newLicense = {
-                moduleId: module.id,
-                name: module.name,
-                price: module.price,
-                users: [],
-                maxUsers: module.licenseType === 'team' ? 10 : 100,
-                purchasedAt: new Date().toISOString().split('T')[0],
-                status: 'active'
-            };
-            
-            licenses.push(newLicense);
-            saveDemoData();
-            renderCatalog();
-            renderLicenses();
-            
-            alert(`Модуль "${module.name}" приобретен для команды!`);
+            const success = await purchaseModuleForTeam(moduleId, 10);
+            if (success) {
+                await loadData();
+                await renderCatalog();
+                await renderLicenses();
+                await renderUsersAssignments();
+                
+                // Обновляем навигацию после покупки
+                if (window.sidebar?.renderNavigation) {
+                    window.sidebar.renderNavigation();
+                }
+                
+                alert(`✅ Модуль "${module.name}" приобретен для команды!`);
+            } else {
+                alert('❌ Ошибка при покупке модуля');
+            }
         }
         
-        function assignModuleToUser(moduleId, userId, userName) {
-            const license = getModuleLicense(moduleId);
-            if (!license) {
-                alert('Модуль не приобретен');
-                return;
+        /**
+         * Обработка назначения модуля пользователю
+         */
+        async function handleAssignModule(moduleId, userId, userName) {
+            const success = await assignModuleToUser(moduleId, userId);
+            if (success) {
+                await loadData();
+                await renderUsersAssignments();
+                await renderLicenses();
+                alert(`✅ Модуль назначен пользователю ${userName}`);
+            } else {
+                alert('❌ Ошибка при назначении модуля');
             }
-            
-            if (license.users.length >= license.maxUsers) {
-                alert(`Достигнут лимит пользователей (${license.maxUsers})`);
-                return;
-            }
-            
-            if (assignments.some(a => a.userId === userId && a.moduleId === moduleId)) {
-                alert('Пользователю уже назначен этот модуль');
-                return;
-            }
-            
-            assignments.push({
-                userId,
-                userName,
-                moduleId,
-                assignedAt: new Date().toISOString().split('T')[0]
-            });
-            
-            license.users.push({ userId, userName });
-            saveDemoData();
-            renderUsersAssignments();
-            renderLicenses();
-            
-            alert(`Модуль "${license.name}" назначен пользователю ${userName}`);
         }
         
-        function removeAssignment(userId, moduleId) {
-            assignments = assignments.filter(a => !(a.userId === userId && a.moduleId === moduleId));
-            const license = getModuleLicense(moduleId);
-            if (license) {
-                license.users = license.users.filter(u => u.userId !== userId);
+        /**
+         * Обработка отзыва модуля у пользователя
+         */
+        async function handleRemoveAssignment(userId, moduleId) {
+            const success = await revokeModuleFromUser(moduleId, userId);
+            if (success) {
+                await loadData();
+                await renderUsersAssignments();
+                await renderLicenses();
+                alert('✅ Доступ к модулю отозван');
+            } else {
+                alert('❌ Ошибка при отзыве');
             }
-            saveDemoData();
-            renderUsersAssignments();
-            renderLicenses();
         }
         
-        function renderCatalog() {
+        /**
+         * Рендер каталога модулей
+         */
+        async function renderCatalog() {
             const container = document.getElementById('modulesGrid');
             if (!container) return;
+            
+            await loadData();
+            
+            if (MODULES_CATALOG.length === 0) {
+                container.innerHTML = '<div class="empty-state">Нет доступных модулей</div>';
+                return;
+            }
             
             container.innerHTML = MODULES_CATALOG.map((module, index) => {
                 const purchased = isModulePurchased(module.id);
@@ -585,7 +547,7 @@
                 const priceDisplay = module.price === 0 ? 'Бесплатно' : `${module.price} ₽`;
                 
                 let buttonHtml = '';
-                if (module.price === 0) {
+                if (module.isFree) {
                     buttonHtml = `<button class="module-btn purchased" disabled><i class="fas fa-check"></i> Бесплатный</button>`;
                 } else if (purchased) {
                     buttonHtml = `<button class="module-btn purchased" disabled><i class="fas fa-check"></i> Приобретен</button>`;
@@ -596,7 +558,7 @@
                 let licenseInfo = '';
                 if (purchased && license) {
                     licenseInfo = `<div class="license-stats">
-                        <i class="fas fa-users"></i> Лицензий: ${license.users.length}/${license.maxUsers}
+                        <i class="fas fa-check-circle"></i> Лицензия активна
                     </div>`;
                 }
                 
@@ -620,9 +582,14 @@
             }).join('');
         }
         
-        function renderLicenses() {
+        /**
+         * Рендер списка лицензий
+         */
+        async function renderLicenses() {
             const container = document.getElementById('licensesList');
             if (!container) return;
+            
+            await loadData();
             
             if (licenses.length === 0) {
                 container.innerHTML = `
@@ -637,96 +604,91 @@
                 return;
             }
             
-            container.innerHTML = licenses.map(license => `
-                <div class="license-item">
-                    <div class="license-info">
-                        <h4><i class="fas ${MODULES_CATALOG.find(m => m.id === license.moduleId)?.icon || 'fa-puzzle-piece'}"></i> ${license.name}</h4>
-                        <p>Приобретен: ${license.purchasedAt} • Лицензий: ${license.users.length}/${license.maxUsers}</p>
+            container.innerHTML = licenses.map(license => {
+                const module = MODULES_CATALOG.find(m => m.id === license.module_id);
+                return `
+                    <div class="license-item">
+                        <div class="license-info">
+                            <h4><i class="fas ${module?.icon || 'fa-puzzle-piece'}"></i> ${module?.name || license.module_id}</h4>
+                            <p>Приобретен: ${license.created_at?.split('T')[0] || new Date().toLocaleDateString()}</p>
+                        </div>
+                        <div class="license-users">
+                            <span class="user-badge"><i class="fas fa-check-circle"></i> Активен</span>
+                        </div>
                     </div>
-                    <div class="license-users">
-                        <span class="user-badge"><i class="fas fa-users"></i> ${license.users.length} пользователей</span>
-                        <button class="module-btn secondary" onclick="window.openAssignModal('${license.moduleId}', '${license.name}')">
-                            <i class="fas fa-user-plus"></i> Назначить
-                        </button>
-                    </div>
-                </div>
-            `).join('');
+                `;
+            }).join('');
         }
         
-        function renderUsersAssignments() {
+        /**
+         * Рендер назначений прав пользователям
+         */
+        async function renderUsersAssignments() {
             const container = document.getElementById('usersAssignments');
             if (!container) return;
             
-            // Демо-пользователи
-            const demoUsers = [
-                { id: 'admin', name: 'Администратор', role: 'admin' },
-                { id: 'manager1', name: 'Дмитрий Волков', role: 'manager' },
-                { id: 'agent1', name: 'Анна Петрова', role: 'agent' },
-                { id: 'agent2', name: 'Иван Соколов', role: 'agent' },
-                { id: 'agent3', name: 'Елена Смирнова', role: 'agent' }
-            ];
+            await loadData();
+            
+            const userModules = await getUserModules(currentUser.id);
+            
+            if (userModules.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-users"></i>
+                        <p>Нет назначенных модулей</p>
+                        <button class="module-btn primary" onclick="document.querySelector('[data-tab=\"catalog\"]').click()" style="margin-top: 12px;">
+                            Сначала купите модули
+                        </button>
+                    </div>
+                `;
+                return;
+            }
             
             container.innerHTML = `
                 <div class="license-list">
-                    ${demoUsers.map(user => {
-                        const userModules = assignments.filter(a => a.userId === user.id);
-                        return `
-                            <div class="license-item">
-                                <div class="license-info">
-                                    <h4><i class="fas fa-user"></i> ${user.name}</h4>
-                                    <p>Роль: ${user.role === 'admin' ? 'Администратор' : user.role === 'manager' ? 'Менеджер' : 'Агент'}</p>
-                                </div>
-                                <div class="license-users">
-                                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                                        ${userModules.map(m => `
-                                            <span class="user-badge" style="background: var(--accent); color: white;">
-                                                ${MODULES_CATALOG.find(c => c.id === m.moduleId)?.name || m.moduleId}
-                                                <i class="fas fa-times" style="margin-left: 6px; cursor: pointer;" onclick="window.removeAssignment('${user.id}', '${m.moduleId}')"></i>
-                                            </span>
-                                        `).join('')}
-                                        ${userModules.length === 0 ? '<span class="user-badge">Нет модулей</span>' : ''}
-                                    </div>
-                                    <button class="module-btn secondary" onclick="window.openAssignUserModal('${user.id}', '${user.name}')">
-                                        <i class="fas fa-plus"></i> Назначить модуль
-                                    </button>
-                                </div>
+                    <div class="license-item">
+                        <div class="license-info">
+                            <h4><i class="fas fa-user"></i> ${currentUser.name}</h4>
+                            <p>Роль: ${currentUser.role === 'admin' ? 'Администратор' : currentUser.role === 'manager' ? 'Менеджер' : 'Агент'}</p>
+                        </div>
+                        <div class="license-users">
+                            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                                ${userModules.map(m => `
+                                    <span class="user-badge" style="background: var(--accent); color: white;">
+                                        ${m.name}
+                                    </span>
+                                `).join('')}
                             </div>
-                        `;
-                    }).join('')}
+                        </div>
+                    </div>
                 </div>
             `;
         }
         
         // Глобальные функции для вызова из HTML
-        window.purchaseModule = purchaseModule;
-        window.assignModuleToUser = assignModuleToUser;
-        window.removeAssignment = removeAssignment;
+        window.purchaseModule = handlePurchaseModule;
+        window.assignModuleToUser = handleAssignModule;
+        window.removeAssignment = handleRemoveAssignment;
+        
         window.openAssignModal = (moduleId, moduleName) => {
-            const userId = prompt(`Введите ID пользователя для назначения модуля "${moduleName}"\nДоступные пользователи: admin, manager1, agent1, agent2, agent3`);
-            if (userId) {
-                const userMap = {
-                    'admin': 'Администратор',
-                    'manager1': 'Дмитрий Волков',
-                    'agent1': 'Анна Петрова',
-                    'agent2': 'Иван Соколов',
-                    'agent3': 'Елена Смирнова'
-                };
-                const userName = userMap[userId] || userId;
-                assignModuleToUser(moduleId, userId, userName);
+            const userId = prompt(`Введите ID пользователя для назначения модуля "${moduleName}"\n(текущий пользователь: ${currentUser?.id})`);
+            if (userId && userId.trim()) {
+                handleAssignModule(moduleId, userId.trim(), userId.trim());
             }
         };
+        
         window.openAssignUserModal = (userId, userName) => {
-            const availableModules = licenses.filter(l => !assignments.some(a => a.userId === userId && a.moduleId === l.moduleId));
+            const availableModules = licenses.filter(l => !assignments[userId]?.some(a => a.moduleId === l.moduleId));
             if (availableModules.length === 0) {
                 alert('Нет доступных модулей для назначения');
                 return;
             }
-            const moduleOptions = availableModules.map((m, i) => `${i + 1}. ${m.name}`).join('\n');
+            const moduleOptions = availableModules.map((m, i) => `${i + 1}. ${MODULES_CATALOG.find(c => c.id === m.module_id)?.name || m.module_id}`).join('\n');
             const choice = prompt(`Выберите модуль для ${userName}:\n${moduleOptions}\n\nВведите номер модуля:`);
             if (choice) {
                 const index = parseInt(choice) - 1;
                 if (availableModules[index]) {
-                    assignModuleToUser(availableModules[index].moduleId, userId, userName);
+                    handleAssignModule(availableModules[index].module_id, userId, userName);
                 } else {
                     alert('Неверный выбор');
                 }
@@ -735,7 +697,7 @@
         
         // Переключение вкладок
         document.querySelectorAll('.tab-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
+            btn.addEventListener('click', async () => {
                 document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 
@@ -744,13 +706,17 @@
                 document.getElementById('tabLicenses').style.display = tabName === 'licenses' ? 'block' : 'none';
                 document.getElementById('tabUsers').style.display = tabName === 'users' ? 'block' : 'none';
                 
-                if (tabName === 'licenses') renderLicenses();
-                if (tabName === 'users') renderUsersAssignments();
+                if (tabName === 'licenses') await renderLicenses();
+                if (tabName === 'users') await renderUsersAssignments();
             });
         });
         
-        // Инициализация
+        /**
+         * Инициализация страницы
+         */
         async function init() {
+            console.log('[marketplace] Инициализация...');
+            
             const isAuth = await requireSupabaseAuth('auth-supabase.html');
             if (!isAuth) return;
             
@@ -758,8 +724,7 @@
             updateSupabaseUserInterface();
             isAdmin = currentUser?.role === 'admin';
             
-            loadDemoData();
-            renderCatalog();
+            await renderCatalog();
             
             const sidebar = document.getElementById('sidebar');
             if (sidebar && localStorage.getItem('sidebar_collapsed') === 'true') {
@@ -771,7 +736,10 @@
         
         init();
     </script>
-    
-    <script type="module" src="layout.js"></script>
+    <script type="module">
+        import * as sidebar from './layout.js';
+        window.sidebar = sidebar;
+        sidebar.initSidebar();
+    </script>
 </body>
 </html>

@@ -2,70 +2,95 @@
  * ============================================
  * ФАЙЛ: layout.js
  * РОЛЬ: Управление боковой навигационной панелью и шапкой
- * ОБНОВЛЕНИЕ: Поддержка Supabase, добавлена кнопка уведомлений
+ * 
+ * ОСОБЕННОСТИ:
+ *   - Динамическая навигация на основе ролей и прав
+ *   - Администратор видит все пункты меню
+ *   - Ожидание загрузки прав перед отрисовкой с увеличенным таймаутом
+ *   - Повторная отрисовка при событиях userLoaded и permissionsReady
+ *   - Адаптивное мобильное меню
+ * 
  * ИСТОРИЯ:
  *   - 30.03.2026: Переход на модульную загрузку
+ *   - 30.03.2026: Ожидание загрузки прав перед отрисовкой
+ *   - 30.03.2026: Администратор видит все пункты меню
+ *   - 30.03.2026: Увеличен таймаут и добавлены события для повторной отрисовки
  * ============================================
  */
 
-// Импортируем вспомогательные функции
 import { escapeHtml } from './js/utils/helpers.js';
 
-// Состояние боковой панели
 let sidebarCollapsed = false;
+let isInitialized = false;
 
-// ========== ЦЕНТРАЛИЗОВАННАЯ НАВИГАЦИЯ ==========
-
+/**
+ * Конфигурация навигации
+ * - href: путь к странице
+ * - icon: иконка FontAwesome
+ * - label: название пункта
+ * - roles: массив ролей, которым доступен пункт (null = все)
+ * - permissions: массив прав, необходимых для доступа
+ */
 const NAVIGATION_ITEMS = [
-    { href: "index-supabase.html", icon: "fa-home", label: "Дашборд", roles: null },
-    { href: "tasks-supabase.html", icon: "fa-tasks", label: "Доска задач", roles: null },
-    { href: "complexes-supabase.html", icon: "fa-building", label: "Объекты", roles: null },
-    { href: "deals-supabase.html", icon: "fa-handshake", label: "Заявки", roles: null },
-    { href: "counterparties-supabase.html", icon: "fa-users", label: "Контрагенты", roles: null },
-    { href: "calendar-supabase.html", icon: "fa-calendar-alt", label: "Календарь", roles: null },
-    { href: "marketplace-supabase.html", icon: "fa-store", label: "Маркетплейс", roles: null },
-    { href: "my-modules-supabase.html", icon: "fa-puzzle-piece", label: "Мои модули", roles: null },
-    { href: "team-supabase.html", icon: "fa-users", label: "Команда", roles: ["admin", "manager"] },
-    { href: "admin-supabase.html", icon: "fa-users-cog", label: "Управление", roles: ["admin"] },
-    { href: "notifications-supabase.html", icon: "fa-bell", label: "Уведомления", roles: null }
+    { href: "index-supabase.html", icon: "fa-home", label: "Дашборд", roles: null, permissions: null },
+    { href: "tasks-supabase.html", icon: "fa-tasks", label: "Доска задач", roles: null, permissions: ['view_tasks'] },
+    { href: "complexes-supabase.html", icon: "fa-building", label: "Объекты", roles: null, permissions: ['view_complexes'] },
+    { href: "deals-supabase.html", icon: "fa-handshake", label: "Заявки", roles: null, permissions: ['view_own_deals'] },
+    { href: "counterparties-supabase.html", icon: "fa-users", label: "Контрагенты", roles: null, permissions: ['view_counterparties'] },
+    { href: "calendar-supabase.html", icon: "fa-calendar-alt", label: "Календарь", roles: null, permissions: ['view_calendar'] },
+    { href: "marketplace-supabase.html", icon: "fa-store", label: "Маркетплейс", roles: null, permissions: null },
+    { href: "my-modules-supabase.html", icon: "fa-puzzle-piece", label: "Мои модули", roles: null, permissions: null },
+    { href: "team-supabase.html", icon: "fa-users", label: "Команда", roles: ["admin", "manager"], permissions: null },
+    { href: "admin-supabase.html", icon: "fa-users-cog", label: "Управление", roles: ["admin"], permissions: null },
+    { href: "notifications-supabase.html", icon: "fa-bell", label: "Уведомления", roles: null, permissions: null }
 ];
 
+/**
+ * Получить роль текущего пользователя
+ */
 function getCurrentUserRole() {
-    // Пробуем получить пользователя из Supabase через глобальный объект
-    if (window.currentSupabaseUser) {
-        console.log('[layout] Роль из window.currentSupabaseUser:', window.currentSupabaseUser.role);
-        return window.currentSupabaseUser.role;
-    }
-    
-    // Пробуем через supabaseSession
-    if (window.supabaseSession && window.supabaseSession.getCurrentSupabaseUser) {
-        const user = window.supabaseSession.getCurrentSupabaseUser();
-        if (user) return user.role;
-    }
-    
-    // Пробуем получить из старой системы auth
-    if (window.auth && window.auth.getCurrentUser) {
-        const user = window.auth.getCurrentUser();
-        if (user) return user.role;
-    }
-    
-    return null;
+    return window.currentSupabaseUser?.role || null;
 }
 
-function renderNavigation() {
+/**
+ * Получить права текущего пользователя
+ */
+function getUserPermissions() {
+    if (window.CRM?.Permissions) {
+        return window.CRM.Permissions.getUserPermissions();
+    }
+    return [];
+}
+
+/**
+ * Рендер навигации с учетом ролей и прав
+ * Администратор видит все пункты меню
+ */
+export function renderNavigation() {
     const container = document.getElementById('sidebar-nav');
     if (!container) return;
     
     const userRole = getCurrentUserRole();
-    console.log('[layout] renderNavigation, userRole:', userRole);
+    const userPermissions = getUserPermissions();
+    const isAdmin = userRole === 'admin';
     
     const visibleItems = NAVIGATION_ITEMS.filter(item => {
-        if (!item.roles) return true;
-        if (!userRole) return false;
-        return item.roles.includes(userRole);
+        // Администратор видит всё
+        if (isAdmin) return true;
+        
+        // Проверка по роли для не-админов
+        if (item.roles && (!userRole || !item.roles.includes(userRole))) {
+            return false;
+        }
+        
+        // Проверка по правам
+        if (item.permissions && item.permissions.length > 0) {
+            const hasPermission = item.permissions.some(p => userPermissions.includes(p));
+            if (!hasPermission) return false;
+        }
+        
+        return true;
     });
-    
-    console.log('[layout] Видимые пункты:', visibleItems.map(i => i.label));
     
     const currentPath = window.location.pathname.split('/').pop() || 'index-supabase.html';
     
@@ -79,41 +104,87 @@ function renderNavigation() {
     }
     
     container.innerHTML = html;
+    console.log('[layout] Навигация отрисована, пунктов:', visibleItems.length, isAdmin ? '(админ - все пункты)' : '');
 }
 
-function initSidebar() {
+/**
+ * Ожидание загрузки прав пользователя (увеличенный таймаут)
+ */
+async function waitForPermissions(timeout = 10000) {
+    const startTime = Date.now();
+    
+    while (Date.now() - startTime < timeout) {
+        // Проверяем, загружен ли пользователь
+        if (window.currentSupabaseUser) {
+            const permissions = getUserPermissions();
+            // Если пользователь админ или есть права
+            if (window.currentSupabaseUser.role === 'admin' || permissions.length > 0) {
+                console.log('[layout] Права загружены:', permissions);
+                return true;
+            }
+        }
+        await new Promise(r => setTimeout(r, 200));
+    }
+    console.warn('[layout] Таймаут ожидания прав');
+    return false;
+}
+
+/**
+ * Инициализация бокового меню
+ */
+export async function initSidebar() {
+    if (isInitialized) return;
+    
     const saved = localStorage.getItem('sidebar_collapsed');
     if (saved === 'true') {
         sidebarCollapsed = true;
         document.getElementById('sidebar')?.classList.add('collapsed');
     }
     
-    // Первоначальная отрисовка (пока пользователь не загружен)
+    // Ждем загрузки прав
+    const hasPermissions = await waitForPermissions();
+    
+    // Отрисовываем навигацию
     renderNavigation();
+    
+    // Если права не загрузились, подписываемся на события для повторной отрисовки
+    if (!hasPermissions) {
+        window.addEventListener('userLoaded', () => {
+            console.log('[layout] userLoaded событие, повторная отрисовка');
+            renderNavigation();
+        });
+        
+        window.addEventListener('permissionsReady', () => {
+            console.log('[layout] permissionsReady событие, повторная отрисовка');
+            renderNavigation();
+        });
+        
+        // Также проверяем через интервал, если события не сработали
+        let attempts = 0;
+        const checkInterval = setInterval(() => {
+            attempts++;
+            if (window.currentSupabaseUser?.role === 'admin' || getUserPermissions().length > 0) {
+                console.log('[layout] Интервал: права загружены, повторная отрисовка');
+                renderNavigation();
+                clearInterval(checkInterval);
+            } else if (attempts > 30) {
+                clearInterval(checkInterval);
+            }
+        }, 500);
+    }
+    
     initMobileMenu();
     addSidebarButtons();
     addNotificationButtonToTopBar();
     
-    // Подписываемся на обновление пользователя
-    window.addEventListener('userLoaded', () => {
-        console.log('[layout] Событие userLoaded, обновляем навигацию');
-        renderNavigation();
-    });
-    
-    // Также проверяем через интервал, пока пользователь не загрузится
-    const checkInterval = setInterval(() => {
-        if (window.currentSupabaseUser && window.currentSupabaseUser.role) {
-            console.log('[layout] Проверка интервала: пользователь загружен, роль:', window.currentSupabaseUser.role);
-            renderNavigation();
-            clearInterval(checkInterval);
-        }
-    }, 100);
-    
-    // Очищаем интервал через 5 секунд на всякий случай
-    setTimeout(() => clearInterval(checkInterval), 5000);
+    isInitialized = true;
+    console.log('[layout] Сайдбар инициализирован');
 }
 
-function toggleSidebar() {
+/**
+ * Свернуть/развернуть боковое меню
+ */
+export function toggleSidebar() {
     const sidebar = document.getElementById('sidebar');
     if (!sidebar) return;
     
@@ -128,13 +199,15 @@ function toggleSidebar() {
     }
 }
 
+/**
+ * Инициализация мобильного меню
+ */
 function initMobileMenu() {
     const toggleBtn = document.createElement('div');
     toggleBtn.className = 'mobile-menu-toggle';
     toggleBtn.innerHTML = '<i class="fas fa-bars"></i>';
     toggleBtn.onclick = () => {
-        const sidebar = document.getElementById('sidebar');
-        sidebar?.classList.toggle('mobile-open');
+        document.getElementById('sidebar')?.classList.toggle('mobile-open');
     };
     document.body.appendChild(toggleBtn);
     
@@ -149,6 +222,9 @@ function initMobileMenu() {
     });
 }
 
+/**
+ * Добавление кнопок в футер сайдбара
+ */
 function addSidebarButtons() {
     const sidebarFooter = document.querySelector('.sidebar-footer');
     if (!sidebarFooter) return;
@@ -180,13 +256,11 @@ function addSidebarButtons() {
 }
 
 /**
- * Добавляет кнопку уведомлений в верхнюю панель (top-bar)
+ * Добавление кнопки уведомлений в топ-бар
  */
 function addNotificationButtonToTopBar() {
     const topBar = document.querySelector('.top-bar');
     if (!topBar) return;
-    
-    // Проверяем, есть ли уже кнопка
     if (topBar.querySelector('.notification-icon-wrapper')) return;
     
     const notificationWrapper = document.createElement('div');
@@ -200,10 +274,9 @@ function addNotificationButtonToTopBar() {
     
     notificationWrapper.innerHTML = `
         <i class="fas fa-bell" style="font-size: 1.2rem; color: var(--text-primary);"></i>
-        <span id="notificationBadge" class="notification-badge" style="display: none; position: absolute; top: -8px; right: -8px; background: #ff6b6b; color: white; font-size: 0.65rem; font-weight: bold; min-width: 18px; height: 18px; border-radius: 9px; display: flex; align-items: center; justify-content: center; padding: 0 4px;">0</span>
+        <span id="notificationBadge" class="notification-badge" style="display: none;">0</span>
     `;
     
-    // Вставляем перед user-profile
     const userProfile = topBar.querySelector('.user-profile');
     if (userProfile) {
         topBar.insertBefore(notificationWrapper, userProfile);
@@ -213,24 +286,21 @@ function addNotificationButtonToTopBar() {
 }
 
 /**
- * Обновляет счетчик непрочитанных уведомлений
+ * Обновление счетчика непрочитанных уведомлений
  */
 async function updateNotificationBadge() {
     const badge = document.getElementById('notificationBadge');
     if (!badge) return;
-    
     try {
-        // Проверяем, есть ли supabase
         if (window.supabase) {
             const { data: { user } } = await window.supabase.auth.getUser();
             if (user) {
-                const { count, error } = await window.supabase
+                const { count } = await window.supabase
                     .from('notifications')
                     .select('*', { count: 'exact', head: true })
                     .eq('user_id', user.id)
                     .eq('read', false);
-                
-                if (!error && count > 0) {
+                if (count > 0) {
                     badge.textContent = count > 99 ? '99+' : count;
                     badge.style.display = 'flex';
                     return;
@@ -239,37 +309,29 @@ async function updateNotificationBadge() {
         }
         badge.style.display = 'none';
     } catch (e) {
-        console.warn('Failed to update notification badge:', e);
         badge.style.display = 'none';
     }
 }
 
-// Экспортируем функцию для вызова из других модулей
-window.updateNotificationBadge = updateNotificationBadge;
-
+/**
+ * Переключение темы (светлая/темная)
+ */
 function toggleTheme() {
-    // Используем централизованный модуль темы
-    if (window.theme && window.theme.toggleTheme) {
-        window.theme.toggleTheme();
+    const isDark = document.documentElement.classList.contains('theme-dark');
+    if (isDark) {
+        document.documentElement.classList.remove('theme-dark');
+        document.documentElement.classList.add('theme-light');
+        document.body.classList.remove('theme-dark');
+        document.body.classList.add('theme-light');
+        localStorage.setItem('crm_theme', 'light');
     } else {
-        // Fallback если модуль темы не загружен
-        const isDark = document.documentElement.classList.contains('theme-dark');
-        if (isDark) {
-            document.documentElement.classList.remove('theme-dark');
-            document.documentElement.classList.add('theme-light');
-            document.body.classList.remove('theme-dark');
-            document.body.classList.add('theme-light');
-            localStorage.setItem('crm_theme', 'light');
-        } else {
-            document.documentElement.classList.remove('theme-light');
-            document.documentElement.classList.add('theme-dark');
-            document.body.classList.remove('theme-light');
-            document.body.classList.add('theme-dark');
-            localStorage.setItem('crm_theme', 'dark');
-        }
+        document.documentElement.classList.remove('theme-light');
+        document.documentElement.classList.add('theme-dark');
+        document.body.classList.remove('theme-light');
+        document.body.classList.add('theme-dark');
+        localStorage.setItem('crm_theme', 'dark');
     }
     
-    // Обновляем текст кнопки в сайдбаре
     const themeBtn = document.querySelector('.theme-btn');
     if (themeBtn) {
         const isDarkNow = document.documentElement.classList.contains('theme-dark');
@@ -279,26 +341,28 @@ function toggleTheme() {
     }
 }
 
-function goToProfile() {
+/**
+ * Переход на страницу профиля
+ */
+export function goToProfile() {
     window.location.href = 'profile-supabase.html';
 }
 
-function logout() {
+/**
+ * Выход из системы
+ */
+export function logout() {
     if (confirm('Вы уверены, что хотите выйти из системы?')) {
-        // Пробуем выйти из Supabase
-        if (window.supabaseSession && window.supabaseSession.logoutFromSupabase) {
+        if (window.supabaseSession?.logoutFromSupabase) {
             window.supabaseSession.logoutFromSupabase();
-        } else if (window.auth && window.auth.logout) {
-            window.auth.logout();
         } else {
             localStorage.removeItem('crm_session');
-            localStorage.removeItem('crm_remember_me');
             window.location.href = 'auth-supabase.html';
         }
     }
 }
 
-// Добавляем CSS для бейджа
+// Добавляем CSS для бейджа уведомлений
 const style = document.createElement('style');
 style.textContent = `
     .notification-icon-wrapper {
@@ -334,7 +398,7 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
-// Глобальный объект для обратной совместимости
+// Глобальный объект для доступа из HTML (onclick)
 window.sidebar = {
     initSidebar,
     toggleSidebar,
@@ -343,12 +407,3 @@ window.sidebar = {
     renderNavigation,
     updateNotificationBadge
 };
-
-// Инициализация при загрузке DOM
-document.addEventListener('DOMContentLoaded', () => {
-    initSidebar();
-    // Обновляем счетчик через 1 секунду (после загрузки supabase)
-    setTimeout(() => {
-        updateNotificationBadge();
-    }, 1000);
-});

@@ -73,11 +73,18 @@ async function loadUser() {
 
 // Функция для загрузки сервисов
 async function loadServices() {
-    try {
-        await import('../services/dashboards-supabase.js');
-        console.log('[moduleLoader] ✅ Сервис dashboards-supabase загружен');
-    } catch (error) {
-        console.error('[moduleLoader] ❌ Ошибка загрузки dashboards-supabase:', error);
+    const services = [
+        'js/services/dashboards-supabase.js',
+        'js/services/license-supabase.js'  // 👈 ДОБАВИТЬ
+    ];
+    
+    for (const service of services) {
+        try {
+            await import(service);
+            console.log(`[moduleLoader] ✅ Сервис ${service} загружен`);
+        } catch (error) {
+            console.error(`[moduleLoader] ❌ Ошибка загрузки ${service}:`, error);
+        }
     }
 }
 

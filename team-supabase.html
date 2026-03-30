@@ -4,6 +4,23 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     
+    <!-- 
+    ============================================
+    ФАЙЛ: team-supabase.html
+    РОЛЬ: Страница управления командой
+    
+    ОСОБЕННОСТИ:
+      - Список участников команды
+      - Статистика команды
+      - Приглашения
+      - Интеграция с системой прав
+    
+    ИСТОРИЯ:
+      - 30.03.2026: Создание страницы команды
+      - 30.03.2026: Исправлена инициализация сайдбара
+    ============================================
+    -->
+    
     <script>
         (function() {
             try {
@@ -374,17 +391,20 @@
         </main>
     </div>
     
+    <!-- ========== ИНИЦИАЛИЗАЦИЯ СТРАНИЦЫ ========== -->
     <script type="module">
+        /**
+         * Инициализация страницы команды
+         * Загружает данные о команде и отображает участников
+         */
         import { getCurrentSupabaseUser, requireSupabaseAuth, updateSupabaseUserInterface } from './js/core/supabase-session.js';
         import { supabase } from './js/core/supabase.js';
         
         let currentUser = null;
         let teamMembers = [];
         let invites = [];
-        let tasks = [];
         
         function loadDemoData() {
-            // Демо-данные участников
             const saved = localStorage.getItem('team_members');
             if (saved) {
                 teamMembers = JSON.parse(saved);
@@ -410,26 +430,27 @@
         }
         
         function getRoleLabel(role) {
-            const labels = {
-                admin: 'Администратор',
-                manager: 'Менеджер',
-                agent: 'Агент'
-            };
+            const labels = { admin: 'Администратор', manager: 'Менеджер', agent: 'Агент' };
             return labels[role] || role;
         }
         
-        function getRoleClass(role) {
-            return `role-${role}`;
-        }
+        function getRoleClass(role) { return `role-${role}`; }
         
         function getInitials(name) {
             return name.split(' ').map(n => n[0]).join('').toUpperCase();
         }
         
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
         function renderTeamStats() {
             const totalMembers = teamMembers.length;
             const totalTasksCompleted = teamMembers.reduce((sum, m) => sum + (m.tasks_completed || 0), 0);
-            const activeModules = 2; // Демо: продуктивность + недвижимость
+            const activeModules = 2;
             
             document.getElementById('membersCount').textContent = totalMembers;
             document.getElementById('activeModulesCount').textContent = activeModules;
@@ -441,32 +462,17 @@
             if (!container) return;
             
             if (teamMembers.length === 0) {
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <i class="fas fa-users"></i>
-                        <p>Пока нет участников</p>
-                        <button onclick="window.location.href='invite-supabase.html'" style="margin-top: 12px; padding: 8px 20px; background: var(--accent); border: none; border-radius: 40px; color: white; cursor: pointer;">
-                            Пригласить
-                        </button>
-                    </div>
-                `;
+                container.innerHTML = `<div class="empty-state"><i class="fas fa-users"></i><p>Пока нет участников</p><button onclick="window.location.href='invite-supabase.html'" style="margin-top: 12px; padding: 8px 20px; background: var(--accent); border: none; border-radius: 40px; color: white; cursor: pointer;">Пригласить</button></div>`;
                 return;
             }
             
             container.innerHTML = teamMembers.map(member => `
                 <div class="member-card">
-                    <div class="member-avatar">
-                        ${getInitials(member.name)}
-                    </div>
+                    <div class="member-avatar">${getInitials(member.name)}</div>
                     <div class="member-info">
                         <div class="member-name">${escapeHtml(member.name)}</div>
-                        <div class="member-role">
-                            <span class="role-badge ${getRoleClass(member.role)}">${getRoleLabel(member.role)}</span>
-                        </div>
-                        <div class="member-stats">
-                            <span><i class="fas fa-check-circle"></i> ${member.tasks_completed || 0}</span>
-                            <span><i class="fas fa-tasks"></i> ${member.tasks_active || 0}</span>
-                        </div>
+                        <div class="member-role"><span class="role-badge ${getRoleClass(member.role)}">${getRoleLabel(member.role)}</span></div>
+                        <div class="member-stats"><span><i class="fas fa-check-circle"></i> ${member.tasks_completed || 0}</span><span><i class="fas fa-tasks"></i> ${member.tasks_active || 0}</span></div>
                     </div>
                 </div>
             `).join('');
@@ -477,33 +483,16 @@
             if (!container) return;
             
             if (invites.length === 0) {
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <i class="fas fa-envelope"></i>
-                        <p>Нет активных приглашений</p>
-                    </div>
-                `;
+                container.innerHTML = `<div class="empty-state"><i class="fas fa-envelope"></i><p>Нет активных приглашений</p></div>`;
                 return;
             }
             
             container.innerHTML = invites.map(invite => `
                 <div class="invite-item">
-                    <div class="invite-email">
-                        <i class="fas fa-envelope"></i>
-                        <span>${escapeHtml(invite.email)}</span>
-                    </div>
-                    <div class="invite-status status-${invite.status}">
-                        ${invite.status === 'pending' ? '⏳ Ожидает' : '✅ Принято'}
-                    </div>
+                    <div class="invite-email"><i class="fas fa-envelope"></i><span>${escapeHtml(invite.email)}</span></div>
+                    <div class="invite-status status-${invite.status}">${invite.status === 'pending' ? '⏳ Ожидает' : '✅ Принято'}</div>
                 </div>
             `).join('');
-        }
-        
-        function escapeHtml(text) {
-            if (!text) return '';
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
         }
         
         async function init() {
@@ -518,17 +507,17 @@
             renderMembersList();
             renderInvitesList();
             
-            const sidebar = document.getElementById('sidebar');
-            if (sidebar && localStorage.getItem('sidebar_collapsed') === 'true') {
-                sidebar.classList.add('collapsed');
-            }
-            
             console.log('[team] Страница загружена');
         }
         
         init();
     </script>
     
-    <script type="module" src="layout.js"></script>
+    <!-- ========== ИНИЦИАЛИЗАЦИЯ БОКОВОГО МЕНЮ ========== -->
+    <script type="module">
+        import * as sidebar from './layout.js';
+        window.sidebar = sidebar;
+        sidebar.initSidebar();
+    </script>
 </body>
 </html>

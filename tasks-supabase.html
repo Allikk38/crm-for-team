@@ -743,6 +743,12 @@
 
     <!-- ========== УНИВЕРСАЛЬНЫЙ ЗАГРУЗЧИК МОДУЛЕЙ ========== -->
     <script type="module" src="js/core/moduleLoader.js"></script>
-    <script type="module" src="layout.js"></script>
+    
+    <!-- Инициализация бокового меню -->
+    <script type="module">
+        import * as sidebar from './layout.js';
+        window.sidebar = sidebar;
+        sidebar.initSidebar();
+    </script>
 </body>
 </html>
