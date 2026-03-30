@@ -8,22 +8,21 @@
     ============================================
     ФАЙЛ: deals-supabase.html
     РОЛЬ: Управление заявками (сделки) с Supabase
+    ВЕРСИЯ: Модульная архитектура v2.0
     
     ОСОБЕННОСТИ:
       - Kanban-доска с 6 статусами
       - Drag-and-drop для изменения статуса
       - Фильтрация по поиску, типу, агенту
       - Интеграция с объектами и контрагентами
+      - Модульная архитектура (подключение через реестр)
     
     ЗАВИСИМОСТИ:
       - CSS: base.css, theme.css, components.css, kanban.css, modal.css, animations.css
-      - JS: js/pages/deals.js, layout.js
-      - Таблицы: deals, complexes, counterparties, profiles
+      - JS: модульная загрузка через registry
     
     ИСТОРИЯ:
-      - 27.03.2026: Создание supabase-версии
-      - 27.03.2026: Исправлены вызовы функций для window.sidebar
-      - 27.03.2026: Рефакторинг — логика вынесена в js/pages/deals.js
+      - 30.03.2026: Переход на модульную архитектуру
     ============================================
     -->
     
@@ -42,7 +41,7 @@
         })();
     </script>
     
-    <title>Заявки - CRM для команды (Supabase)</title>
+    <title>Сделки - CRM для команды (Supabase)</title>
     
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -58,6 +57,7 @@
     <link rel="stylesheet" href="css/animations.css">
     
     <style>
+        /* Стили из deals-supabase.html - оставляем без изменений */
         .deals-header {
             display: flex;
             justify-content: space-between;
@@ -468,16 +468,55 @@
         </div>
     </div>
     
-    <!-- Подключаем утилиты и компоненты -->
+    <!-- ========== ПОДКЛЮЧАЕМ ЗАВИСИМОСТИ (МОДУЛЬНАЯ АРХИТЕКТУРА) ========== -->
     <script src="js/utils/helpers.js"></script>
     <script src="js/components/kanban.js"></script>
     <script src="js/ui/animations.js"></script>
-
-    <!-- Подключаем модуль страницы (логика вынесена) -->
+    <script src="js/core/supabase.js"></script>
+    <script src="js/core/permissions.js"></script>
+    <script src="js/core/registry.js"></script>
+    <script src="js/modules/deals/index.js"></script>
+    
+    <!-- Инициализация модуля -->
     <script type="module">
-        import { initDealsPage } from './js/pages/deals.js';
-        initDealsPage();
+        import { checkSupabaseSession } from './js/core/supabase-session.js';
+        
+        console.log('[deals-init] Загрузка пользователя...');
+        
+        // Загружаем пользователя
+        await checkSupabaseSession();
+        
+        console.log('[deals-init] Пользователь загружен:', window.currentSupabaseUser);
+        
+        // Ждем загрузки реестра и модуля
+        function waitForRegistryAndModule() {
+            if (window.CRM?.Registry && window.dealsModule) {
+                console.log('[deals-init] Реестр и модуль готовы');
+                
+                // Регистрируем модуль
+                window.CRM.Registry.registerModule(window.dealsModule);
+                
+                // Загружаем модуль
+                window.CRM.Registry.loadModule('deals').then(() => {
+                    console.log('[deals] Модуль загружен через реестр');
+                }).catch(err => {
+                    console.error('[deals] Ошибка загрузки модуля:', err);
+                    // Fallback на прямую загрузку
+                    import('./js/pages/deals.js').then(module => {
+                        console.log('[deals] Используем fallback');
+                        module.initDealsPage();
+                    });
+                });
+            } else {
+                console.log('[deals-init] Ожидаем загрузку реестра и модуля...');
+                setTimeout(waitForRegistryAndModule, 100);
+            }
+        }
+        
+        // Начинаем ожидание
+        waitForRegistryAndModule();
     </script>
+    
     <script src="layout.js"></script>
 </body>
 </html>
