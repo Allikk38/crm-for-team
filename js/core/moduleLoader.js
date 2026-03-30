@@ -7,7 +7,7 @@
  *   - Автоматически определяет модуль по имени страницы
  *   - Загружает все необходимые зависимости
  *   - Инициализирует страницу через реестр модулей
- *   - Работает с любой страницей без дублирования кода
+ *   - Ждет загрузки пользователя перед проверкой прав
  * 
  * ИСПОЛЬЗОВАНИЕ:
  *   В HTML странице достаточно:
@@ -16,6 +16,7 @@
  * 
  * ИСТОРИЯ:
  *   - 30.03.2026: Создание универсального загрузчика
+ *   - 30.03.2026: Исправлено ожидание загрузки пользователя
  * ============================================
  */
 
@@ -73,6 +74,21 @@ function loadScript(src, isModule = false) {
     });
 }
 
+// Функция для ожидания загрузки пользователя
+function waitForUser() {
+    return new Promise((resolve) => {
+        if (window.currentSupabaseUser) {
+            resolve(window.currentSupabaseUser);
+            return;
+        }
+        
+        window.addEventListener('userLoaded', function onUserLoaded(e) {
+            window.removeEventListener('userLoaded', onUserLoaded);
+            resolve(e.detail);
+        });
+    });
+}
+
 // Основная функция загрузки
 async function loadModule() {
     const pageName = getCurrentPage();
@@ -109,6 +125,11 @@ async function loadModule() {
         // Загружаем модуль
         const moduleScript = `js/modules/${moduleId}/index.js`;
         await loadScript(moduleScript);
+        
+        // Ждем загрузки пользователя
+        console.log('[moduleLoader] Ожидаем загрузку пользователя...');
+        await waitForUser();
+        console.log('[moduleLoader] Пользователь загружен:', window.currentSupabaseUser?.name);
         
         // Ждем регистрации модуля в реестре
         let attempts = 0;
