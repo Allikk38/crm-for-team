@@ -53,18 +53,8 @@ const PLAN_MODULES = {
 /**
  * Регистрация модуля в системе
  * @param {Object} moduleDef - Определение модуля
- * @param {string} moduleDef.id - Уникальный идентификатор модуля
- * @param {string} moduleDef.name - Название модуля
- * @param {string} moduleDef.version - Версия модуля
- * @param {Array} moduleDef.requiredPermissions - Необходимые разрешения
- * @param {Array} moduleDef.requiredPlans - Доступные тарифные планы
- * @param {Object} moduleDef.pages - Страницы модуля
- * @param {Object} moduleDef.widgets - Виджеты модуля
- * @param {Function} moduleDef.onLoad - Callback при загрузке
- * @param {Function} moduleDef.onUnload - Callback при выгрузке
- * @param {Array} moduleDef.dependencies - Зависимости от других модулей
  */
-export function registerModule(moduleDef) {
+function registerModule(moduleDef) {
     if (!moduleDef || !moduleDef.id) {
         console.error('[registry] Ошибка регистрации: не указан id модуля');
         return false;
@@ -98,9 +88,11 @@ export function registerModule(moduleDef) {
     console.log(`[registry] Модуль зарегистрирован: ${moduleDef.id} (${moduleDef.name})`);
     
     // Отправляем событие о регистрации
-    window.dispatchEvent(new CustomEvent('moduleRegistered', { 
-        detail: { moduleId: moduleDef.id, module: normalizedModule }
-    }));
+    if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('moduleRegistered', { 
+            detail: { moduleId: moduleDef.id, module: normalizedModule }
+        }));
+    }
     
     return true;
 }
@@ -108,18 +100,28 @@ export function registerModule(moduleDef) {
 /**
  * Получить информацию о модуле
  * @param {string} moduleId - ID модуля
- * @returns {Object|null}
  */
-export function getModule(moduleId) {
+function getModule(moduleId) {
     return modules.get(moduleId) || null;
+}
+
+/**
+ * Получить тарифный план пользователя
+ */
+function getUserPlan() {
+    // TODO: Реализовать получение плана из БД или localStorage
+    // Пока возвращаем BUSINESS для администратора
+    if (window.currentSupabaseUser?.role === 'admin') {
+        return PLANS.BUSINESS;
+    }
+    return PLANS.FREE; // По умолчанию FREE
 }
 
 /**
  * Проверить, доступен ли модуль для текущего пользователя
  * @param {string} moduleId - ID модуля
- * @returns {boolean}
  */
-export function isModuleAvailable(moduleId) {
+function isModuleAvailable(moduleId) {
     const module = getModule(moduleId);
     if (!module) return false;
     
@@ -132,8 +134,8 @@ export function isModuleAvailable(moduleId) {
         if (!hasPermissions) return false;
     }
     
-    // Проверка тарифного плана (пока заглушка, позже будет проверка подписки)
-    const userPlan = getUserPlan(); // TODO: реализовать получение плана пользователя
+    // Проверка тарифного плана
+    const userPlan = getUserPlan();
     if (!module.requiredPlans.includes(userPlan)) return false;
     
     return true;
@@ -141,9 +143,8 @@ export function isModuleAvailable(moduleId) {
 
 /**
  * Получить все доступные модули для текущего пользователя
- * @returns {Array}
  */
-export function getAvailableModules() {
+function getAvailableModules() {
     const available = [];
     for (const [id, module] of modules) {
         if (isModuleAvailable(id)) {
@@ -162,9 +163,8 @@ export function getAvailableModules() {
 /**
  * Загрузить модуль
  * @param {string} moduleId - ID модуля
- * @returns {Promise<Object>}
  */
-export async function loadModule(moduleId) {
+async function loadModule(moduleId) {
     const module = getModule(moduleId);
     if (!module) {
         console.error(`[registry] Модуль ${moduleId} не найден`);
@@ -186,7 +186,6 @@ export async function loadModule(moduleId) {
     
     if (currentStatus === MODULE_STATUS.LOADING) {
         console.log(`[registry] Модуль ${moduleId} уже загружается`);
-        // TODO: возвращать Promise загрузки
         return null;
     }
     
@@ -213,9 +212,11 @@ export async function loadModule(moduleId) {
         console.log(`[registry] Модуль загружен: ${moduleId}`);
         
         // Отправляем событие о загрузке
-        window.dispatchEvent(new CustomEvent('moduleLoaded', { 
-            detail: { moduleId, module }
-        }));
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('moduleLoaded', { 
+                detail: { moduleId, module }
+            }));
+        }
         
         return module;
     } catch (error) {
@@ -223,9 +224,11 @@ export async function loadModule(moduleId) {
         module.status = MODULE_STATUS.ERROR;
         moduleStates.set(moduleId, MODULE_STATUS.ERROR);
         
-        window.dispatchEvent(new CustomEvent('moduleError', { 
-            detail: { moduleId, error }
-        }));
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('moduleError', { 
+                detail: { moduleId, error }
+            }));
+        }
         
         return null;
     }
@@ -235,7 +238,7 @@ export async function loadModule(moduleId) {
  * Выгрузить модуль
  * @param {string} moduleId - ID модуля
  */
-export async function unloadModule(moduleId) {
+async function unloadModule(moduleId) {
     const module = getModule(moduleId);
     if (!module) return;
     
@@ -254,9 +257,11 @@ export async function unloadModule(moduleId) {
         
         console.log(`[registry] Модуль выгружен: ${moduleId}`);
         
-        window.dispatchEvent(new CustomEvent('moduleUnloaded', { 
-            detail: { moduleId }
-        }));
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('moduleUnloaded', { 
+                detail: { moduleId }
+            }));
+        }
     } catch (error) {
         console.error(`[registry] Ошибка выгрузки модуля ${moduleId}:`, error);
     }
@@ -265,9 +270,8 @@ export async function unloadModule(moduleId) {
 /**
  * Получить виджеты для дашборда
  * @param {string} moduleId - ID модуля (опционально)
- * @returns {Array}
  */
-export function getAvailableWidgets(moduleId = null) {
+function getAvailableWidgets(moduleId = null) {
     const widgets = [];
     
     for (const [id, module] of modules) {
@@ -292,9 +296,8 @@ export function getAvailableWidgets(moduleId = null) {
 /**
  * Получить страницы модуля
  * @param {string} moduleId - ID модуля
- * @returns {Object}
  */
-export function getModulePages(moduleId) {
+function getModulePages(moduleId) {
     const module = getModule(moduleId);
     if (!module) return {};
     
@@ -311,35 +314,17 @@ export function getModulePages(moduleId) {
     return accessiblePages;
 }
 
-// ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
-
-/**
- * Получить тарифный план пользователя
- * @returns {string}
- */
-function getUserPlan() {
-    // TODO: Реализовать получение плана из БД или localStorage
-    // Пока возвращаем BUSINESS для администратора
-    if (window.currentSupabaseUser?.role === 'admin') {
-        return PLANS.BUSINESS;
-    }
-    return PLANS.FREE; // По умолчанию FREE
-}
-
 /**
  * Проверить, загружен ли модуль
- * @param {string} moduleId
- * @returns {boolean}
  */
-export function isModuleLoaded(moduleId) {
+function isModuleLoaded(moduleId) {
     return moduleStates.get(moduleId) === MODULE_STATUS.LOADED;
 }
 
 /**
  * Получить все зарегистрированные модули
- * @returns {Array}
  */
-export function getAllModules() {
+function getAllModules() {
     return Array.from(modules.entries()).map(([id, module]) => ({
         id,
         name: module.name,
