@@ -526,14 +526,8 @@
         </main>
     </div>
     
-    <!-- Подключаем утилиты и компоненты -->
-    <script src="js/utils/helpers.js"></script>
-    <script src="js/ui/animations.js"></script>
-    <script src="js/core/permissions.js"></script>  <!-- ДОБАВИТЬ ЭТО -->
-    <script type="module">
-        import { initIndexPage } from './js/pages/index.js';
-        initIndexPage();
-    </script>
+    <!-- ========== УНИВЕРСАЛЬНЫЙ ЗАГРУЗЧИК МОДУЛЕЙ ========== -->
+    <script type="module" src="js/core/moduleLoader.js"></script>
     <script src="layout.js"></script>
 </body>
 </html>
