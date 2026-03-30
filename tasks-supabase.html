@@ -750,7 +750,7 @@
     <!-- Загружаем модуль задач (обычный скрипт, без type="module") -->
     <script src="js/modules/tasks/index.js"></script>
     
-    <!-- Инициализация - проверяем пользователя и загружаем модуль -->
+    <!-- Инициализация - проверяем пользователя с интервалом -->
     <script>
         (function init() {
             // Проверяем, что реестр и модуль загружены
@@ -782,19 +782,46 @@
                 });
             }
             
-            // Проверяем, что пользователь загружен
-            if (window.currentSupabaseUser) {
-                console.log('[init] Пользователь уже загружен:', window.currentSupabaseUser.name);
-                loadTasksModule();
-                return;
+            // Проверяем пользователя с интервалом
+            let checkCount = 0;
+            const maxChecks = 50; // 5 секунд максимум
+            
+            function checkUser() {
+                checkCount++;
+                
+                if (window.currentSupabaseUser) {
+                    console.log('[init] Пользователь найден (проверка ' + checkCount + '):', window.currentSupabaseUser.name);
+                    loadTasksModule();
+                    return true;
+                }
+                
+                if (checkCount >= maxChecks) {
+                    console.error('[init] Пользователь не загружен после ' + maxChecks + ' попыток');
+                    // Fallback - пробуем загрузить без проверки прав
+                    console.log('[init] Используем fallback без проверки прав');
+                    import('./js/pages/tasks.js').then(module => {
+                        module.initTasksPage();
+                    });
+                    return false;
+                }
+                
+                if (checkCount === 1) {
+                    console.log('[init] Ожидаем загрузку пользователя...');
+                }
+                setTimeout(checkUser, 100);
+                return false;
             }
             
-            // Если пользователь еще не загружен, подписываемся на событие
-            console.log('[init] Ожидаем загрузку пользователя...');
+            // Начинаем проверку
+            checkUser();
+            
+            // Также подписываемся на событие на всякий случай
             window.addEventListener('userLoaded', function onUserLoaded(event) {
-                console.log('[init] Пользователь загружен:', event.detail.name);
-                window.removeEventListener('userLoaded', onUserLoaded);
-                loadTasksModule();
+                console.log('[init] Событие userLoaded получено:', event.detail.name);
+                // Если модуль еще не загружен, загружаем
+                if (window.CRM?.Registry && window.tasksModule) {
+                    loadTasksModule();
+                }
             });
         })();
     </script>
