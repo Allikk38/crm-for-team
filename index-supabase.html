@@ -15,16 +15,19 @@
       - Рейтинг агентов
       - Прогресс проекта
       - Приветствие пользователя
+      - ДИНАМИЧЕСКАЯ СИСТЕМА ВИДЖЕТОВ (новая функциональность)
     
     ЗАВИСИМОСТИ:
       - CSS: base.css, theme.css, components.css, dashboard.css, responsive.css, animations.css
       - JS: js/pages/index.js, layout.js
       - Таблицы: tasks, complexes, profiles
+      - НОВОЕ: js/components/dashboard-container.js, css/dashboard-grid.css
     
     ИСТОРИЯ:
       - 27.03.2026: Создание supabase-версии дашборда
       - 27.03.2026: Исправлены вызовы функций для window.sidebar
       - 27.03.2026: Рефакторинг — логика вынесена в js/pages/index.js
+      - 30.03.2026: Добавлена система виджетов (сохранена обратная совместимость)
     ============================================
     -->
     
@@ -59,6 +62,10 @@
     <link rel="stylesheet" href="css/modal.css">
     <link rel="stylesheet" href="css/responsive.css">
     <link rel="stylesheet" href="css/animations.css">
+    
+    <!-- НОВЫЕ СТИЛИ ДЛЯ ВИДЖЕТОВ -->
+    <link rel="stylesheet" href="css/dashboard-grid.css">
+    <link rel="stylesheet" href="css/widgets.css">
     
     <style>
         /* Анимация для KPI карточек */
@@ -369,6 +376,27 @@
             100% { background-position: -200% 0; }
         }
         
+        /* НОВЫЕ СТИЛИ ДЛЯ СОВМЕСТНОГО ОТОБРАЖЕНИЯ */
+        .dashboard-widgets-section {
+            margin-top: 32px;
+            border-top: 2px solid var(--card-border);
+            padding-top: 32px;
+        }
+        
+        .dashboard-widgets-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .dashboard-widgets-title i {
+            color: var(--accent);
+            font-size: 1.8rem;
+        }
+        
         @media (max-width: 768px) {
             .analytics-section {
                 grid-template-columns: 1fr;
@@ -376,6 +404,10 @@
             
             .dashboard .card p {
                 font-size: 1.5rem;
+            }
+            
+            .dashboard-widgets-title {
+                font-size: 1.2rem;
             }
         }
     </style>
@@ -415,6 +447,8 @@
                     </div>
                 </div>
             </div>
+            
+            <!-- СУЩЕСТВУЮЩИЙ КОНТЕНТ (полностью сохранен) -->
             
             <!-- Базовые KPI карточки -->
             <div class="dashboard">
@@ -523,11 +557,87 @@
                     </p>
                 </div>
             </div>
+            
+            <!-- НОВАЯ СЕКЦИЯ: Динамические виджеты (добавлена, не удаляет существующий контент) -->
+            <div class="dashboard-widgets-section">
+                <div class="dashboard-widgets-title">
+                    <i class="fas fa-puzzle-piece"></i>
+                    <span>Мои виджеты</span>
+                    <button id="toggleWidgetsBtn" style="margin-left: auto; padding: 6px 12px; font-size: 12px; background: var(--hover-bg); border: 1px solid var(--card-border); border-radius: 8px; cursor: pointer;">
+                        <i class="fas fa-chevron-up"></i> Свернуть
+                    </button>
+                </div>
+                <div id="dashboardWidgetsContainer" style="min-height: 200px;">
+                    <div style="display: flex; justify-content: center; align-items: center; height: 200px;">
+                        <div class="widget-loading">
+                            <div class="widget-spinner"></div>
+                            <span>Загрузка виджетов...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </main>
     </div>
     
     <!-- ========== УНИВЕРСАЛЬНЫЙ ЗАГРУЗЧИК МОДУЛЕЙ ========== -->
     <script type="module" src="js/core/moduleLoader.js"></script>
     <script src="layout.js"></script>
+    
+    <!-- Инициализация виджетов (дополнительная, не мешает основной логике) -->
+    <script type="module">
+        import DashboardContainer from './js/components/dashboard-container.js';
+        
+        // Ждем загрузки страницы и модулей
+        window.addEventListener('load', async () => {
+            console.log('[index] Инициализация виджетов...');
+            
+            // Ждем немного для загрузки всех модулей
+            setTimeout(async () => {
+                const widgetsContainer = document.getElementById('dashboardWidgetsContainer');
+                const toggleBtn = document.getElementById('toggleWidgetsBtn');
+                let dashboard = null;
+                let widgetsVisible = true;
+                
+                if (widgetsContainer && window.CRM?.DashboardContainer) {
+                    try {
+                        dashboard = new DashboardContainer(widgetsContainer);
+                        await dashboard.init();
+                        console.log('[index] Виджеты загружены');
+                        
+                        // Добавляем кнопку сворачивания
+                        if (toggleBtn) {
+                            toggleBtn.onclick = () => {
+                                widgetsVisible = !widgetsVisible;
+                                if (widgetsVisible) {
+                                    widgetsContainer.style.display = 'block';
+                                    toggleBtn.innerHTML = '<i class="fas fa-chevron-up"></i> Свернуть';
+                                } else {
+                                    widgetsContainer.style.display = 'none';
+                                    toggleBtn.innerHTML = '<i class="fas fa-chevron-down"></i> Развернуть';
+                                }
+                            };
+                        }
+                    } catch (error) {
+                        console.error('[index] Ошибка загрузки виджетов:', error);
+                        widgetsContainer.innerHTML = `
+                            <div class="dashboard-empty">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <p>Не удалось загрузить виджеты</p>
+                                <button onclick="location.reload()">Обновить</button>
+                            </div>
+                        `;
+                    }
+                } else if (widgetsContainer) {
+                    widgetsContainer.innerHTML = `
+                        <div class="dashboard-empty">
+                            <i class="fas fa-info-circle"></i>
+                            <p>Система виджетов загружается...</p>
+                            <small>Пожалуйста, подождите</small>
+                        </div>
+                    `;
+                }
+            }, 1000);
+        });
+    </script>
 </body>
 </html>
