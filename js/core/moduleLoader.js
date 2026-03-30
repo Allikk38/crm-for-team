@@ -16,7 +16,7 @@
  * 
  * ИСТОРИЯ:
  *   - 30.03.2026: Создание универсального загрузчика
- *   - 30.03.2026: Исправлено ожидание загрузки пользователя
+ *   - 30.03.2026: Добавлена загрузка supabase-session
  * ============================================
  */
 
@@ -74,19 +74,16 @@ function loadScript(src, isModule = false) {
     });
 }
 
-// Функция для ожидания загрузки пользователя
-function waitForUser() {
-    return new Promise((resolve) => {
-        if (window.currentSupabaseUser) {
-            resolve(window.currentSupabaseUser);
-            return;
-        }
-        
-        window.addEventListener('userLoaded', function onUserLoaded(e) {
-            window.removeEventListener('userLoaded', onUserLoaded);
-            resolve(e.detail);
-        });
-    });
+// Функция для загрузки пользователя
+async function loadUser() {
+    // Загружаем supabase-session как модуль
+    await loadScript('js/core/supabase-session.js', true);
+    
+    // Импортируем и вызываем checkSupabaseSession
+    const { checkSupabaseSession } = await import('./supabase-session.js');
+    await checkSupabaseSession();
+    
+    console.log('[moduleLoader] Пользователь загружен:', window.currentSupabaseUser?.name);
 }
 
 // Основная функция загрузки
@@ -122,14 +119,12 @@ async function loadModule() {
             await loadScript(script, isModule);
         }
         
+        // Загружаем пользователя
+        await loadUser();
+        
         // Загружаем модуль
         const moduleScript = `js/modules/${moduleId}/index.js`;
         await loadScript(moduleScript);
-        
-        // Ждем загрузки пользователя
-        console.log('[moduleLoader] Ожидаем загрузку пользователя...');
-        await waitForUser();
-        console.log('[moduleLoader] Пользователь загружен:', window.currentSupabaseUser?.name);
         
         // Ждем регистрации модуля в реестре
         let attempts = 0;
@@ -160,7 +155,9 @@ async function loadModule() {
             checkModule();
         });
     } else {
-        // Если нет модуля, инициализируем страницу напрямую
+        // Если нет модуля, загружаем пользователя и инициализируем страницу напрямую
+        await loadUser();
+        
         const initName = pageName.replace('-supabase.html', '');
         if (MODULE_INIT[initName]) {
             await MODULE_INIT[initName]();
