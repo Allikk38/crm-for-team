@@ -740,17 +740,31 @@
             </div>
         </div>
     </div>
-    
-    <!-- ========== ПОДКЛЮЧАЕМ ЗАВИСИМОСТИ ========== -->
-    <!-- Подключаем утилиты и компоненты (ОБЯЗАТЕЛЬНО ДО импорта модуля) -->
+ <!-- Подключаем зависимости -->
     <script src="js/utils/helpers.js"></script>
     <script src="js/components/kanban.js"></script>
     <script src="js/ui/animations.js"></script>
-    <script src="js/core/permissions.js"></script>  <!-- ДОБАВИТЬ ЭТО -->
+    <script src="js/core/permissions.js"></script>
+    <script src="js/core/registry.js"></script>  <!-- НОВЫЙ -->
+    
+    <!-- Загружаем модуль через реестр -->
     <script type="module">
-        import { initTasksPage } from './js/pages/tasks.js';
-        initTasksPage();
+        import { tasksModule } from './js/modules/tasks/index.js';
+        
+        // Регистрируем и загружаем модуль
+        if (window.CRM?.Registry) {
+            window.CRM.Registry.registerModule(tasksModule);
+            window.CRM.Registry.loadModule('tasks').then(() => {
+                console.log('[tasks] Модуль загружен через реестр');
+            });
+        } else {
+            console.error('[tasks] Реестр не загружен, используем fallback');
+            import('./js/pages/tasks.js').then(module => {
+                module.initTasksPage();
+            });
+        }
     </script>
-    <script src="layout.js"></script>
+    
+    <script src="layout.js"></script>   
 </body>
 </html>
