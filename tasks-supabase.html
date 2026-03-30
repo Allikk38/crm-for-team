@@ -740,29 +740,33 @@
             </div>
         </div>
     </div>
-    <!-- ========== ПОДКЛЮЧАЕМ ЗАВИСИМОСТИ (обычные скрипты) ========== -->
+   
+    <!-- ========== ПОДКЛЮЧАЕМ ЗАВИСИМОСТИ ========== -->
     <script src="js/utils/helpers.js"></script>
     <script src="js/components/kanban.js"></script>
     <script src="js/ui/animations.js"></script>
+    <script src="js/core/supabase.js"></script>
     <script src="js/core/permissions.js"></script>
     <script src="js/core/registry.js"></script>
     
     <!-- Загружаем модуль задач (обычный скрипт, без type="module") -->
     <script src="js/modules/tasks/index.js"></script>
     
-    <!-- Инициализация - проверяем пользователя с интервалом -->
-    <script>
-        (function init() {
-            // Проверяем, что реестр и модуль загружены
-            if (!window.CRM?.Registry || !window.tasksModule) {
-                console.warn('[init] Ожидаем загрузку реестра или модуля...');
-                setTimeout(init, 100);
-                return;
-            }
-            
-            // Функция для загрузки модуля задач
-            function loadTasksModule() {
-                console.log('[init] Загружаем модуль задач');
+    <!-- Инициализация пользователя и модулей -->
+    <script type="module">
+        import { checkSupabaseSession, getCurrentSupabaseUser } from './js/core/supabase-session.js';
+        
+        console.log('[init] Загрузка пользователя...');
+        
+        // Загружаем пользователя
+        await checkSupabaseSession();
+        
+        console.log('[init] Пользователь загружен:', window.currentSupabaseUser);
+        
+        // Ждем загрузки реестра и модуля
+        function waitForRegistryAndModule() {
+            if (window.CRM?.Registry && window.tasksModule) {
+                console.log('[init] Реестр и модуль готовы');
                 
                 // Регистрируем модуль
                 window.CRM.Registry.registerModule(window.tasksModule);
@@ -776,54 +780,16 @@
                     import('./js/pages/tasks.js').then(module => {
                         console.log('[tasks] Используем fallback');
                         module.initTasksPage();
-                    }).catch(fallbackErr => {
-                        console.error('[tasks] Fallback тоже не сработал:', fallbackErr);
                     });
                 });
+            } else {
+                console.log('[init] Ожидаем загрузку реестра и модуля...');
+                setTimeout(waitForRegistryAndModule, 100);
             }
-            
-            // Проверяем пользователя с интервалом
-            let checkCount = 0;
-            const maxChecks = 50; // 5 секунд максимум
-            
-            function checkUser() {
-                checkCount++;
-                
-                if (window.currentSupabaseUser) {
-                    console.log('[init] Пользователь найден (проверка ' + checkCount + '):', window.currentSupabaseUser.name);
-                    loadTasksModule();
-                    return true;
-                }
-                
-                if (checkCount >= maxChecks) {
-                    console.error('[init] Пользователь не загружен после ' + maxChecks + ' попыток');
-                    // Fallback - пробуем загрузить без проверки прав
-                    console.log('[init] Используем fallback без проверки прав');
-                    import('./js/pages/tasks.js').then(module => {
-                        module.initTasksPage();
-                    });
-                    return false;
-                }
-                
-                if (checkCount === 1) {
-                    console.log('[init] Ожидаем загрузку пользователя...');
-                }
-                setTimeout(checkUser, 100);
-                return false;
-            }
-            
-            // Начинаем проверку
-            checkUser();
-            
-            // Также подписываемся на событие на всякий случай
-            window.addEventListener('userLoaded', function onUserLoaded(event) {
-                console.log('[init] Событие userLoaded получено:', event.detail.name);
-                // Если модуль еще не загружен, загружаем
-                if (window.CRM?.Registry && window.tasksModule) {
-                    loadTasksModule();
-                }
-            });
-        })();
+        }
+        
+        // Начинаем ожидание
+        waitForRegistryAndModule();
     </script>
     
     <script src="layout.js"></script>
