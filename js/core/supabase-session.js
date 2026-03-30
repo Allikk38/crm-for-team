@@ -11,6 +11,10 @@
  * 
  * Использование: импортировать в новые HTML-страницы вместо старого auth.js
  * ============================================
+ * 
+ * ИСТОРИЯ ОБНОВЛЕНИЙ:
+ *   - 30.03.2026: Добавлено поле permission_sets для поддержки новой системы прав
+ * ============================================
  */
 
 import { supabase } from './supabase.js';
@@ -70,16 +74,20 @@ export async function checkSupabaseSession() {
                 email: user.email,
                 name: profile?.name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Пользователь',
                 role: profile?.role || 'agent',
+                permission_sets: profile?.permission_sets || ['BASE'], // НОВОЕ ПОЛЕ для системы прав
                 github_username: profile?.github_username || user.email?.split('@')[0] || user.id
             };
-            // После установки currentSupabaseUser
+            
+            // После установки currentSupabaseUser отправляем событие
             window.dispatchEvent(new CustomEvent('userLoaded', { detail: currentSupabaseUser }));
+            
             // Обновляем глобальную переменную для layout.js
             updateGlobalUser();
             
             console.log('[supabase-session] Пользователь загружен:', {
                 name: currentSupabaseUser.name,
                 role: currentSupabaseUser.role,
+                permission_sets: currentSupabaseUser.permission_sets,
                 github_username: currentSupabaseUser.github_username
             });
             
