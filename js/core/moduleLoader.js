@@ -9,13 +9,14 @@
  *   - Инициализирует страницу через реестр модулей
  *   - Ждет загрузки пользователя перед проверкой прав
  *   - Загружает сервис дашбордов для главной страницы
- *   - Корректный порядок загрузки зависимостей модулей
+ *   - Загружает виджеты для дашборда
  * 
  * ИСТОРИЯ:
  *   - 30.03.2026: Создание универсального загрузчика
  *   - 30.03.2026: Добавлена загрузка supabase-session
  *   - 30.03.2026: Добавлена загрузка сервиса дашбордов
  *   - 30.03.2026: Исправлен порядок загрузки зависимостей модулей
+ *   - 30.03.2026: Добавлена загрузка виджетов для дашборда
  * ============================================
  */
 
@@ -127,6 +128,37 @@ async function registerAllModules() {
     }
 }
 
+// Функция для загрузки виджетов (для дашборда)
+async function loadWidgets() {
+    console.log('[moduleLoader] Загрузка виджетов...');
+    
+    // Инициализируем глобальный объект для виджетов
+    if (typeof window !== 'undefined') {
+        window.CRM = window.CRM || {};
+        window.CRM.Widgets = window.CRM.Widgets || {};
+    }
+    
+    // Загружаем виджет MyTasksWidget
+    try {
+        const { default: MyTasksWidget } = await import('../components/widgets/my-tasks-widget.js');
+        window.CRM.Widgets.MyTasksWidget = MyTasksWidget;
+        console.log('[moduleLoader] ✅ Виджет MyTasksWidget загружен');
+    } catch (error) {
+        console.error('[moduleLoader] ❌ Ошибка загрузки MyTasksWidget:', error);
+    }
+    
+    // TODO: Загрузить другие виджеты
+    // try {
+    //     const { default: TasksSummaryWidget } = await import('../components/widgets/tasks-summary-widget.js');
+    //     window.CRM.Widgets.TasksSummaryWidget = TasksSummaryWidget;
+    //     console.log('[moduleLoader] ✅ Виджет TasksSummaryWidget загружен');
+    // } catch (error) {
+    //     console.error('[moduleLoader] ❌ Ошибка загрузки TasksSummaryWidget:', error);
+    // }
+    
+    console.log('[moduleLoader] Виджеты загружены, доступно:', Object.keys(window.CRM.Widgets));
+}
+
 // Основная функция загрузки
 async function loadModule() {
     const pageName = getCurrentPage();
@@ -169,6 +201,9 @@ async function loadModule() {
     
     // Регистрируем ВСЕ модули в реестре
     await registerAllModules();
+    
+    // Загружаем виджеты (особенно важно для дашборда)
+    await loadWidgets();
     
     // Если есть модуль для текущей страницы
     if (moduleId && MODULE_INIT[moduleId]) {
@@ -220,9 +255,15 @@ async function loadModule() {
             const dashboard = await window.CRM.Dashboards.getActiveDashboard();
             if (dashboard) {
                 console.log('[moduleLoader] Дашборд загружен:', dashboard.name);
+                
                 // Отправляем событие о загрузке дашборда
                 if (window.CRM?.EventBus) {
                     window.CRM.EventBus.emit('dashboard:loaded', dashboard);
+                }
+                
+                // Если есть виджеты, можно их отобразить
+                if (window.CRM.Widgets && dashboard.layout?.widgets) {
+                    console.log('[moduleLoader] Виджеты для отображения:', dashboard.layout.widgets.length);
                 }
             }
         } catch (error) {
