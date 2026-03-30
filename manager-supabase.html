@@ -428,15 +428,8 @@
         </main>
     </div>
     
-    <!-- Подключаем утилиты и компоненты -->
-    <script src="js/utils/helpers.js"></script>
-    <script src="js/ui/animations.js"></script>
-
-    <!-- Подключаем модуль страницы (логика вынесена) -->
-    <script type="module">
-        import { initManagerPage } from './js/pages/manager.js';
-        initManagerPage();
-    </script>
+    <!-- ========== УНИВЕРСАЛЬНЫЙ ЗАГРУЗЧИК МОДУЛЕЙ ========== -->
+    <script type="module" src="js/core/moduleLoader.js"></script>
     <script src="layout.js"></script>
 </body>
 </html>
