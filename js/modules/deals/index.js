@@ -1,17 +1,17 @@
 /**
  * ============================================
  * ФАЙЛ: js/modules/deals/index.js
- * РОЛЬ: Модуль сделок (заявок) - логика и компоненты
+ * РОЛЬ: Модуль сделок - регистрация и инициализация
  * 
  * ОСОБЕННОСТИ:
- *   - Kanban-доска с 6 статусами
- *   - Drag-and-drop для изменения статуса
- *   - Фильтрация по поиску, типу, агенту
- *   - Интеграция с объектами и контрагентами
+ *   - Регистрация модуля в реестре
+ *   - Определение страниц и виджетов
+ *   - Инициализация Kanban-доски со сделками
  * 
  * ЗАВИСИМОСТИ:
  *   - js/core/registry.js
  *   - js/core/permissions.js
+ *   - js/services/deals-supabase.js
  * 
  * ИСТОРИЯ:
  *   - 30.03.2026: Создание модуля сделок
@@ -25,11 +25,15 @@ const dealsModule = {
     id: 'deals',
     name: 'Сделки',
     version: '2.0.0',
-    description: 'Управление сделками с Kanban-доской и фильтрацией',
+    description: 'Управление заявками и сделками с Kanban-доской на 6 статусов',
     
+    // Необходимые разрешения
     requiredPermissions: ['view_own_deals'],
+    
+    // Доступные тарифы
     requiredPlans: ['pro', 'business'],
     
+    // Страницы модуля
     pages: {
         'deals-supabase.html': {
             title: 'Сделки',
@@ -38,25 +42,36 @@ const dealsModule = {
         }
     },
     
+    // Виджеты для дашборда
     widgets: {
         'deals-summary': {
             title: 'Статистика сделок',
-            component: null,
+            component: null, // TODO: создать компонент
             defaultSize: { w: 2, h: 2 },
             permissions: ['view_own_deals']
         },
         'deals-pipeline': {
-            title: 'Воронка продаж',
-            component: null,
-            defaultSize: { w: 3, h: 2 },
-            permissions: ['view_team_deals']
+            title: 'Воронка сделок',
+            component: null, // TODO: создать компонент
+            defaultSize: { w: 3, h: 3 },
+            permissions: ['view_own_deals']
+        },
+        'overdue-deals': {
+            title: 'Просроченные сделки',
+            component: null, // TODO: создать компонент
+            defaultSize: { w: 2, h: 2 },
+            permissions: ['view_own_deals']
         }
     },
     
-    dependencies: [],
+    // Зависимости от других модулей
+    dependencies: ['tasks'],
     
+    // Callback при загрузке модуля
     onLoad: async () => {
         console.log('[deals-module] Модуль сделок загружен, инициализация...');
+        
+        // Динамически импортируем и инициализируем страницу
         try {
             const { initDealsPage } = await import('../../pages/deals.js');
             if (typeof initDealsPage === 'function') {
@@ -68,12 +83,14 @@ const dealsModule = {
         }
     },
     
+    // Callback при выгрузке модуля
     onUnload: async () => {
         console.log('[deals-module] Модуль сделок выгружен');
+        // Очистка событий и данных
     }
 };
 
-// Делаем глобальным
+// Делаем глобальным для доступа из других скриптов
 window.dealsModule = dealsModule;
 
 console.log('[deals-module] Модуль готов к регистрации');
