@@ -326,7 +326,6 @@ if (typeof window !== 'undefined') {
 
 // ========== ЭКСПОРТ ГЛОБАЛЬНОГО ОБЪЕКТА ==========
 
-window.CRM = window.CRM || {};
 window.CRM.Permissions = {
     hasPermission,
     hasAnyPermission,
@@ -348,7 +347,7 @@ window.CRM.Permissions = {
     },
     getPermissionSetInfo: (setName) => PERMISSION_SETS[setName] || null,
     getAllPermissionSets: () => ({ ...PERMISSION_SETS }),
-    updatePermissionsCache  // 👈 Добавлена запятая выше и сам метод
+    updatePermissionsCache: updatePermissionsCache  // 👈 ДОБАВИТЬ ЭТУ СТРОКУ
 };
 
 console.log('[permissions] Модуль загружен');
