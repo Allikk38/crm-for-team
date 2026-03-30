@@ -38,13 +38,13 @@ const PERMISSION_SETS = {
             'create_tasks',
             'edit_own_tasks',
             'delete_own_tasks',
-            // Права для сделок
-            'view_own_deals',      // Просмотр своих сделок
-            'create_deals',         // Создание сделок
-            'edit_own_deals',       // Редактирование своих сделок
-            'update_deal_status',   // Изменение статуса сделки
+            'view_own_deals',
+            'create_deals',
+            'edit_own_deals',
             'view_complexes',
-            'add_comments'
+            'add_comments',
+            // Права для контрагентов (агент только просмотр)
+            'view_counterparties'      // 👈 ДОБАВИТЬ
         ]
     },
     MANAGER: {
@@ -54,14 +54,16 @@ const PERMISSION_SETS = {
             'view_team_tasks',
             'assign_tasks',
             'edit_any_task',
-            // Права для сделок (менеджерские)
-            'view_team_deals',      // Просмотр сделок команды
-            'edit_any_deal',        // Редактирование любых сделок
-            'delete_deals',         // Удаление сделок
+            'view_team_deals',
+            'edit_any_deal',
             'view_team_kpi',
             'manage_team',
             'view_all_complexes',
-            'edit_all_complexes'
+            'edit_all_complexes',
+            // Права для контрагентов (менеджер может создавать и редактировать)
+            'create_counterparties',    // 👈 ДОБАВИТЬ
+            'edit_all_counterparties',  // 👈 ДОБАВИТЬ
+            'export_counterparties'     // 👈 ДОБАВИТЬ
         ]
     },
     ADMIN: {
@@ -74,7 +76,9 @@ const PERMISSION_SETS = {
             'manage_plans',
             'system_settings',
             'view_all_data',
-            'delete_any_data'
+            'delete_any_data',
+            // Права для контрагентов (администратор может удалять)
+            'delete_counterparties'      // 👈 ДОБАВИТЬ
         ]
     }
 };
