@@ -746,6 +746,12 @@
     <script src="js/utils/helpers.js"></script>
     <script src="js/components/kanban.js"></script>
     <script src="js/ui/animations.js"></script>
+    <script src="js/core/permissions.js"></script>  <!-- ДОБАВИТЬ ЭТО -->
+    <script type="module">
+        import { initTasksPage } from './js/pages/tasks.js';
+        initTasksPage();
+    </script>
+    <script src="layout.js"></script>
 
     <!-- Подключаем модуль страницы (логика вынесена) -->
     <script type="module">
