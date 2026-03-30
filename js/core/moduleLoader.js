@@ -9,16 +9,13 @@
  *   - Инициализирует страницу через реестр модулей
  *   - Ждет загрузки пользователя перед проверкой прав
  *   - Загружает сервис дашбордов для главной страницы
- * 
- * ИСПОЛЬЗОВАНИЕ:
- *   В HTML странице достаточно:
- *   <script type="module" src="js/core/moduleLoader.js"></script>
- *   <script src="layout.js"></script>
+ *   - Корректный порядок загрузки зависимостей модулей
  * 
  * ИСТОРИЯ:
  *   - 30.03.2026: Создание универсального загрузчика
  *   - 30.03.2026: Добавлена загрузка supabase-session
  *   - 30.03.2026: Добавлена загрузка сервиса дашбордов
+ *   - 30.03.2026: Исправлен порядок загрузки зависимостей модулей
  * ============================================
  */
 
@@ -102,15 +99,36 @@ async function loadServices() {
     }
 }
 
+// Функция для загрузки всех модулей (для зависимостей)
+async function loadAllModules() {
+    const modulesToLoad = ['tasks', 'deals', 'complexes', 'calendar', 'counterparties'];
+    
+    for (const moduleId of modulesToLoad) {
+        const moduleScript = `js/modules/${moduleId}/index.js`;
+        try {
+            await loadScript(moduleScript);
+            console.log(`[moduleLoader] Модуль ${moduleId} загружен`);
+        } catch (error) {
+            console.warn(`[moduleLoader] Модуль ${moduleId} не найден или не загружен:`, error);
+        }
+    }
+}
+
+// Функция для регистрации всех модулей
+async function registerAllModules() {
+    const modulesToRegister = ['tasks', 'deals', 'complexes', 'calendar', 'counterparties'];
+    
+    for (const moduleId of modulesToRegister) {
+        const moduleVar = window[`${moduleId}Module`];
+        if (moduleVar && window.CRM?.Registry) {
+            window.CRM.Registry.registerModule(moduleVar);
+            console.log(`[moduleLoader] Модуль ${moduleId} зарегистрирован в реестре`);
+        }
+    }
+}
+
 // Основная функция загрузки
 async function loadModule() {
-    // В функции loadModule() перед загрузкой сервисов добавляем:
-    
-    // Загружаем CSS для виджетов
-    const widgetCSS = document.createElement('link');
-    widgetCSS.rel = 'stylesheet';
-    widgetCSS.href = 'css/widgets.css';
-    document.head.appendChild(widgetCSS);
     const pageName = getCurrentPage();
     const moduleId = PAGE_TO_MODULE[pageName];
     
@@ -126,29 +144,35 @@ async function loadModule() {
         await loadScript(script);
     }
     
-    // Если есть модуль, загружаем через реестр
+    // Загружаем core зависимости
+    const coreScripts = [
+        'js/core/supabase.js',
+        'js/core/eventBus.js',
+        'js/core/planManager.js',
+        'js/core/permissions.js',
+        'js/core/registry.js'
+    ];
+    
+    for (const script of coreScripts) {
+        const isModule = script === 'js/core/supabase.js';
+        await loadScript(script, isModule);
+    }
+    
+    // Загружаем пользователя
+    await loadUser();
+    
+    // Загружаем сервисы
+    await loadServices();
+    
+    // Загружаем ВСЕ модули для поддержки зависимостей
+    await loadAllModules();
+    
+    // Регистрируем ВСЕ модули в реестре
+    await registerAllModules();
+    
+    // Если есть модуль для текущей страницы
     if (moduleId && MODULE_INIT[moduleId]) {
-        // Загружаем core зависимости
-        const coreScripts = [
-            'js/core/supabase.js',
-            'js/core/eventBus.js',
-            'js/core/planManager.js',
-            'js/core/permissions.js',
-            'js/core/registry.js'
-        ];
-        
-        for (const script of coreScripts) {
-            const isModule = script === 'js/core/supabase.js';
-            await loadScript(script, isModule);
-        }
-        
-        // Загружаем пользователя
-        await loadUser();
-        
-        // Загружаем сервисы (включая дашборды)
-        await loadServices();
-        
-        // Загружаем модуль
+        // Загружаем модуль страницы
         const moduleScript = `js/modules/${moduleId}/index.js`;
         await loadScript(moduleScript);
         
@@ -181,12 +205,7 @@ async function loadModule() {
             checkModule();
         });
     } else {
-        // Если нет модуля, загружаем пользователя и инициализируем страницу напрямую
-        await loadUser();
-        
-        // Загружаем сервисы
-        await loadServices();
-        
+        // Если нет модуля, инициализируем страницу напрямую
         const initName = pageName.replace('-supabase.html', '');
         if (MODULE_INIT[initName]) {
             await MODULE_INIT[initName]();
