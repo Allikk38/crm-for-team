@@ -506,15 +506,69 @@
         </div>
     </div>
     
-    <!-- Подключаем утилиты и компоненты -->
+    <!-- ========== ПОДКЛЮЧАЕМ ЗАВИСИМОСТИ (МОДУЛЬНАЯ АРХИТЕКТУРА) ========== -->
     <script src="js/utils/helpers.js"></script>
     <script src="js/ui/animations.js"></script>
-
-    <!-- Подключаем модуль страницы (логика вынесена) -->
+    <script src="js/core/supabase.js" type="module"></script>
+    <script src="js/core/eventBus.js"></script>
+    <script src="js/core/planManager.js"></script>
+    <script src="js/core/permissions.js"></script>
+    <script src="js/core/registry.js"></script>
+    <script src="js/modules/complexes/index.js"></script>
+    
+    <!-- Инициализация модуля -->
     <script type="module">
-        import { initComplexesPage } from './js/pages/complexes.js';
-        initComplexesPage();
+        import { checkSupabaseSession } from './js/core/supabase-session.js';
+        
+        console.log('[complexes-init] Загрузка пользователя...');
+        
+        // Загружаем пользователя
+        await checkSupabaseSession();
+        
+        console.log('[complexes-init] Пользователь загружен:', window.currentSupabaseUser?.name);
+        
+        // Ждем загрузки реестра и модуля с таймаутом
+        let attempts = 0;
+        const maxAttempts = 50;
+        
+        function waitForRegistryAndModule() {
+            attempts++;
+            
+            if (window.CRM?.Registry && window.complexesModule) {
+                console.log('[complexes-init] Реестр и модуль готовы');
+                
+                // Регистрируем модуль
+                window.CRM.Registry.registerModule(window.complexesModule);
+                
+                // Загружаем модуль
+                window.CRM.Registry.loadModule('complexes').then(() => {
+                    console.log('[complexes] Модуль загружен через реестр');
+                }).catch(err => {
+                    console.error('[complexes] Ошибка загрузки модуля:', err);
+                    // Fallback на прямую загрузку
+                    import('./js/pages/complexes.js').then(module => {
+                        console.log('[complexes] Используем fallback');
+                        module.initComplexesPage();
+                    });
+                });
+            } else if (attempts >= maxAttempts) {
+                console.error('[complexes-init] Таймаут ожидания реестра и модуля');
+                // Fallback
+                import('./js/pages/complexes.js').then(module => {
+                    module.initComplexesPage();
+                });
+            } else {
+                if (attempts === 1 || attempts % 10 === 0) {
+                    console.log(`[complexes-init] Ожидаем загрузку реестра и модуля... (${attempts}/${maxAttempts})`);
+                }
+                setTimeout(waitForRegistryAndModule, 100);
+            }
+        }
+        
+        // Начинаем ожидание
+        setTimeout(waitForRegistryAndModule, 100);
     </script>
+    
     <script src="layout.js"></script>
 </body>
 </html>
