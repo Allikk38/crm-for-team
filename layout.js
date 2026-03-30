@@ -3,8 +3,13 @@
  * ФАЙЛ: layout.js
  * РОЛЬ: Управление боковой навигационной панелью и шапкой
  * ОБНОВЛЕНИЕ: Поддержка Supabase, добавлена кнопка уведомлений
+ * ИСТОРИЯ:
+ *   - 30.03.2026: Переход на модульную загрузку
  * ============================================
  */
+
+// Импортируем вспомогательные функции
+import { escapeHtml } from './js/utils/helpers.js';
 
 // Состояние боковой панели
 let sidebarCollapsed = false;
@@ -72,13 +77,6 @@ function renderNavigation() {
     }
     
     container.innerHTML = html;
-}
-
-function escapeHtml(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
 }
 
 function initSidebar() {
@@ -334,6 +332,7 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
+// Глобальный объект для обратной совместимости
 window.sidebar = {
     initSidebar,
     toggleSidebar,

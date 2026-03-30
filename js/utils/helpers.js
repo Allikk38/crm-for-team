@@ -5,27 +5,26 @@
  * ЗАВИСИМОСТИ:
  *   - js/utils/constants.js (опционально)
  * ИСПОЛЬЗУЕТСЯ В: всех модулях
+ * 
+ * ИСТОРИЯ:
+ *   - 30.03.2026: Добавлены экспорты для модульной архитектуры
+ *   - 30.03.2026: Полный переход на модульную загрузку
  * ============================================
  */
 
-window.CRM = window.CRM || {};
-window.CRM.helpers = {};
-
 // Экранирование HTML
-function escapeHtml(text) {
+export function escapeHtml(text) {
     if (!text) return '';
-    var div = document.createElement('div');
+    const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
 }
-window.CRM.helpers.escapeHtml = escapeHtml;
-window.escapeHtml = escapeHtml; // Для обратной совместимости
 
 // Форматирование даты
-function formatDate(date, format = 'YYYY-MM-DD') {
+export function formatDate(date, format = 'YYYY-MM-DD') {
     if (!date) return '';
     
-    var d;
+    let d;
     if (typeof date === 'string') {
         d = new Date(date);
     } else {
@@ -34,11 +33,11 @@ function formatDate(date, format = 'YYYY-MM-DD') {
     
     if (isNaN(d.getTime())) return date;
     
-    var year = d.getFullYear();
-    var month = String(d.getMonth() + 1).padStart(2, '0');
-    var day = String(d.getDate()).padStart(2, '0');
-    var hours = String(d.getHours()).padStart(2, '0');
-    var minutes = String(d.getMinutes()).padStart(2, '0');
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
     
     if (format === 'YYYY-MM-DD') {
         return `${year}-${month}-${day}`;
@@ -50,60 +49,54 @@ function formatDate(date, format = 'YYYY-MM-DD') {
     
     return `${year}-${month}-${day}`;
 }
-window.CRM.helpers.formatDate = formatDate;
-window.formatDate = formatDate; // Для обратной совместимости
 
 // Отображение уведомлений (тосты)
-function showToast(type, message, duration = 3000) {
+export function showToast(type, message, duration = 3000) {
     // Удаляем существующие тосты
-    var existingToasts = document.querySelectorAll('.toast');
+    const existingToasts = document.querySelectorAll('.toast');
     existingToasts.forEach(toast => toast.remove());
     
-    var toast = document.createElement('div');
-    toast.className = 'toast toast-' + type;
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
     
-    var icon = '';
+    let icon = '';
     if (type === 'success') icon = 'fa-check-circle';
     else if (type === 'error') icon = 'fa-exclamation-circle';
     else if (type === 'warning') icon = 'fa-exclamation-triangle';
     else icon = 'fa-info-circle';
     
-    toast.innerHTML = '<i class="fas ' + icon + '"></i><span>' + escapeHtml(message) + '</span>';
+    toast.innerHTML = `<i class="fas ${icon}"></i><span>${escapeHtml(message)}</span>`;
     document.body.appendChild(toast);
     
-    setTimeout(function() {
+    setTimeout(() => {
         toast.style.animation = 'slideOut 0.3s ease';
-        setTimeout(function() { toast.remove(); }, 300);
+        setTimeout(() => toast.remove(), 300);
     }, duration);
 }
-window.CRM.helpers.showToast = showToast;
-window.showToast = showToast; // Для обратной совместимости
 
 // Получение текста статуса задачи
-function getTaskStatusText(status) {
-    var labels = window.CRM_CONSTANTS?.TASK_STATUS_LABELS || {
+export function getTaskStatusText(status) {
+    const labels = window.CRM_CONSTANTS?.TASK_STATUS_LABELS || {
         'todo': '📋 To Do',
         'in_progress': '⚙️ В работе',
         'done': '✅ Готово'
     };
     return labels[status] || status;
 }
-window.CRM.helpers.getTaskStatusText = getTaskStatusText;
 
 // Получение текста приоритета
-function getTaskPriorityText(priority) {
-    var labels = window.CRM_CONSTANTS?.TASK_PRIORITY_LABELS || {
+export function getTaskPriorityText(priority) {
+    const labels = window.CRM_CONSTANTS?.TASK_PRIORITY_LABELS || {
         'high': 'Высокий 🔴',
         'medium': 'Средний 🟡',
         'low': 'Низкий 🟢'
     };
     return labels[priority] || priority;
 }
-window.CRM.helpers.getTaskPriorityText = getTaskPriorityText;
 
 // Получение текста роли
-function getUserRoleText(role) {
-    var labels = window.CRM_CONSTANTS?.USER_ROLE_LABELS || {
+export function getUserRoleText(role) {
+    const labels = window.CRM_CONSTANTS?.USER_ROLE_LABELS || {
         'admin': '👑 Администратор',
         'manager': '📊 Менеджер',
         'agent': '🤵 Агент',
@@ -111,11 +104,10 @@ function getUserRoleText(role) {
     };
     return labels[role] || role;
 }
-window.CRM.helpers.getUserRoleText = getUserRoleText;
 
 // Получение текста статуса сделки
-function getDealStatusText(status) {
-    var labels = window.CRM_CONSTANTS?.DEAL_STATUS_LABELS || {
+export function getDealStatusText(status) {
+    const labels = window.CRM_CONSTANTS?.DEAL_STATUS_LABELS || {
         'new': '🆕 Новая',
         'contacted': '📞 Связались',
         'negotiation': '🤝 Переговоры',
@@ -125,28 +117,45 @@ function getDealStatusText(status) {
     };
     return labels[status] || status;
 }
-window.CRM.helpers.getDealStatusText = getDealStatusText;
 
 // Генерация уникального ID
-function generateId(prefix = '') {
+export function generateId(prefix = '') {
     return prefix + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
 }
-window.CRM.helpers.generateId = generateId;
 
 // Дебаунс для оптимизации
-function debounce(func, wait) {
-    var timeout;
-    return function executedFunction() {
-        var context = this;
-        var args = arguments;
-        var later = function() {
+export function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
             timeout = null;
-            func.apply(context, args);
+            func(...args);
         };
         clearTimeout(timeout);
         timeout = setTimeout(later, wait);
     };
 }
-window.CRM.helpers.debounce = debounce;
 
-console.log('[helpers.js] Загружены вспомогательные функции');
+// ========== ГЛОБАЛЬНАЯ РЕГИСТРАЦИЯ ДЛЯ ОБРАТНОЙ СОВМЕСТИМОСТИ ==========
+// Это нужно для скриптов, которые еще не переведены на модули
+if (typeof window !== 'undefined') {
+    window.CRM = window.CRM || {};
+    window.CRM.helpers = {
+        escapeHtml,
+        formatDate,
+        showToast,
+        getTaskStatusText,
+        getTaskPriorityText,
+        getUserRoleText,
+        getDealStatusText,
+        generateId,
+        debounce
+    };
+    
+    // Для обратной совместимости со старым кодом
+    window.escapeHtml = escapeHtml;
+    window.formatDate = formatDate;
+    window.showToast = showToast;
+}
+
+console.log('[helpers.js] Загружены вспомогательные функции (модульная версия)');

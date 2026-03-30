@@ -6,6 +6,7 @@
  * ИСТОРИЯ:
  *   - 30.03.2026: Создание виджета
  *   - 30.03.2026: Полный рефакторинг рендера
+ *   - 30.03.2026: Исправлена ошибка зависания при загрузке
  * ============================================
  */
 
@@ -41,42 +42,51 @@ class MyTasksWidget extends Widget {
     async loadTasks() {
         this.user = getCurrentSupabaseUser();
         if (!this.user) {
-            throw new Error('Пользователь не авторизован');
+            console.warn('[my-tasks-widget] Пользователь не авторизован');
+            this.tasks = [];
+            return [];
         }
         
-        const allTasks = await getTasks();
-        
-        let filtered = allTasks.filter(task => 
-            task.assigned_to === this.user.github_username
-        );
-        
-        if (this.settings.statusFilter) {
-            const statuses = this.settings.statusFilter.split(',');
-            filtered = filtered.filter(task => statuses.includes(task.status));
+        try {
+            const allTasks = await getTasks();
+            
+            let filtered = allTasks.filter(task => 
+                task.assigned_to === this.user.github_username
+            );
+            
+            if (this.settings.statusFilter) {
+                const statuses = this.settings.statusFilter.split(',');
+                filtered = filtered.filter(task => statuses.includes(task.status));
+            }
+            
+            if (!this.settings.showCompleted) {
+                filtered = filtered.filter(task => task.status !== 'completed');
+            }
+            
+            const today = new Date().toISOString().split('T')[0];
+            filtered.sort((a, b) => {
+                const aOverdue = a.due_date && a.due_date < today && a.status !== 'completed';
+                const bOverdue = b.due_date && b.due_date < today && b.status !== 'completed';
+                if (aOverdue && !bOverdue) return -1;
+                if (!aOverdue && bOverdue) return 1;
+                if (a.due_date && b.due_date) return a.due_date.localeCompare(b.due_date);
+                if (a.due_date) return -1;
+                if (b.due_date) return 1;
+                return 0;
+            });
+            
+            if (this.settings.limit > 0) {
+                filtered = filtered.slice(0, this.settings.limit);
+            }
+            
+            this.tasks = filtered;
+            return this.tasks;
+            
+        } catch (error) {
+            console.error('[my-tasks-widget] Ошибка загрузки задач:', error);
+            this.tasks = [];
+            return [];
         }
-        
-        if (!this.settings.showCompleted) {
-            filtered = filtered.filter(task => task.status !== 'completed');
-        }
-        
-        const today = new Date().toISOString().split('T')[0];
-        filtered.sort((a, b) => {
-            const aOverdue = a.due_date && a.due_date < today && a.status !== 'completed';
-            const bOverdue = b.due_date && b.due_date < today && b.status !== 'completed';
-            if (aOverdue && !bOverdue) return -1;
-            if (!aOverdue && bOverdue) return 1;
-            if (a.due_date && b.due_date) return a.due_date.localeCompare(b.due_date);
-            if (a.due_date) return -1;
-            if (b.due_date) return 1;
-            return 0;
-        });
-        
-        if (this.settings.limit > 0) {
-            filtered = filtered.slice(0, this.settings.limit);
-        }
-        
-        this.tasks = filtered;
-        return this.tasks;
     }
     
     // Полностью переопределяем render - НИКАКОГО super.render()
@@ -85,19 +95,8 @@ class MyTasksWidget extends Widget {
         
         if (!this.container) return;
         
-        try {
-            await this.loadTasks();
-        } catch (error) {
-            console.error('[my-tasks-widget] Ошибка загрузки:', error);
-            this.container.innerHTML = `
-                <div style="padding: 20px; text-align: center; color: #ff6b6b;">
-                    <i class="fas fa-exclamation-triangle"></i>
-                    <div>Ошибка загрузки задач</div>
-                    <button onclick="this.closest('.my-tasks-widget')?.refresh()" style="margin-top: 10px;">Повторить</button>
-                </div>
-            `;
-            return;
-        }
+        // Загружаем задачи с обработкой ошибок
+        await this.loadTasks();
         
         const today = new Date().toISOString().split('T')[0];
         
@@ -132,6 +131,16 @@ class MyTasksWidget extends Widget {
     }
     
     renderTasks(today) {
+        if (!this.user) {
+            return `
+                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 12px; color: var(--text-muted); text-align: center;">
+                    <i class="fas fa-user-lock" style="font-size: 32px;"></i>
+                    <div>Не удалось загрузить пользователя</div>
+                    <button class="retry-auth-btn" style="margin-top: 8px; padding: 6px 12px; background: var(--accent); color: white; border: none; border-radius: 8px; cursor: pointer;">Повторить</button>
+                </div>
+            `;
+        }
+        
         if (this.tasks.length === 0) {
             return `
                 <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 12px; color: var(--text-muted); text-align: center;">
@@ -159,7 +168,7 @@ class MyTasksWidget extends Widget {
                                 <div style="flex: 1;">
                                     <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px;">
                                         <span style="${task.status === 'completed' ? 'text-decoration: line-through; opacity: 0.7;' : ''} font-weight: 500;">
-                                            ${window.escapeHtml(task.title)}
+                                            ${window.escapeHtml ? window.escapeHtml(task.title) : task.title}
                                         </span>
                                         ${task.priority === 'high' ? '<span style="font-size: 10px; padding: 2px 6px; border-radius: 12px; background: rgba(255,107,107,0.2); color: #ff6b6b;">Высокий</span>' : ''}
                                         ${task.priority === 'medium' ? '<span style="font-size: 10px; padding: 2px 6px; border-radius: 12px; background: rgba(255,193,7,0.2); color: #ffc107;">Средний</span>' : ''}
@@ -215,6 +224,12 @@ class MyTasksWidget extends Widget {
             };
         }
         
+        // Кнопка повторной авторизации
+        const retryAuthBtn = this.container.querySelector('.retry-auth-btn');
+        if (retryAuthBtn) {
+            retryAuthBtn.onclick = () => this.refresh();
+        }
+        
         // Чекбоксы задач
         const checkboxes = this.container.querySelectorAll('.task-checkbox');
         checkboxes.forEach(cb => {
@@ -230,7 +245,7 @@ class MyTasksWidget extends Widget {
                     });
                     await this.render();
                 } catch (error) {
-                    console.error(error);
+                    console.error('[my-tasks-widget] Ошибка обновления:', error);
                     cb.checked = !isChecked;
                 }
             };
@@ -242,7 +257,7 @@ class MyTasksWidget extends Widget {
             item.onclick = (e) => {
                 if (e.target.classList?.contains('task-checkbox')) return;
                 const taskId = item.dataset.taskId;
-                console.log('Открыть задачу:', taskId);
+                console.log('[my-tasks-widget] Открыть задачу:', taskId);
                 // TODO: открыть модалку
             };
         });

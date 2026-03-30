@@ -2,35 +2,40 @@
  * ============================================
  * ФАЙЛ: js/components/kanban.js
  * РОЛЬ: Универсальный компонент для рендеринга канбан-досок
+ * 
+ * ОСОБЕННОСТИ:
+ *   - Создание карточек задач и сделок
+ *   - Drag-and-drop для изменения статуса
+ *   - Чистые экспорты для модульной архитектуры
+ * 
  * ЗАВИСИМОСТИ:
- *   - js/utils/helpers.js (escapeHtml, showToast, formatDate)
- * ИСПОЛЬЗУЕТСЯ В:
- *   - tasks-supabase.html
- *   - deals-supabase.html
+ *   - js/utils/helpers.js (escapeHtml, formatDate)
+ * 
+ * ИСТОРИЯ:
+ *   - 30.03.2026: Переход на чистые импорты/экспорты
  * ============================================
  */
 
-window.CRM = window.CRM || {};
-window.CRM.Kanban = window.CRM.Kanban || {};
+import { escapeHtml, formatDate } from '../utils/helpers.js';
+
+console.log('[kanban.js] Загрузка компонента...');
 
 /**
- * Создание карточки для задачи (шаблон)
+ * Создание карточки для задачи
  * @param {Object} task - Данные задачи
  * @param {Object} options - Опции { showDelete, onDelete }
  */
-function createTaskCard(task, options = {}) {
+export function createTaskCard(task, options = {}) {
     const card = document.createElement('div');
     card.className = 'task-card';
     card.setAttribute('data-task-id', task.id);
     card.draggable = true;
     card.setAttribute('draggable', 'true');
     
-    // Отключаем выделение текста при drag
     card.ondragstart = function(e) {
         card.classList.add('dragging');
         e.dataTransfer.setData('text/plain', task.id);
         e.dataTransfer.effectAllowed = 'move';
-        // Убираем стандартную картинку перетаскивания
         e.dataTransfer.setDragImage(new Image(), 0, 0);
         return true;
     };
@@ -47,7 +52,7 @@ function createTaskCard(task, options = {}) {
     card.style.borderLeftColor = priorityColors[task.priority] || '#ffc107';
     
     const privateBadge = task.is_private ? '<span class="private-badge"><i class="fas fa-lock"></i> Приватная</span>' : '';
-    const dueDate = task.due_date ? window.formatDate(task.due_date, 'DD.MM.YYYY') : 'без срока';
+    const dueDate = task.due_date ? formatDate(task.due_date, 'DD.MM.YYYY') : 'без срока';
     
     const priorityTexts = { high: 'Высокий', medium: 'Средний', low: 'Низкий' };
     const priorityText = priorityTexts[task.priority] || 'Средний';
@@ -58,11 +63,11 @@ function createTaskCard(task, options = {}) {
     }
     
     card.innerHTML = `
-        <div class="task-title">${window.escapeHtml(task.title)}${privateBadge}</div>
-        <div class="task-description">${window.escapeHtml(task.description || '')}</div>
+        <div class="task-title">${escapeHtml(task.title)}${privateBadge}</div>
+        <div class="task-description">${escapeHtml(task.description || '')}</div>
         <div class="task-meta">
             <span class="task-priority priority-${task.priority}">${priorityText}</span>
-            <span class="task-assignee"><i class="fas fa-user"></i> ${window.escapeHtml(task.assigned_to || 'Не назначен')}</span>
+            <span class="task-assignee"><i class="fas fa-user"></i> ${escapeHtml(task.assigned_to || 'Не назначен')}</span>
         </div>
         <div class="task-meta">
             <span><i class="fas fa-calendar"></i> ${dueDate}</span>
@@ -74,41 +79,68 @@ function createTaskCard(task, options = {}) {
 }
 
 /**
- * Создание карточки для сделки (шаблон)
+ * Создание карточки для сделки
  * @param {Object} deal - Данные сделки
- * @param {Object} options - Опции { canEdit, onDelete }
+ * @param {Object} options - Опции { canEdit }
  */
-/**
- * Создание карточки для сделки (шаблон)
- * @param {Object} deal - Данные сделки
- * @param {Object} options - Опции { canEdit, onDelete }
- */
-function createDealCard(deal, options = {}) {
+export function createDealCard(deal, options = {}) {
     const card = document.createElement('div');
     card.className = 'deal-card';
     card.setAttribute('data-deal-id', deal.id);
     
-    // Исправлено: сначала объявляем canEdit, потом используем
     const canEdit = options.canEdit === true;
     
-    card.draggable = canEdit;
-    card.setAttribute('draggable', canEdit ? 'true' : 'false');
+    // Отключаем стандартный drag-and-drop
+    card.draggable = false;
+    card.setAttribute('draggable', 'false');
     
-    // Отключаем выделение текста при drag
     if (canEdit) {
-        card.ondragstart = function(e) {
-            console.log(`[kanban.js] Начат drag карточки ${deal.id}`);
-            card.classList.add('dragging');
-            e.dataTransfer.setData('text/plain', deal.id);
-            e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setDragImage(new Image(), 0, 0);
-            return true;
-        };
+        // Добавляем классы анимации при нажатии
+        let isDragging = false;
+        let dragTimeout;
         
-        card.ondragend = function() {
-            console.log(`[kanban.js] Завершен drag карточки ${deal.id}`);
-            card.classList.remove('dragging');
-        };
+        card.addEventListener('mousedown', (e) => {
+            // Только левая кнопка мыши
+            if (e.button !== 0) return;
+            
+            // Не срабатывать на кнопке удаления
+            if (e.target.closest('.delete-deal')) return;
+            
+            e.preventDefault();
+            
+            // Добавляем классы анимации
+            card.classList.add('dragging');
+            card.classList.add('drag-ghost');
+            isDragging = true;
+            
+            // Убираем классы при отпускании
+            const onMouseUp = () => {
+                if (isDragging) {
+                    card.classList.remove('dragging');
+                    card.classList.remove('drag-ghost');
+                    isDragging = false;
+                }
+                document.removeEventListener('mouseup', onMouseUp);
+                clearTimeout(dragTimeout);
+            };
+            
+            // Таймаут на случай, если mouseup не сработает
+            dragTimeout = setTimeout(() => {
+                if (isDragging) {
+                    card.classList.remove('dragging');
+                    card.classList.remove('drag-ghost');
+                    isDragging = false;
+                }
+            }, 5000);
+            
+            document.addEventListener('mouseup', onMouseUp);
+        });
+        
+        // Предотвращаем стандартный drag
+        card.addEventListener('dragstart', (e) => {
+            e.preventDefault();
+            return false;
+        });
     }
     
     const typeLabels = {
@@ -129,20 +161,20 @@ function createDealCard(deal, options = {}) {
     card.innerHTML = `
         <div class="deal-title">
             <span>Заявка N${deal.id}</span>
-            <span class="deal-number">${window.escapeHtml(deal.complex_name || '—')}</span>
+            <span class="deal-number">${escapeHtml(deal.complex_name || '—')}</span>
         </div>
         <div class="deal-participants">
-            <span>S: ${window.escapeHtml(deal.seller_name || '—')}</span>
+            <span>S: ${escapeHtml(deal.seller_name || '—')}</span>
             <span>→</span>
-            <span>B: ${window.escapeHtml(deal.buyer_name || '—')}</span>
+            <span>B: ${escapeHtml(deal.buyer_name || '—')}</span>
         </div>
         <div class="deal-price">
             <span class="deal-type type-secondary">${typeText}</span>
             <span>${priceFormatted} RUB</span>
         </div>
         <div class="deal-meta">
-            <span><i class="fas fa-user-tie"></i> ${window.escapeHtml(deal.agent_id || '—')}</span>
-            <span><i class="fas fa-calendar"></i> ${deal.deadline ? window.formatDate(deal.deadline, 'DD.MM.YYYY') : '—'}</span>
+            <span><i class="fas fa-user-tie"></i> ${escapeHtml(deal.agent_id || '—')}</span>
+            <span><i class="fas fa-calendar"></i> ${deal.deadline ? formatDate(deal.deadline, 'DD.MM.YYYY') : '—'}</span>
         </div>
         <div class="deal-meta" style="margin-top: 8px;">
             ${deleteButtonHtml}
@@ -157,52 +189,107 @@ function createDealCard(deal, options = {}) {
  * @param {string} containerSelector - Селектор контейнеров
  * @param {Function} onDrop - Коллбэк при drop (dealId, newStatus)
  */
-function setupDragAndDrop(containerSelector, onDrop) {
+export function setupDragAndDrop(containerSelector, onDrop) {
     const containers = document.querySelectorAll(containerSelector);
     console.log(`[kanban.js] Настройка drag-and-drop для ${containers.length} контейнеров`);
     
     containers.forEach(container => {
-        // НЕ клонируем контейнер! Просто добавляем обработчики
-        
         function handleDragOver(e) {
             e.preventDefault();
             container.classList.add('drag-over');
+            container.classList.add('drag-over-pulse');
+            
+            // Эффект для пустого контейнера
+            const emptyDiv = container.querySelector('.empty-deals');
+            if (emptyDiv) {
+                emptyDiv.style.transform = 'translateY(-4px)';
+                const icon = emptyDiv.querySelector('i');
+                if (icon) icon.style.animation = 'bounceIcon 0.4s ease infinite';
+            }
         }
         
         function handleDragLeave() {
             container.classList.remove('drag-over');
+            container.classList.remove('drag-over-pulse');
+            
+            // Сбрасываем эффект для пустого контейнера
+            const emptyDiv = container.querySelector('.empty-deals');
+            if (emptyDiv) {
+                emptyDiv.style.transform = '';
+                const icon = emptyDiv.querySelector('i');
+                if (icon) icon.style.animation = '';
+            }
         }
         
         async function handleDrop(e) {
             e.preventDefault();
             container.classList.remove('drag-over');
+            container.classList.remove('drag-over-pulse');
+            
+            // Сбрасываем эффект для пустого контейнера
+            const emptyDiv = container.querySelector('.empty-deals');
+            if (emptyDiv) {
+                emptyDiv.style.transform = '';
+                const icon = emptyDiv.querySelector('i');
+                if (icon) icon.style.animation = '';
+            }
             
             const dealId = e.dataTransfer.getData('text/plain');
             const newStatus = container.getAttribute('data-status');
             
             if (dealId && newStatus && onDrop) {
                 console.log(`[kanban.js] Drop: deal ${dealId} → ${newStatus}`);
-                await onDrop(dealId, newStatus);
+                
+                // Находим карточку и добавляем анимацию
+                const card = document.querySelector(`[data-deal-id="${dealId}"]`);
+                if (card) {
+                    card.classList.add('status-updating');
+                }
+                
+                try {
+                    await onDrop(dealId, newStatus);
+                    
+                    // Анимация успеха
+                    if (card) {
+                        card.classList.remove('status-updating');
+                        card.classList.add('status-success');
+                        card.classList.add('card-dropped');
+                        setTimeout(() => {
+                            card.classList.remove('status-success');
+                            card.classList.remove('card-dropped');
+                        }, 400);
+                    }
+                } catch (error) {
+                    console.error('[kanban.js] Ошибка при drop:', error);
+                    
+                    // Анимация ошибки
+                    if (card) {
+                        card.classList.remove('status-updating');
+                        card.classList.add('status-error');
+                        setTimeout(() => card.classList.remove('status-error'), 300);
+                    }
+                }
             }
         }
         
-        // Удаляем старые обработчики, если есть
         container.removeEventListener('dragover', handleDragOver);
         container.removeEventListener('dragleave', handleDragLeave);
         container.removeEventListener('drop', handleDrop);
         
-        // Добавляем новые
         container.addEventListener('dragover', handleDragOver);
         container.addEventListener('dragleave', handleDragLeave);
         container.addEventListener('drop', handleDrop);
     });
 }
 
-// Экспорт в глобальный объект
-window.CRM.Kanban = {
-    createTaskCard: createTaskCard,
-    createDealCard: createDealCard,
-    setupDragAndDrop: setupDragAndDrop
-};
+// Для обратной совместимости регистрируем в глобальный объект
+if (typeof window !== 'undefined') {
+    window.CRM = window.CRM || {};
+    window.CRM.Kanban = {
+        createTaskCard,
+        createDealCard,
+        setupDragAndDrop
+    };
+}
 
-console.log('[kanban.js] Загружен компонент канбан-доски');
+console.log('[kanban.js] ✅ Компонент загружен');

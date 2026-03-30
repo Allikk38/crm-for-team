@@ -9,6 +9,7 @@
  *   - Создание/редактирование сделок
  *   - Фильтрация по поиску, типу, агенту
  *   - Связь с объектами и контрагентами
+ *   - Оптимизированное обновление карточек (без полного перерендера)
  * 
  * ЗАВИСИМОСТИ:
  *   - js/core/supabase.js
@@ -18,6 +19,8 @@
  * 
  * ИСТОРИЯ:
  *   - 27.03.2026: Создание файла, вынос логики из deals-supabase.html
+ *   - 30.03.2026: Переход на чистые импорты из kanban.js
+ *   - 30.03.2026: Оптимизация обновления карточек, сохранение анимаций
  * ============================================
  */
 
@@ -34,6 +37,7 @@ import {
     deleteDeal, 
     updateDealStatus 
 } from '../services/deals-supabase.js';
+import { createDealCard, setupDragAndDrop } from '../components/kanban.js';
 
 // Состояние страницы
 let dealsData = [];
@@ -172,6 +176,59 @@ function updateAgentFilter() {
     }
 }
 
+// ========== ОБНОВЛЕНИЕ КАРТОЧЕК (ОПТИМИЗИРОВАННОЕ) ==========
+
+/**
+ * Обновляет карточку на доске без полного перерендера
+ */
+function updateDealCard(dealId, newStatus) {
+    const card = document.querySelector(`.deal-card[data-deal-id="${dealId}"]`);
+    if (!card) return;
+    
+    const oldContainer = card.closest('.deals-container');
+    const newContainer = document.querySelector(`.deals-container[data-status="${newStatus}"]`);
+    
+    if (!newContainer) return;
+    
+    // Удаляем из старого контейнера
+    card.remove();
+    
+    // Добавляем в новый контейнер
+    newContainer.appendChild(card);
+    
+    // Обновляем счетчики
+    updateColumnCounters();
+    
+    // Если старый контейнер стал пустым, добавляем сообщение "Нет заявок"
+    if (oldContainer && oldContainer.children.length === 0) {
+        oldContainer.innerHTML = '<div class="empty-deals"><i class="fas fa-inbox"></i><p>Нет заявок</p></div>';
+    }
+    
+    // Удаляем сообщение "Нет заявок" из нового контейнера, если оно есть
+    const emptyDiv = newContainer.querySelector('.empty-deals');
+    if (emptyDiv && newContainer.children.length > 1) {
+        emptyDiv.remove();
+    }
+}
+
+/**
+ * Обновляет счетчики в колонках
+ */
+function updateColumnCounters() {
+    for (const status of DEAL_STATUSES) {
+        const container = document.querySelector(`.deals-container[data-status="${status.id}"]`);
+        const count = container?.children.length || 0;
+        // Убираем из подсчета элемент empty-deals
+        const emptyDeals = container?.querySelector('.empty-deals');
+        const actualCount = emptyDeals ? 0 : count;
+        
+        const countElement = document.querySelector(`.deal-column[data-status="${status.id}"] .count`);
+        if (countElement) {
+            countElement.textContent = actualCount;
+        }
+    }
+}
+
 // ========== CRUD ==========
 
 async function handleUpdateDealStatus(dealId, newStatus) {
@@ -180,12 +237,30 @@ async function handleUpdateDealStatus(dealId, newStatus) {
     const deal = dealsData.find(d => d.id == dealId);
     if (!deal || deal.status === newStatus) return;
     
-    const updated = await updateDealStatus(dealId, newStatus);
-    if (updated) {
-        await loadDealsData();
-        showToast('success', `Статус изменён на "${DEAL_STATUSES.find(s => s.id === newStatus)?.name}"`);
-    } else {
-        console.error(`[deals] Ошибка обновления статуса ${dealId}`);
+    // Сохраняем старый статус для отката
+    const oldStatus = deal.status;
+    
+    // Оптимистичное обновление UI
+    deal.status = newStatus;
+    updateDealCard(dealId, newStatus);
+    
+    try {
+        const updated = await updateDealStatus(dealId, newStatus);
+        if (updated) {
+            showToast('success', `Статус изменён на "${DEAL_STATUSES.find(s => s.id === newStatus)?.name}"`);
+        } else {
+            // Откат при ошибке
+            deal.status = oldStatus;
+            updateDealCard(dealId, oldStatus);
+            console.error(`[deals] Ошибка обновления статуса ${dealId}`);
+            showToast('error', 'Ошибка изменения статуса');
+        }
+    } catch (error) {
+        // Откат при ошибке
+        deal.status = oldStatus;
+        updateDealCard(dealId, oldStatus);
+        console.error(`[deals] Ошибка обновления статуса ${dealId}:`, error);
+        showToast('error', 'Ошибка изменения статуса');
     }
 }
 
@@ -195,10 +270,38 @@ window.deleteDeal = async function(dealId) {
     
     if (confirm(`Удалить заявку N${deal.id}?`)) {
         console.log(`[deals] Удаление сделки ${dealId}`);
+        
+        // Оптимистичное удаление
+        const card = document.querySelector(`.deal-card[data-deal-id="${dealId}"]`);
+        if (card) {
+            card.classList.add('card-removing');
+            await new Promise(r => setTimeout(r, 200));
+        }
+        
         const success = await deleteDeal(dealId);
         if (success) {
-            await loadDealsData();
+            // Удаляем из данных
+            const index = dealsData.findIndex(d => d.id == dealId);
+            if (index !== -1) dealsData.splice(index, 1);
+            
+            // Удаляем карточку из DOM
+            if (card) card.remove();
+            
+            // Обновляем счетчики и проверяем пустые контейнеры
+            updateColumnCounters();
+            
+            // Добавляем сообщение "Нет заявок" в пустые контейнеры
+            for (const status of DEAL_STATUSES) {
+                const container = document.querySelector(`.deals-container[data-status="${status.id}"]`);
+                if (container && container.children.length === 0) {
+                    container.innerHTML = '<div class="empty-deals"><i class="fas fa-inbox"></i><p>Нет заявок</p></div>';
+                }
+            }
+            
             showToast('success', 'Заявка удалена');
+        } else {
+            console.error('[deals] Ошибка удаления');
+            showToast('error', 'Ошибка удаления');
         }
     }
 };
@@ -222,7 +325,7 @@ function createDealCardWithData(deal) {
         deadline: deal.deadline
     };
     
-    const card = window.CRM.Kanban.createDealCard(dealWithNames, { canEdit });
+    const card = createDealCard(dealWithNames, { canEdit });
     card.setAttribute('data-deal-id', deal.id);
     
     card.addEventListener('click', (e) => {
@@ -302,7 +405,7 @@ function renderKanban() {
         }
     }
     
-    window.CRM.Kanban.setupDragAndDrop('.deals-container', async (dealId, newStatus) => {
+    setupDragAndDrop('.deals-container', async (dealId, newStatus) => {
         await handleUpdateDealStatus(dealId, newStatus);
     });
 }
@@ -388,15 +491,31 @@ window.saveDeal = async function() {
     let result;
     if (dealId) {
         result = await updateDeal(dealId, dealData);
+        if (result) {
+            // Обновляем данные в массиве
+            const index = dealsData.findIndex(d => d.id == dealId);
+            if (index !== -1) {
+                dealsData[index] = { ...dealsData[index], ...dealData };
+                // Обновляем карточку
+                const card = document.querySelector(`.deal-card[data-deal-id="${dealId}"]`);
+                if (card) {
+                    const newCard = createDealCardWithData(dealsData[index]);
+                    card.replaceWith(newCard);
+                }
+            }
+            window.closeDealModal();
+            showToast('success', 'Заявка обновлена');
+        }
     } else {
         result = await createDeal(dealData);
+        if (result) {
+            await loadDealsData();
+            window.closeDealModal();
+            showToast('success', 'Заявка создана');
+        }
     }
     
-    if (result) {
-        window.closeDealModal();
-        await loadDealsData();
-        showToast('success', dealId ? 'Заявка обновлена' : 'Заявка создана');
-    } else {
+    if (!result) {
         console.error('[deals] Ошибка сохранения');
         alert('Ошибка сохранения');
     }
@@ -419,10 +538,25 @@ export async function initDealsPage() {
     await loadUsers();
     await loadDealsData();
     
-    document.getElementById('addDealBtn').addEventListener('click', () => openDealModal());
-    document.getElementById('searchInput').addEventListener('input', () => renderKanban());
-    document.getElementById('typeFilter').addEventListener('change', () => renderKanban());
-    document.getElementById('agentFilter').addEventListener('change', () => renderKanban());
+    const addBtn = document.getElementById('addDealBtn');
+    if (addBtn) {
+        addBtn.addEventListener('click', () => openDealModal());
+    }
+    
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) {
+        searchInput.addEventListener('input', () => renderKanban());
+    }
+    
+    const typeFilter = document.getElementById('typeFilter');
+    if (typeFilter) {
+        typeFilter.addEventListener('change', () => renderKanban());
+    }
+    
+    const agentFilter = document.getElementById('agentFilter');
+    if (agentFilter) {
+        agentFilter.addEventListener('change', () => renderKanban());
+    }
     
     const sidebar = document.getElementById('sidebar');
     if (sidebar && localStorage.getItem('sidebar_collapsed') === 'true') {

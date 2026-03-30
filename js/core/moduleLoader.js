@@ -182,7 +182,6 @@ async function loadModule() {
     
     // Загружаем базовые зависимости (не модули)
     const baseScripts = [
-        'js/utils/helpers.js',
         'js/ui/animations.js'
     ];
     

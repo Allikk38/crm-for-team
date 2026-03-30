@@ -7,11 +7,19 @@
  *   - 30.03.2026: Создание контейнера
  *   - 30.03.2026: Исправлено дублирование виджетов
  *   - 30.03.2026: Добавлены новые виджеты (KPI, прогресс, приветствие)
+ *   - 30.03.2026: Переход на чистые импорты виджетов
  * ============================================
  */
 
 import { getActiveDashboard, saveDashboardLayout } from '../services/dashboards-supabase.js';
 import { getCurrentSupabaseUser } from '../core/supabase-session.js';
+
+// Импорты виджетов
+import KpiSummaryWidget from './widgets/kpi-summary-widget.js';
+import MyTasksWidget from './widgets/my-tasks-widget.js';
+import ProjectProgressWidget from './widgets/project-progress-widget.js';
+import WelcomeWidget from './widgets/welcome-widget.js';
+import AgentRankingWidget from './widgets/agent-ranking-widget.js';
 
 console.log('[dashboard-container] Загрузка...');
 
@@ -233,7 +241,8 @@ class DashboardContainer {
             'my-tasks': 'Мои задачи',
             'kpi-summary': 'Ключевые показатели',
             'project-progress': 'Прогресс проекта',
-            'welcome': 'Приветствие'
+            'welcome': 'Приветствие',
+            'agent-ranking': 'Топ агентов'
         };
         return titles[widgetId] || widgetId;
     }
@@ -243,7 +252,8 @@ class DashboardContainer {
             'my-tasks': 'fa-tasks',
             'kpi-summary': 'fa-chart-line',
             'project-progress': 'fa-chart-simple',
-            'welcome': 'fa-rocket'
+            'welcome': 'fa-rocket',
+            'agent-ranking': 'fa-trophy'
         };
         return icons[widgetId] || 'fa-puzzle-piece';
     }
@@ -296,10 +306,11 @@ class DashboardContainer {
     
     getWidgetClass(widgetId) {
         const widgetsMap = {
-            'my-tasks': window.CRM?.Widgets?.MyTasksWidget,
-            'kpi-summary': window.CRM?.Widgets?.KpiSummaryWidget,
-            'project-progress': window.CRM?.Widgets?.ProjectProgressWidget,
-            'welcome': window.CRM?.Widgets?.WelcomeWidget
+            'my-tasks': MyTasksWidget,
+            'kpi-summary': KpiSummaryWidget,
+            'project-progress': ProjectProgressWidget,
+            'welcome': WelcomeWidget,
+            'agent-ranking': AgentRankingWidget
         };
         return widgetsMap[widgetId];
     }
@@ -373,6 +384,13 @@ class DashboardContainer {
                 title: 'Мои задачи',
                 description: 'Показывает ваши текущие задачи',
                 settings: { limit: 10 }
+            },
+            {
+                id: 'agent-ranking',
+                moduleId: 'index',
+                title: 'Топ агентов',
+                description: 'Рейтинг агентов по завершенным задачам',
+                settings: { limit: 5, period: 'all' }
             },
             {
                 id: 'kpi-summary',

@@ -14,8 +14,16 @@
  * 
  * ИСТОРИЯ:
  *   - 30.03.2026: Создание модуля дашборда
+ *   - 30.03.2026: Добавлены импорты виджетов
  * ============================================
  */
+
+// Импорты виджетов
+import KpiSummaryWidget from '../../components/widgets/kpi-summary-widget.js';
+import MyTasksWidget from '../../components/widgets/my-tasks-widget.js';
+import ProjectProgressWidget from '../../components/widgets/project-progress-widget.js';
+import WelcomeWidget from '../../components/widgets/welcome-widget.js';
+import AgentRankingWidget from '../../components/widgets/agent-ranking-widget.js';
 
 console.log('[index-module] Загрузка модуля дашборда...');
 
@@ -48,26 +56,32 @@ const indexModule = {
     widgets: {
         'kpi-summary': {
             title: 'KPI показатели',
-            component: null,
+            component: KpiSummaryWidget,
             defaultSize: { w: 2, h: 2 },
             permissions: [INDEX_PERMISSIONS.VIEW_STATISTICS]
         },
-        'weekly-chart': {
-            title: 'Динамика задач',
-            component: null,
+        'my-tasks': {
+            title: 'Мои задачи',
+            component: MyTasksWidget,
             defaultSize: { w: 2, h: 2 },
-            permissions: [INDEX_PERMISSIONS.VIEW_STATISTICS]
-        },
-        'agent-ranking': {
-            title: 'Топ агентов',
-            component: null,
-            defaultSize: { w: 2, h: 2 },
-            permissions: [INDEX_PERMISSIONS.VIEW_STATISTICS]
+            permissions: [INDEX_PERMISSIONS.VIEW_WIDGETS]
         },
         'project-progress': {
             title: 'Прогресс проекта',
-            component: null,
+            component: ProjectProgressWidget,
             defaultSize: { w: 2, h: 1 },
+            permissions: [INDEX_PERMISSIONS.VIEW_STATISTICS]
+        },
+        'welcome': {
+            title: 'Приветствие',
+            component: WelcomeWidget,
+            defaultSize: { w: 2, h: 1 },
+            permissions: [INDEX_PERMISSIONS.VIEW_DASHBOARD]
+        },
+        'agent-ranking': {
+            title: 'Топ агентов',
+            component: AgentRankingWidget,
+            defaultSize: { w: 2, h: 2 },
             permissions: [INDEX_PERMISSIONS.VIEW_STATISTICS]
         }
     },
