@@ -37,8 +37,8 @@ const MODULE_STATUS = {
 
 // ========== ОПРЕДЕЛЕНИЯ МОДУЛЕЙ ==========
 
-// Тарифные планы
-const PLANS = {
+// Используем PLANS из planManager, если он загружен
+const PLANS = window.CRM?.PLANS || {
     FREE: 'free',
     PRO: 'pro',
     BUSINESS: 'business'
