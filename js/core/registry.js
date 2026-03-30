@@ -12,10 +12,11 @@
  * 
  * ЗАВИСИМОСТИ:
  *   - js/core/permissions.js
+ *   - js/core/planManager.js (для PLANS)
  * 
  * ИСТОРИЯ:
  *   - 30.03.2026: Создание реестра модулей
- *   - 30.03.2026: Добавлена проверка наличия пользователя в isModuleAvailable
+ *   - 30.03.2026: Убрано дублирование PLANS, используется из planManager
  * ============================================
  */
 
@@ -38,17 +39,28 @@ const MODULE_STATUS = {
 // ========== ОПРЕДЕЛЕНИЯ МОДУЛЕЙ ==========
 
 // Используем PLANS из planManager, если он загружен
-const PLANS = window.CRM?.PLANS || {
-    FREE: 'free',
-    PRO: 'pro',
-    BUSINESS: 'business'
+const getPLANS = () => {
+    if (window.CRM?.PLANS) {
+        return window.CRM.PLANS;
+    }
+    // Fallback если planManager еще не загружен
+    return {
+        FREE: 'free',
+        PRO: 'pro',
+        BUSINESS: 'business',
+        ENTERPRISE: 'enterprise'
+    };
 };
 
 // Базовые модули для каждого плана
-const PLAN_MODULES = {
-    [PLANS.FREE]: ['tasks', 'calendar', 'profile'],
-    [PLANS.PRO]: ['tasks', 'deals', 'complexes', 'calendar', 'counterparties', 'profile'],
-    [PLANS.BUSINESS]: ['tasks', 'deals', 'complexes', 'calendar', 'counterparties', 'manager', 'admin', 'profile']
+const getPlanModules = () => {
+    const PLANS = getPLANS();
+    return {
+        [PLANS.FREE]: ['tasks', 'calendar', 'profile'],
+        [PLANS.PRO]: ['tasks', 'deals', 'complexes', 'calendar', 'counterparties', 'profile'],
+        [PLANS.BUSINESS]: ['tasks', 'deals', 'complexes', 'calendar', 'counterparties', 'manager', 'profile'],
+        [PLANS.ENTERPRISE]: ['tasks', 'deals', 'complexes', 'calendar', 'counterparties', 'manager', 'admin', 'profile']
+    };
 };
 
 /**
@@ -71,6 +83,9 @@ function registerModule(moduleDef) {
         console.error(`[registry] Модуль ${moduleDef.id}: не указано name`);
         return false;
     }
+    
+    // Получаем PLANS
+    const PLANS = getPLANS();
     
     // Нормализация данных
     const normalizedModule = {
@@ -110,12 +125,16 @@ function getModule(moduleId) {
  * Получить тарифный план пользователя
  */
 function getUserPlan() {
-    // TODO: Реализовать получение плана из БД или localStorage
-    // Пока возвращаем BUSINESS для администратора
-    if (window.currentSupabaseUser?.role === 'admin') {
-        return PLANS.BUSINESS;
+    // Используем PlanManager если доступен
+    if (window.CRM?.PlanManager) {
+        return window.CRM.PlanManager.getUserPlan();
     }
-    return PLANS.FREE; // По умолчанию FREE
+    
+    // Fallback
+    const user = window.currentSupabaseUser;
+    if (user?.role === 'admin') return 'business';
+    if (user?.role === 'manager') return 'pro';
+    return 'free';
 }
 
 /**
@@ -152,8 +171,9 @@ function isModuleAvailable(moduleId) {
     
     // Проверка тарифного плана
     const userPlan = getUserPlan();
-    if (!module.requiredPlans.includes(userPlan)) {
-        console.log(`[registry] Тарифный план ${userPlan} не подходит для модуля ${moduleId}`);
+    const planId = userPlan.id || userPlan;
+    if (!module.requiredPlans.includes(planId)) {
+        console.log(`[registry] Тарифный план ${planId} не подходит для модуля ${moduleId}`);
         return false;
     }
     
@@ -373,8 +393,7 @@ window.CRM.Registry = {
     getModulePages,
     isModuleLoaded,
     getAllModules,
-    MODULE_STATUS,
-    PLANS
+    MODULE_STATUS
 };
 
 console.log('[registry] Реестр модулей загружен');
