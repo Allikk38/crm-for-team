@@ -104,6 +104,13 @@ async function loadServices() {
 
 // Основная функция загрузки
 async function loadModule() {
+    // В функции loadModule() перед загрузкой сервисов добавляем:
+    
+    // Загружаем CSS для виджетов
+    const widgetCSS = document.createElement('link');
+    widgetCSS.rel = 'stylesheet';
+    widgetCSS.href = 'css/widgets.css';
+    document.head.appendChild(widgetCSS);
     const pageName = getCurrentPage();
     const moduleId = PAGE_TO_MODULE[pageName];
     
