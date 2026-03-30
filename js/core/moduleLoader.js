@@ -56,6 +56,23 @@ function getCurrentPage() {
     return filename;
 }
 
+// Функция для загрузки скрипта
+function loadScript(src, isModule = false) {
+    return new Promise((resolve, reject) => {
+        // Проверяем, не загружен ли уже
+        if (document.querySelector(`script[src="${src}"]`)) {
+            resolve();
+            return;
+        }
+        const script = document.createElement('script');
+        script.src = src;
+        if (isModule) script.type = 'module';
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.appendChild(script);
+    });
+}
+
 // Основная функция загрузки
 async function loadModule() {
     const pageName = getCurrentPage();
@@ -70,17 +87,7 @@ async function loadModule() {
     ];
     
     for (const script of baseScripts) {
-        await new Promise((resolve, reject) => {
-            if (document.querySelector(`script[src="${script}"]`)) {
-                resolve();
-                return;
-            }
-            const s = document.createElement('script');
-            s.src = script;
-            s.onload = resolve;
-            s.onerror = reject;
-            document.head.appendChild(s);
-        });
+        await loadScript(script);
     }
     
     // Если есть модуль, загружаем через реестр
@@ -95,31 +102,13 @@ async function loadModule() {
         ];
         
         for (const script of coreScripts) {
-            await new Promise((resolve, reject) => {
-                if (document.querySelector(`script[src="${script}"]`)) {
-                    resolve();
-                    return;
-                }
-                const s = document.createElement('script');
-                s.src = script;
-                if (script === 'js/core/supabase.js') {
-                    s.type = 'module';
-                }
-                s.onload = resolve;
-                s.onerror = reject;
-                document.head.appendChild(s);
-            });
+            const isModule = script === 'js/core/supabase.js';
+            await loadScript(script, isModule);
         }
         
         // Загружаем модуль
         const moduleScript = `js/modules/${moduleId}/index.js`;
-        await new Promise((resolve, reject) => {
-            const s = document.createElement('script');
-            s.src = moduleScript;
-            s.onload = resolve;
-            s.onerror = reject;
-            document.head.appendChild(s);
-        });
+        await loadScript(moduleScript);
         
         // Ждем регистрации модуля в реестре
         let attempts = 0;
@@ -151,8 +140,8 @@ async function loadModule() {
         });
     } else {
         // Если нет модуля, инициализируем страницу напрямую
-        if (MODULE_INIT[pageName.replace('-supabase.html', '')]) {
-            const initName = pageName.replace('-supabase.html', '');
+        const initName = pageName.replace('-supabase.html', '');
+        if (MODULE_INIT[initName]) {
             await MODULE_INIT[initName]();
         } else {
             console.log(`[moduleLoader] Нет модуля для страницы ${pageName}`);
