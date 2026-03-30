@@ -43,8 +43,7 @@ const PERMISSION_SETS = {
             'edit_own_deals',
             'view_complexes',
             'add_comments',
-            // Права для контрагентов (агент только просмотр)
-            'view_counterparties'      // 👈 ДОБАВИТЬ
+            'view_counterparties'
         ]
     },
     MANAGER: {
@@ -60,10 +59,9 @@ const PERMISSION_SETS = {
             'manage_team',
             'view_all_complexes',
             'edit_all_complexes',
-            // Права для контрагентов (менеджер может создавать и редактировать)
-            'create_counterparties',    // 👈 ДОБАВИТЬ
-            'edit_all_counterparties',  // 👈 ДОБАВИТЬ
-            'export_counterparties'     // 👈 ДОБАВИТЬ
+            'create_counterparties',
+            'edit_all_counterparties',
+            'export_counterparties'
         ]
     },
     ADMIN: {
@@ -77,8 +75,7 @@ const PERMISSION_SETS = {
             'system_settings',
             'view_all_data',
             'delete_any_data',
-            // Права для контрагентов (администратор может удалять)
-            'delete_counterparties'      // 👈 ДОБАВИТЬ
+            'delete_counterparties'
         ]
     }
 };
