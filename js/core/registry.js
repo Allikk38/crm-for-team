@@ -15,6 +15,7 @@
  * 
  * ИСТОРИЯ:
  *   - 30.03.2026: Создание реестра модулей
+ *   - 30.03.2026: Добавлена проверка наличия пользователя в isModuleAvailable
  * ============================================
  */
 
@@ -128,15 +129,33 @@ function isModuleAvailable(moduleId) {
     // Проверка статуса
     if (module.status === MODULE_STATUS.DISABLED) return false;
     
+    // ВАЖНО: Проверяем, что пользователь загружен
+    if (!window.currentSupabaseUser) {
+        console.log(`[registry] Пользователь не загружен, модуль ${moduleId} временно недоступен`);
+        return false;
+    }
+    
     // Проверка прав доступа
     if (module.requiredPermissions && module.requiredPermissions.length > 0) {
-        const hasPermissions = window.CRM?.Permissions?.hasAnyPermission(module.requiredPermissions);
-        if (!hasPermissions) return false;
+        // Проверяем, что объект Permissions существует
+        if (!window.CRM?.Permissions) {
+            console.warn(`[registry] Модуль прав не загружен, модуль ${moduleId} временно недоступен`);
+            return false;
+        }
+        
+        const hasPermissions = window.CRM.Permissions.hasAnyPermission(module.requiredPermissions);
+        if (!hasPermissions) {
+            console.log(`[registry] Нет прав для модуля ${moduleId}, требуется:`, module.requiredPermissions);
+            return false;
+        }
     }
     
     // Проверка тарифного плана
     const userPlan = getUserPlan();
-    if (!module.requiredPlans.includes(userPlan)) return false;
+    if (!module.requiredPlans.includes(userPlan)) {
+        console.log(`[registry] Тарифный план ${userPlan} не подходит для модуля ${moduleId}`);
+        return false;
+    }
     
     return true;
 }
@@ -301,12 +320,17 @@ function getModulePages(moduleId) {
     const module = getModule(moduleId);
     if (!module) return {};
     
+    // Проверяем, что пользователь загружен и права доступны
+    if (!window.currentSupabaseUser || !window.CRM?.Permissions) {
+        return {};
+    }
+    
     // Фильтруем страницы по правам доступа
     const accessiblePages = {};
     for (const [pagePath, pageDef] of Object.entries(module.pages)) {
         if (!pageDef.permissions || pageDef.permissions.length === 0) {
             accessiblePages[pagePath] = pageDef;
-        } else if (window.CRM?.Permissions?.hasAnyPermission(pageDef.permissions)) {
+        } else if (window.CRM.Permissions.hasAnyPermission(pageDef.permissions)) {
             accessiblePages[pagePath] = pageDef;
         }
     }
