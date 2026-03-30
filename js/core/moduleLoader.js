@@ -8,6 +8,7 @@
  *   - Загружает все необходимые зависимости
  *   - Инициализирует страницу через реестр модулей
  *   - Ждет загрузки пользователя перед проверкой прав
+ *   - Загружает сервис дашбордов для главной страницы
  * 
  * ИСПОЛЬЗОВАНИЕ:
  *   В HTML странице достаточно:
@@ -17,6 +18,7 @@
  * ИСТОРИЯ:
  *   - 30.03.2026: Создание универсального загрузчика
  *   - 30.03.2026: Добавлена загрузка supabase-session
+ *   - 30.03.2026: Добавлена загрузка сервиса дашбордов
  * ============================================
  */
 
@@ -33,7 +35,8 @@ const PAGE_TO_MODULE = {
     'manager-supabase.html': 'manager',
     'admin-supabase.html': 'admin',
     'counterparties-supabase.html': 'counterparties',
-    'notifications-supabase.html': 'notifications'
+    'notifications-supabase.html': 'notifications',
+    'dashboard-builder-supabase.html': 'dashboard-builder'
 };
 
 // Маппинг модулей на функции инициализации
@@ -47,7 +50,8 @@ const MODULE_INIT = {
     'manager': () => import('../pages/manager.js').then(m => m.initManagerPage()),
     'admin': () => import('../pages/admin.js').then(m => m.initAdminPage()),
     'counterparties': () => import('../pages/counterparties.js').then(m => m.initCounterpartiesPage()),
-    'notifications': () => import('../pages/notifications.js').then(m => m.initNotificationsPage())
+    'notifications': () => import('../pages/notifications.js').then(m => m.initNotificationsPage()),
+    'dashboard-builder': () => import('../pages/dashboard-builder.js').then(m => m.initDashboardBuilder())
 };
 
 // Функция для получения имени текущей страницы
@@ -86,6 +90,18 @@ async function loadUser() {
     console.log('[moduleLoader] Пользователь загружен:', window.currentSupabaseUser?.name);
 }
 
+// Функция для загрузки сервисов
+async function loadServices() {
+    const services = [
+        'js/services/dashboards-supabase.js'
+    ];
+    
+    for (const service of services) {
+        await loadScript(service, true);
+        console.log(`[moduleLoader] Сервис загружен: ${service}`);
+    }
+}
+
 // Основная функция загрузки
 async function loadModule() {
     const pageName = getCurrentPage();
@@ -121,6 +137,9 @@ async function loadModule() {
         
         // Загружаем пользователя
         await loadUser();
+        
+        // Загружаем сервисы (включая дашборды)
+        await loadServices();
         
         // Загружаем модуль
         const moduleScript = `js/modules/${moduleId}/index.js`;
@@ -158,11 +177,30 @@ async function loadModule() {
         // Если нет модуля, загружаем пользователя и инициализируем страницу напрямую
         await loadUser();
         
+        // Загружаем сервисы
+        await loadServices();
+        
         const initName = pageName.replace('-supabase.html', '');
         if (MODULE_INIT[initName]) {
             await MODULE_INIT[initName]();
         } else {
             console.log(`[moduleLoader] Нет модуля для страницы ${pageName}`);
+        }
+    }
+    
+    // После загрузки страницы, если это главная, инициализируем дашборд
+    if (pageName === 'index-supabase.html' && window.CRM?.Dashboards) {
+        try {
+            const dashboard = await window.CRM.Dashboards.getActiveDashboard();
+            if (dashboard) {
+                console.log('[moduleLoader] Дашборд загружен:', dashboard.name);
+                // Отправляем событие о загрузке дашборда
+                if (window.CRM?.EventBus) {
+                    window.CRM.EventBus.emit('dashboard:loaded', dashboard);
+                }
+            }
+        } catch (error) {
+            console.error('[moduleLoader] Ошибка загрузки дашборда:', error);
         }
     }
     
