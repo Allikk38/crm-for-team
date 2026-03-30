@@ -28,7 +28,9 @@ const PERMISSION_SETS = {
             'view_tasks',
             'view_calendar',
             'view_profile',
-            'edit_own_profile'
+            'edit_own_profile',
+            'view_dashboard',
+            'view_statistics'
         ]
     },
     AGENT: {
