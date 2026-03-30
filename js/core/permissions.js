@@ -157,7 +157,9 @@ function updatePermissionsCache(user) {
     }
     
     // Проверяем, изменился ли пользователь
-    if (cachedUser && cachedUser.id === user.id && cachedUser.permission_sets === user.permission_sets && cachedUser.role === user.role) {
+    if (cachedUser && cachedUser.id === user.id && 
+        JSON.stringify(cachedUser.permission_sets) === JSON.stringify(user.permission_sets) && 
+        cachedUser.role === user.role) {
         return; // Кэш актуален
     }
     
@@ -207,7 +209,7 @@ export function hasPermission(permission, user = null) {
     const has = cachedPermissions.has(permission);
     
     if (!has) {
-        console.log('[permissions] Доступ запрещен:', permission, 'для пользователя:', targetUser.name);
+        console.debug('[permissions] Доступ запрещен:', permission, 'для пользователя:', targetUser.name);
     }
     
     return has;
