@@ -5,7 +5,7 @@
  * 
  * ИСТОРИЯ:
  *   - 30.03.2026: Создание контейнера
- *   - 30.03.2026: Исправлена обработка ошибок
+ *   - 30.03.2026: Исправлено ожидание пользователя
  * ============================================
  */
 
@@ -29,13 +29,8 @@ class DashboardContainer {
     async init() {
         console.log('[dashboard-container] Инициализация...');
         
-        // Проверяем авторизацию
-        const user = getCurrentSupabaseUser();
-        if (!user) {
-            console.log('[dashboard-container] Пользователь не авторизован, ждем...');
-            // Ждем загрузки пользователя
-            await this.waitForUser();
-        }
+        // Ждем загрузки пользователя (увеличиваем таймаут)
+        await this.waitForUser(5000); // 5 секунд максимум
         
         try {
             this.dashboard = await getActiveDashboard();
@@ -55,24 +50,28 @@ class DashboardContainer {
         }
     }
     
-    waitForUser() {
+    waitForUser(maxWaitMs = 5000) {
         return new Promise((resolve) => {
-            let attempts = 0;
-            const maxAttempts = 50;
+            const startTime = Date.now();
             
             const checkUser = () => {
-                attempts++;
                 const user = getCurrentSupabaseUser();
                 if (user) {
                     console.log('[dashboard-container] Пользователь загружен:', user.name);
-                    resolve();
-                } else if (attempts >= maxAttempts) {
-                    console.warn('[dashboard-container] Таймаут ожидания пользователя');
-                    resolve();
-                } else {
-                    setTimeout(checkUser, 100);
+                    resolve(true);
+                    return;
                 }
+                
+                const elapsed = Date.now() - startTime;
+                if (elapsed >= maxWaitMs) {
+                    console.warn('[dashboard-container] Таймаут ожидания пользователя, продолжаем без него');
+                    resolve(false);
+                    return;
+                }
+                
+                setTimeout(checkUser, 100);
             };
+            
             checkUser();
         });
     }
@@ -80,11 +79,11 @@ class DashboardContainer {
     showEmptyState() {
         if (!this.container) return;
         this.container.innerHTML = `
-            <div class="dashboard-empty" style="text-align: center; padding: 40px;">
-                <i class="fas fa-puzzle-piece" style="font-size: 48px; opacity: 0.5; margin-bottom: 16px; display: block;"></i>
-                <h3>Нет виджетов</h3>
-                <p>Нажмите "Настроить", чтобы добавить виджеты</p>
-                <button class="dashboard-btn primary" id="initAddWidgetBtn" style="margin-top: 16px;">
+            <div class="dashboard-empty" style="text-align: center; padding: 60px 20px;">
+                <i class="fas fa-puzzle-piece" style="font-size: 64px; opacity: 0.5; margin-bottom: 20px; display: block;"></i>
+                <h3 style="margin-bottom: 12px;">Нет виджетов</h3>
+                <p style="margin-bottom: 20px; color: var(--text-muted);">Нажмите "Настроить", чтобы добавить виджеты</p>
+                <button class="dashboard-btn primary" id="initAddWidgetBtn" style="padding: 10px 24px; background: var(--accent); color: white; border: none; border-radius: 12px; cursor: pointer;">
                     <i class="fas fa-plus"></i> Добавить виджет
                 </button>
             </div>
@@ -99,11 +98,11 @@ class DashboardContainer {
     showErrorState(message) {
         if (!this.container) return;
         this.container.innerHTML = `
-            <div class="dashboard-empty" style="text-align: center; padding: 40px;">
-                <i class="fas fa-exclamation-triangle" style="font-size: 48px; color: #ff6b6b; margin-bottom: 16px; display: block;"></i>
-                <h3>Ошибка загрузки</h3>
-                <p>${message || 'Не удалось загрузить дашборд'}</p>
-                <button class="dashboard-btn" id="retryInitBtn" style="margin-top: 16px;">
+            <div class="dashboard-empty" style="text-align: center; padding: 60px 20px;">
+                <i class="fas fa-exclamation-triangle" style="font-size: 64px; color: #ff6b6b; margin-bottom: 20px; display: block;"></i>
+                <h3 style="margin-bottom: 12px;">Ошибка загрузки</h3>
+                <p style="margin-bottom: 20px; color: var(--text-muted);">${message || 'Не удалось загрузить дашборд'}</p>
+                <button class="dashboard-btn" id="retryInitBtn" style="padding: 10px 24px; background: var(--hover-bg); border: none; border-radius: 12px; cursor: pointer;">
                     <i class="fas fa-sync-alt"></i> Повторить
                 </button>
             </div>
@@ -118,7 +117,6 @@ class DashboardContainer {
     async render() {
         if (!this.container) return;
         
-        // Проверяем, что дашборд загружен
         if (!this.dashboard || !this.dashboard.layout) {
             console.warn('[dashboard-container] Дашборд не загружен');
             this.showEmptyState();
@@ -133,7 +131,7 @@ class DashboardContainer {
         }
         
         const gridHtml = `
-            <div class="dashboard-toolbar" style="display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; background: var(--card-bg); border-bottom: 1px solid var(--card-border);">
+            <div class="dashboard-toolbar" style="display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; background: var(--card-bg); border-bottom: 1px solid var(--card-border); flex-wrap: wrap; gap: 12px;">
                 <div class="dashboard-title" style="font-size: 18px; font-weight: 600;">
                     <i class="fas fa-chart-line" style="color: var(--accent);"></i> 
                     ${this.dashboard.name || 'Мой дашборд'}
@@ -151,17 +149,14 @@ class DashboardContainer {
                     </button>
                 </div>
             </div>
-            <div class="dashboard-grid ${this.editMode ? 'edit-mode' : ''}" id="dashboardGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 20px; padding: 20px;">
+            <div class="dashboard-grid" id="dashboardGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 20px; padding: 20px;">
                 ${widgets.map((widget, index) => this.renderWidgetPlaceholder(widget, index)).join('')}
             </div>
         `;
         
         this.container.innerHTML = gridHtml;
         
-        // Загружаем виджеты
         await this.loadWidgets(widgets);
-        
-        // Привязываем события
         this.bindEvents();
     }
     
@@ -181,9 +176,6 @@ class DashboardContainer {
                             <button class="widget-action-btn remove-widget" data-widget-id="${widgetConfig.id}" title="Удалить" style="background: none; border: none; cursor: pointer; color: var(--text-muted); padding: 4px;">
                                 <i class="fas fa-trash"></i>
                             </button>
-                            <button class="widget-action-btn drag-handle" title="Переместить" style="background: none; border: none; cursor: grab; color: var(--text-muted); padding: 4px;">
-                                <i class="fas fa-grip-vertical"></i>
-                            </button>
                         ` : ''}
                         <button class="widget-action-btn refresh-widget" data-widget-id="${widgetConfig.id}" title="Обновить" style="background: none; border: none; cursor: pointer; color: var(--text-muted); padding: 4px;">
                             <i class="fas fa-sync-alt"></i>
@@ -191,7 +183,7 @@ class DashboardContainer {
                     </div>
                 </div>
                 <div class="widget-content" data-widget-content="${widgetConfig.id}" style="padding: 16px; min-height: 200px;">
-                    <div class="widget-loading" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;">
+                    <div class="widget-loading" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 40px;">
                         <div class="widget-spinner" style="width: 32px; height: 32px; border: 3px solid var(--card-border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
                         <span>Загрузка ${widgetTitle}...</span>
                     </div>
@@ -250,6 +242,7 @@ class DashboardContainer {
             
             this.widgets.set(widgetConfig.id, widget);
             await widget.render();
+            console.log(`[dashboard-container] Виджет ${widgetConfig.id} загружен`);
             
         } catch (error) {
             console.error(`[dashboard-container] Ошибка загрузки виджета ${widgetConfig.id}:`, error);
@@ -267,6 +260,10 @@ class DashboardContainer {
         const widgetsMap = {
             'my-tasks': window.CRM?.Widgets?.MyTasksWidget
         };
+        
+        if (!widgetsMap[widgetId]) {
+            console.log(`[dashboard-container] Виджет ${widgetId} не найден`);
+        }
         
         return widgetsMap[widgetId];
     }
@@ -311,87 +308,6 @@ class DashboardContainer {
     async toggleEditMode() {
         this.editMode = !this.editMode;
         await this.render();
-        
-        if (this.editMode) {
-            this.enableDragAndDrop();
-        } else {
-            await this.saveLayout();
-        }
-    }
-    
-    enableDragAndDrop() {
-        const grid = this.container.querySelector('#dashboardGrid');
-        if (!grid) return;
-        
-        let dragSrc = null;
-        const cards = grid.querySelectorAll('.widget-card');
-        
-        cards.forEach(card => {
-            card.setAttribute('draggable', true);
-            card.style.cursor = 'grab';
-            
-            card.addEventListener('dragstart', (e) => {
-                dragSrc = card;
-                e.dataTransfer.effectAllowed = 'move';
-                card.style.opacity = '0.5';
-            });
-            
-            card.addEventListener('dragend', (e) => {
-                card.style.opacity = '';
-                dragSrc = null;
-            });
-            
-            card.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                e.dataTransfer.dropEffect = 'move';
-            });
-            
-            card.addEventListener('drop', (e) => {
-                e.preventDefault();
-                if (dragSrc && dragSrc !== card) {
-                    const parent = grid;
-                    const children = [...parent.children];
-                    const dragIndex = children.indexOf(dragSrc);
-                    const dropIndex = children.indexOf(card);
-                    
-                    if (dragIndex < dropIndex) {
-                        card.after(dragSrc);
-                    } else {
-                        card.before(dragSrc);
-                    }
-                }
-            });
-        });
-    }
-    
-    async saveLayout() {
-        if (!this.dashboard || !this.dashboard.layout) return;
-        
-        const grid = this.container.querySelector('#dashboardGrid');
-        if (!grid) return;
-        
-        const cards = grid.querySelectorAll('.widget-card');
-        const newWidgets = [];
-        
-        cards.forEach((card, index) => {
-            const widgetId = card.dataset.widgetId;
-            const oldConfig = this.dashboard.layout.widgets.find(w => w.id === widgetId);
-            if (oldConfig) {
-                newWidgets.push({
-                    ...oldConfig,
-                    position: { order: index }
-                });
-            }
-        });
-        
-        this.dashboard.layout.widgets = newWidgets;
-        
-        const success = await saveDashboardLayout(this.dashboard.id, this.dashboard.layout);
-        if (success) {
-            console.log('[dashboard-container] Дашборд сохранен');
-            this.editMode = false;
-            await this.render();
-        }
     }
     
     async removeWidget(widgetId) {
@@ -439,6 +355,7 @@ class DashboardContainer {
             z-index: 10000;
             display: flex;
             flex-direction: column;
+            box-shadow: -2px 0 8px rgba(0,0,0,0.1);
         `;
         
         palette.innerHTML = `
@@ -451,7 +368,7 @@ class DashboardContainer {
             <div class="widget-palette-list" style="flex: 1; overflow-y: auto; padding: 16px;">
                 ${availableWidgets.map(widget => `
                     <div class="widget-palette-item" data-widget-id="${widget.id}" data-module-id="${widget.moduleId}" style="padding: 12px; background: var(--hover-bg); border-radius: 12px; margin-bottom: 12px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 12px;">
-                        <i class="fas ${this.getWidgetIcon(widget.id)}" style="font-size: 20px;"></i>
+                        <i class="fas ${this.getWidgetIcon(widget.id)}" style="font-size: 20px; color: var(--accent);"></i>
                         <div class="widget-palette-info" style="flex: 1;">
                             <div class="widget-palette-name" style="font-weight: 600; margin-bottom: 4px;">${widget.title}</div>
                             <div class="widget-palette-desc" style="font-size: 12px; opacity: 0.7;">${widget.description}</div>
@@ -530,13 +447,16 @@ class DashboardContainer {
 }
 
 // Добавляем анимацию спиннера
-const style = document.createElement('style');
-style.textContent = `
-    @keyframes spin {
-        to { transform: rotate(360deg); }
-    }
-`;
-document.head.appendChild(style);
+if (!document.querySelector('#widget-spinner-style')) {
+    const style = document.createElement('style');
+    style.id = 'widget-spinner-style';
+    style.textContent = `
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    `;
+    document.head.appendChild(style);
+}
 
 if (typeof window !== 'undefined') {
     window.CRM = window.CRM || {};

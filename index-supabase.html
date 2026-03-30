@@ -15,7 +15,7 @@
       - Рейтинг агентов
       - Прогресс проекта
       - Приветствие пользователя
-      - ДИНАМИЧЕСКАЯ СИСТЕМА ВИДЖЕТОВ (новая функциональность)
+      - ДИНАМИЧЕСКАЯ СИСТЕМА ВИДЖЕТОВ
     
     ЗАВИСИМОСТИ:
       - CSS: base.css, theme.css, components.css, dashboard.css, responsive.css, animations.css
@@ -27,7 +27,7 @@
       - 27.03.2026: Создание supabase-версии дашборда
       - 27.03.2026: Исправлены вызовы функций для window.sidebar
       - 27.03.2026: Рефакторинг — логика вынесена в js/pages/index.js
-      - 30.03.2026: Добавлена система виджетов (сохранена обратная совместимость)
+      - 30.03.2026: Добавлена система виджетов
     ============================================
     -->
     
@@ -62,8 +62,6 @@
     <link rel="stylesheet" href="css/modal.css">
     <link rel="stylesheet" href="css/responsive.css">
     <link rel="stylesheet" href="css/animations.css">
-    
-    <!-- НОВЫЕ СТИЛИ ДЛЯ ВИДЖЕТОВ -->
     <link rel="stylesheet" href="css/dashboard-grid.css">
     <link rel="stylesheet" href="css/widgets.css">
     
@@ -376,7 +374,6 @@
             100% { background-position: -200% 0; }
         }
         
-        /* НОВЫЕ СТИЛИ ДЛЯ СОВМЕСТНОГО ОТОБРАЖЕНИЯ */
         .dashboard-widgets-section {
             margin-top: 32px;
             border-top: 2px solid var(--card-border);
@@ -447,8 +444,6 @@
                     </div>
                 </div>
             </div>
-            
-            <!-- СУЩЕСТВУЮЩИЙ КОНТЕНТ (полностью сохранен) -->
             
             <!-- Базовые KPI карточки -->
             <div class="dashboard">
@@ -558,7 +553,7 @@
                 </div>
             </div>
             
-            <!-- НОВАЯ СЕКЦИЯ: Динамические виджеты (добавлена, не удаляет существующий контент) -->
+            <!-- НОВАЯ СЕКЦИЯ: Динамические виджеты -->
             <div class="dashboard-widgets-section">
                 <div class="dashboard-widgets-title">
                     <i class="fas fa-puzzle-piece"></i>
@@ -583,28 +578,60 @@
     <script type="module" src="js/core/moduleLoader.js"></script>
     <script src="layout.js"></script>
     
-    <!-- Инициализация виджетов (дополнительная, не мешает основной логике) -->
-    <script type="module">
-        import DashboardContainer from './js/components/dashboard-container.js';
-        
-        // Ждем загрузки страницы и модулей
-        window.addEventListener('load', async () => {
-            console.log('[index] Инициализация виджетов...');
+    <!-- Инициализация виджетов после загрузки пользователя -->
+    <script>
+        // Функция для проверки загрузки пользователя
+        function waitForUser(callback, maxAttempts = 50) {
+            let attempts = 0;
             
-            // Ждем немного для загрузки всех модулей
-            setTimeout(async () => {
-                const widgetsContainer = document.getElementById('dashboardWidgetsContainer');
-                const toggleBtn = document.getElementById('toggleWidgetsBtn');
-                let dashboard = null;
-                let widgetsVisible = true;
-                
-                if (widgetsContainer && window.CRM?.DashboardContainer) {
-                    try {
-                        dashboard = new DashboardContainer(widgetsContainer);
+            function check() {
+                attempts++;
+                if (window.currentSupabaseUser) {
+                    console.log('[index] Пользователь загружен, инициализируем виджеты');
+                    callback();
+                } else if (attempts >= maxAttempts) {
+                    console.warn('[index] Таймаут ожидания пользователя');
+                    // Показываем сообщение об ошибке
+                    const container = document.getElementById('dashboardWidgetsContainer');
+                    if (container) {
+                        container.innerHTML = `
+                            <div class="dashboard-empty" style="text-align: center; padding: 40px;">
+                                <i class="fas fa-exclamation-triangle" style="font-size: 48px; color: #ff6b6b; margin-bottom: 16px; display: block;"></i>
+                                <h3>Не удалось загрузить виджеты</h3>
+                                <p>Пожалуйста, обновите страницу</p>
+                                <button onclick="location.reload()" style="margin-top: 16px; padding: 8px 16px; background: var(--accent); color: white; border: none; border-radius: 8px; cursor: pointer;">Обновить</button>
+                            </div>
+                        `;
+                    }
+                } else {
+                    setTimeout(check, 100);
+                }
+            }
+            
+            check();
+        }
+        
+        // Инициализируем виджеты после полной загрузки страницы
+        window.addEventListener('load', async () => {
+            console.log('[index] Страница загружена, ожидаем пользователя...');
+            
+            waitForUser(async () => {
+                try {
+                    // Динамически импортируем DashboardContainer
+                    const module = await import('./js/components/dashboard-container.js');
+                    const DashboardContainer = module.default;
+                    
+                    const widgetsContainer = document.getElementById('dashboardWidgetsContainer');
+                    const toggleBtn = document.getElementById('toggleWidgetsBtn');
+                    
+                    if (widgetsContainer && DashboardContainer) {
+                        console.log('[index] Создаем DashboardContainer...');
+                        const dashboard = new DashboardContainer(widgetsContainer);
                         await dashboard.init();
                         console.log('[index] Виджеты загружены');
                         
-                        // Добавляем кнопку сворачивания
+                        // Кнопка сворачивания
+                        let widgetsVisible = true;
                         if (toggleBtn) {
                             toggleBtn.onclick = () => {
                                 widgetsVisible = !widgetsVisible;
@@ -617,26 +644,24 @@
                                 }
                             };
                         }
-                    } catch (error) {
-                        console.error('[index] Ошибка загрузки виджетов:', error);
+                    } else {
+                        console.error('[index] Контейнер или DashboardContainer не найдены');
+                    }
+                } catch (error) {
+                    console.error('[index] Ошибка инициализации виджетов:', error);
+                    const widgetsContainer = document.getElementById('dashboardWidgetsContainer');
+                    if (widgetsContainer) {
                         widgetsContainer.innerHTML = `
-                            <div class="dashboard-empty">
-                                <i class="fas fa-exclamation-triangle"></i>
-                                <p>Не удалось загрузить виджеты</p>
-                                <button onclick="location.reload()">Обновить</button>
+                            <div class="dashboard-empty" style="text-align: center; padding: 40px;">
+                                <i class="fas fa-exclamation-triangle" style="font-size: 48px; color: #ff6b6b; margin-bottom: 16px; display: block;"></i>
+                                <h3>Ошибка загрузки виджетов</h3>
+                                <p>${error.message}</p>
+                                <button onclick="location.reload()" style="margin-top: 16px; padding: 8px 16px; background: var(--accent); color: white; border: none; border-radius: 8px; cursor: pointer;">Обновить</button>
                             </div>
                         `;
                     }
-                } else if (widgetsContainer) {
-                    widgetsContainer.innerHTML = `
-                        <div class="dashboard-empty">
-                            <i class="fas fa-info-circle"></i>
-                            <p>Система виджетов загружается...</p>
-                            <small>Пожалуйста, подождите</small>
-                        </div>
-                    `;
                 }
-            }, 1000);
+            });
         });
     </script>
 </body>
