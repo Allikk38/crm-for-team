@@ -1,14 +1,14 @@
 /**
  * ============================================
  * ФАЙЛ: js/core/planManager.js
- * РОЛЬ: Управление тарифными планами и доступными модулями
+ * РОЛЬ: Управление тарифными планами
  * 
  * ИСТОРИЯ:
- *   - 30.03.2026: Создание менеджера планов
+ *   - 30.03.2026: Создание
  * ============================================
  */
 
-console.log('[planManager] Загрузка менеджера планов...');
+console.log('[planManager] Загрузка...');
 
 const PLANS = {
     FREE: {
@@ -43,62 +43,43 @@ const PLANS = {
             maxDeals: Infinity,
             maxComplexes: Infinity
         }
-    },
-    ENTERPRISE: {
-        id: 'enterprise',
-        name: 'Корпоративный',
-        price: 'по запросу',
-        modules: ['tasks', 'deals', 'complexes', 'calendar', 'counterparties', 'manager', 'admin', 'profile'],
-        features: {
-            maxTasks: Infinity,
-            maxDeals: Infinity,
-            maxComplexes: Infinity,
-            customFields: true,
-            api: true
-        }
     }
 };
 
 class PlanManager {
     constructor() {
-        this.currentPlan = PLANS.FREE;
+        this.currentPlan = null;
     }
     
-    /**
-     * Получить текущий план пользователя
-     */
     getUserPlan() {
-        // TODO: загружать из БД или localStorage
         const user = window.currentSupabaseUser;
-        if (user?.role === 'admin') return PLANS.BUSINESS;
-        if (user?.role === 'manager') return PLANS.PRO;
+        if (!user) return PLANS.FREE;
+        
+        // По роли определяем план
+        if (user.role === 'admin') return PLANS.BUSINESS;
+        if (user.role === 'manager') return PLANS.PRO;
         return PLANS.FREE;
     }
     
-    /**
-     * Проверить, доступен ли модуль в текущем плане
-     */
     isModuleAvailableInPlan(moduleId) {
         const plan = this.getUserPlan();
         return plan.modules.includes(moduleId);
     }
     
-    /**
-     * Получить доступные модули для текущего плана
-     */
     getAvailableModules() {
         const plan = this.getUserPlan();
-        return plan.modules;
+        return [...plan.modules];
     }
     
-    /**
-     * Проверить лимиты
-     */
     checkLimit(limitType, currentValue) {
         const plan = this.getUserPlan();
         const limit = plan.features[limitType];
         if (limit === Infinity) return true;
         return currentValue < limit;
+    }
+    
+    getPlanInfo() {
+        return this.getUserPlan();
     }
 }
 
@@ -106,4 +87,4 @@ window.CRM = window.CRM || {};
 window.CRM.PlanManager = new PlanManager();
 window.CRM.PLANS = PLANS;
 
-console.log('[planManager] Менеджер планов загружен');
+console.log('[planManager] Загружен');
