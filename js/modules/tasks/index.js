@@ -17,6 +17,7 @@
  *   - 30.03.2026: Создание модуля задач
  *   - 30.03.2026: Добавлена публикация событий через EventBus
  *   - 30.03.2026: Добавлены виджеты для дашборда
+ *   - 30.03.2026: Исправлена загрузка виджетов в window.CRM.Widgets
  * ============================================
  */
 
@@ -96,23 +97,30 @@ const tasksModule = {
     onLoad: async () => {
         console.log('[tasks-module] Модуль задач загружен');
         
-        // Регистрируем виджеты в глобальном объекте
-        if (window.CRM?.Widgets) {
-            try {
-                // Динамическая загрузка виджетов
-                const { default: MyTasksWidget } = await import('../../components/widgets/my-tasks-widget.js');
-                window.CRM.Widgets.MyTasksWidget = MyTasksWidget;
-                console.log('[tasks-module] Виджет MyTasksWidget зарегистрирован');
-                
-                // TODO: Загрузить другие виджеты по мере создания
-                // const { default: TasksSummaryWidget } = await import('../../components/widgets/tasks-summary-widget.js');
-                // window.CRM.Widgets.TasksSummaryWidget = TasksSummaryWidget;
-                
-                // const { default: OverdueTasksWidget } = await import('../../components/widgets/overdue-tasks-widget.js');
-                // window.CRM.Widgets.OverdueTasksWidget = OverdueTasksWidget;
-            } catch (error) {
-                console.error('[tasks-module] Ошибка загрузки виджетов:', error);
-            }
+        // Инициализируем глобальный объект для виджетов
+        if (typeof window !== 'undefined') {
+            window.CRM = window.CRM || {};
+            window.CRM.Widgets = window.CRM.Widgets || {};
+        }
+        
+        // Загружаем и регистрируем виджеты
+        try {
+            // Загружаем MyTasksWidget
+            const { default: MyTasksWidget } = await import('../../components/widgets/my-tasks-widget.js');
+            window.CRM.Widgets.MyTasksWidget = MyTasksWidget;
+            console.log('[tasks-module] ✅ Виджет MyTasksWidget зарегистрирован');
+            
+            // TODO: Загрузить другие виджеты по мере создания
+            // const { default: TasksSummaryWidget } = await import('../../components/widgets/tasks-summary-widget.js');
+            // window.CRM.Widgets.TasksSummaryWidget = TasksSummaryWidget;
+            // console.log('[tasks-module] ✅ Виджет TasksSummaryWidget зарегистрирован');
+            
+            // const { default: OverdueTasksWidget } = await import('../../components/widgets/overdue-tasks-widget.js');
+            // window.CRM.Widgets.OverdueTasksWidget = OverdueTasksWidget;
+            // console.log('[tasks-module] ✅ Виджет OverdueTasksWidget зарегистрирован');
+            
+        } catch (error) {
+            console.error('[tasks-module] ❌ Ошибка загрузки виджетов:', error);
         }
         
         // Регистрируем обработчики для межмодульного взаимодействия
