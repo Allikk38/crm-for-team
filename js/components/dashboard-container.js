@@ -3,14 +3,9 @@
  * ФАЙЛ: js/components/dashboard-container.js
  * РОЛЬ: Контейнер для управления виджетами на дашборде
  * 
- * ОСОБЕННОСТИ:
- *   - Загрузка конфигурации дашборда из БД
- *   - Управление сеткой виджетов
- *   - Режим редактирования
- *   - Добавление/удаление виджетов
- * 
  * ИСТОРИЯ:
  *   - 30.03.2026: Создание контейнера
+ *   - 30.03.2026: Исправлена обработка виджетов
  * ============================================
  */
 
@@ -23,7 +18,7 @@ class DashboardContainer {
         this.container = container;
         this.options = options;
         this.dashboard = null;
-        this.widgets = new Map(); // widgetId -> widgetInstance
+        this.widgets = new Map();
         this.editMode = false;
         
         console.log('[dashboard-container] Создан');
@@ -32,20 +27,36 @@ class DashboardContainer {
     async init() {
         console.log('[dashboard-container] Инициализация...');
         
-        // Загружаем дашборд
         this.dashboard = await getActiveDashboard();
         if (!this.dashboard) {
             console.error('[dashboard-container] Дашборд не найден');
+            this.showEmptyState();
             return;
         }
         
-        // Отрисовываем
         await this.render();
-        
-        // Подписываемся на события
         this.subscribeEvents();
         
         console.log('[dashboard-container] Инициализирован');
+    }
+    
+    showEmptyState() {
+        if (!this.container) return;
+        this.container.innerHTML = `
+            <div class="dashboard-empty">
+                <i class="fas fa-puzzle-piece"></i>
+                <h3>Нет виджетов</h3>
+                <p>Нажмите "Настроить", чтобы добавить виджеты</p>
+                <button class="dashboard-btn primary" id="initAddWidgetBtn">
+                    <i class="fas fa-plus"></i> Добавить виджет
+                </button>
+            </div>
+        `;
+        
+        const addBtn = this.container.querySelector('#initAddWidgetBtn');
+        if (addBtn) {
+            addBtn.onclick = () => this.showWidgetPalette();
+        }
     }
     
     async render() {
@@ -54,13 +65,17 @@ class DashboardContainer {
         const layout = this.dashboard.layout;
         const widgets = layout?.widgets || [];
         
-        // Создаем сетку
+        if (widgets.length === 0) {
+            this.showEmptyState();
+            return;
+        }
+        
         const gridHtml = `
             <div class="dashboard-toolbar">
-                <h1 class="dashboard-title">
+                <div class="dashboard-title">
                     <i class="fas fa-chart-line"></i> 
                     ${this.dashboard.name}
-                </h1>
+                </div>
                 <div class="dashboard-controls">
                     <button class="dashboard-btn" id="refreshDashboard">
                         <i class="fas fa-sync-alt"></i> Обновить
@@ -75,7 +90,7 @@ class DashboardContainer {
                 </div>
             </div>
             <div class="dashboard-grid ${this.editMode ? 'edit-mode' : ''}" id="dashboardGrid">
-                ${widgets.map(widget => this.renderWidgetPlaceholder(widget)).join('')}
+                ${widgets.map((widget, index) => this.renderWidgetPlaceholder(widget, index)).join('')}
             </div>
         `;
         
@@ -88,13 +103,16 @@ class DashboardContainer {
         this.bindEvents();
     }
     
-    renderWidgetPlaceholder(widgetConfig) {
+    renderWidgetPlaceholder(widgetConfig, index) {
+        const widgetTitle = this.getWidgetTitle(widgetConfig.id);
+        const widgetIcon = this.getWidgetIcon(widgetConfig.id);
+        
         return `
-            <div class="widget-card" data-widget-id="${widgetConfig.id}" data-module-id="${widgetConfig.module}">
+            <div class="widget-card" data-widget-id="${widgetConfig.id}" data-widget-index="${index}">
                 <div class="widget-header">
                     <div class="widget-title">
-                        <i class="fas ${this.getWidgetIcon(widgetConfig.id)}"></i>
-                        <span>${widgetConfig.title || widgetConfig.id}</span>
+                        <i class="fas ${widgetIcon}"></i>
+                        <span>${widgetConfig.title || widgetTitle}</span>
                     </div>
                     <div class="widget-actions">
                         ${this.editMode ? `
@@ -111,10 +129,27 @@ class DashboardContainer {
                     </div>
                 </div>
                 <div class="widget-content" data-widget-content="${widgetConfig.id}">
-                    <div class="widget-loading">Загрузка виджета...</div>
+                    <div class="widget-loading">
+                        <div class="widget-spinner"></div>
+                        <span>Загрузка ${widgetTitle}...</span>
+                    </div>
                 </div>
             </div>
         `;
+    }
+    
+    getWidgetTitle(widgetId) {
+        const titles = {
+            'my-tasks': 'Мои задачи',
+            'tasks-summary': 'Сводка задач',
+            'overdue-tasks': 'Просроченные задачи',
+            'kpi-summary': 'KPI показатели',
+            'weekly-chart': 'Динамика задач',
+            'agent-ranking': 'Топ агентов',
+            'deals-pipeline': 'Воронка продаж',
+            'calendar-mini': 'Календарь'
+        };
+        return titles[widgetId] || widgetId;
     }
     
     getWidgetIcon(widgetId) {
@@ -122,9 +157,11 @@ class DashboardContainer {
             'my-tasks': 'fa-tasks',
             'tasks-summary': 'fa-chart-simple',
             'overdue-tasks': 'fa-exclamation-triangle',
-            'deals-pipeline': 'fa-chart-line',
+            'kpi-summary': 'fa-chart-line',
             'weekly-chart': 'fa-chart-line',
-            'agent-ranking': 'fa-trophy'
+            'agent-ranking': 'fa-trophy',
+            'deals-pipeline': 'fa-chart-line',
+            'calendar-mini': 'fa-calendar'
         };
         return icons[widgetId] || 'fa-puzzle-piece';
     }
@@ -140,19 +177,18 @@ class DashboardContainer {
         if (!contentContainer) return;
         
         try {
-            // Получаем класс виджета
             const WidgetClass = this.getWidgetClass(widgetConfig.id);
             if (!WidgetClass) {
                 contentContainer.innerHTML = `
                     <div class="widget-empty">
                         <i class="fas fa-puzzle-piece"></i>
-                        <div>Виджет "${widgetConfig.id}" не найден</div>
+                        <div>Виджет "${widgetConfig.id}" в разработке</div>
+                        <small>Скоро появится</small>
                     </div>
                 `;
                 return;
             }
             
-            // Создаем экземпляр
             const widget = new WidgetClass(contentContainer, {
                 widgetId: widgetConfig.id,
                 moduleId: widgetConfig.module,
@@ -160,10 +196,7 @@ class DashboardContainer {
                 dashboardId: this.dashboard.id
             });
             
-            // Сохраняем
             this.widgets.set(widgetConfig.id, widget);
-            
-            // Рендерим
             await widget.render();
             
         } catch (error) {
@@ -171,7 +204,7 @@ class DashboardContainer {
             contentContainer.innerHTML = `
                 <div class="widget-error">
                     <i class="fas fa-exclamation-triangle"></i>
-                    <div>Ошибка загрузки виджета</div>
+                    <div>Ошибка загрузки</div>
                     <button onclick="location.reload()">Повторить</button>
                 </div>
             `;
@@ -179,39 +212,35 @@ class DashboardContainer {
     }
     
     getWidgetClass(widgetId) {
-        // Маппинг виджетов на классы
-        const widgets = {
+        // Только существующие виджеты
+        const widgetsMap = {
             'my-tasks': window.CRM?.Widgets?.MyTasksWidget
         };
         
-        const WidgetClass = widgets[widgetId];
-        if (!WidgetClass) {
-            console.warn(`[dashboard-container] Виджет ${widgetId} не найден`);
+        const WidgetClass = widgetsMap[widgetId];
+        if (!WidgetClass && widgetId !== 'my-tasks') {
+            console.log(`[dashboard-container] Виджет ${widgetId} не найден, будет показан плейсхолдер`);
         }
         
         return WidgetClass;
     }
     
     bindEvents() {
-        // Кнопка обновления
         const refreshBtn = this.container.querySelector('#refreshDashboard');
         if (refreshBtn) {
             refreshBtn.onclick = () => this.refreshAllWidgets();
         }
         
-        // Кнопка редактирования
         const editBtn = this.container.querySelector('#editDashboard');
         if (editBtn) {
             editBtn.onclick = () => this.toggleEditMode();
         }
         
-        // Кнопка добавления виджета
         const addBtn = this.container.querySelector('#addWidgetBtn');
         if (addBtn) {
             addBtn.onclick = () => this.showWidgetPalette();
         }
         
-        // Кнопки обновления виджетов
         const refreshWidgetBtns = this.container.querySelectorAll('.refresh-widget');
         refreshWidgetBtns.forEach(btn => {
             btn.onclick = (e) => {
@@ -221,7 +250,6 @@ class DashboardContainer {
             };
         });
         
-        // Кнопки удаления (в режиме редактирования)
         if (this.editMode) {
             const removeBtns = this.container.querySelectorAll('.remove-widget');
             removeBtns.forEach(btn => {
@@ -239,10 +267,8 @@ class DashboardContainer {
         await this.render();
         
         if (this.editMode) {
-            // Включаем drag-and-drop
             this.enableDragAndDrop();
         } else {
-            // Сохраняем новую конфигурацию
             await this.saveLayout();
         }
     }
@@ -251,12 +277,12 @@ class DashboardContainer {
         const grid = this.container.querySelector('#dashboardGrid');
         if (!grid) return;
         
-        // Простая реализация drag-and-drop
         let dragSrc = null;
-        
         const cards = grid.querySelectorAll('.widget-card');
+        
         cards.forEach(card => {
             card.setAttribute('draggable', true);
+            card.style.cursor = 'grab';
             
             card.addEventListener('dragstart', (e) => {
                 dragSrc = card;
@@ -276,8 +302,7 @@ class DashboardContainer {
             
             card.addEventListener('drop', (e) => {
                 e.preventDefault();
-                if (dragSrc !== card) {
-                    // Меняем местами
+                if (dragSrc && dragSrc !== card) {
                     const parent = grid;
                     const children = [...parent.children];
                     const dragIndex = children.indexOf(dragSrc);
@@ -294,29 +319,23 @@ class DashboardContainer {
     }
     
     async saveLayout() {
-        // Собираем новый порядок виджетов
         const grid = this.container.querySelector('#dashboardGrid');
         const cards = grid.querySelectorAll('.widget-card');
         
         const newWidgets = [];
-        cards.forEach(card => {
+        cards.forEach((card, index) => {
             const widgetId = card.dataset.widgetId;
-            const moduleId = card.dataset.moduleId;
-            
-            // Находим старую конфигурацию
             const oldConfig = this.dashboard.layout.widgets.find(w => w.id === widgetId);
             if (oldConfig) {
                 newWidgets.push({
                     ...oldConfig,
-                    position: { order: newWidgets.length }
+                    position: { order: index }
                 });
             }
         });
         
-        // Обновляем layout
         this.dashboard.layout.widgets = newWidgets;
         
-        // Сохраняем в БД
         const success = await saveDashboardLayout(this.dashboard.id, this.dashboard.layout);
         if (success) {
             console.log('[dashboard-container] Дашборд сохранен');
@@ -326,31 +345,33 @@ class DashboardContainer {
     }
     
     async removeWidget(widgetId) {
-        // Удаляем из конфигурации
         const index = this.dashboard.layout.widgets.findIndex(w => w.id === widgetId);
         if (index !== -1) {
             this.dashboard.layout.widgets.splice(index, 1);
             
-            // Сохраняем
             const success = await saveDashboardLayout(this.dashboard.id, this.dashboard.layout);
             if (success) {
-                // Уничтожаем виджет
                 const widget = this.widgets.get(widgetId);
                 if (widget && widget.destroy) {
                     widget.destroy();
                 }
                 this.widgets.delete(widgetId);
-                
-                // Перерисовываем
                 await this.render();
             }
         }
     }
     
     async showWidgetPalette() {
-        const availableWidgets = getAvailableWidgets();
+        const availableWidgets = [
+            {
+                id: 'my-tasks',
+                moduleId: 'tasks',
+                title: 'Мои задачи',
+                description: 'Показывает ваши текущие задачи',
+                settings: { limit: 10 }
+            }
+        ];
         
-        // Создаем палитру
         const palette = document.createElement('div');
         palette.className = 'widget-palette';
         palette.innerHTML = `
@@ -366,7 +387,7 @@ class DashboardContainer {
                         <i class="fas ${this.getWidgetIcon(widget.id)}"></i>
                         <div class="widget-palette-info">
                             <div class="widget-palette-name">${widget.title}</div>
-                            <div class="widget-palette-desc">${widget.description || ''}</div>
+                            <div class="widget-palette-desc">${widget.description}</div>
                         </div>
                     </div>
                 `).join('')}
@@ -374,18 +395,14 @@ class DashboardContainer {
         `;
         
         document.body.appendChild(palette);
-        
-        // Анимация открытия
         setTimeout(() => palette.classList.add('open'), 10);
         
-        // Закрытие
         const closeBtn = palette.querySelector('.widget-palette-close');
         closeBtn.onclick = () => {
             palette.classList.remove('open');
             setTimeout(() => palette.remove(), 300);
         };
         
-        // Добавление виджета
         const items = palette.querySelectorAll('.widget-palette-item');
         items.forEach(item => {
             item.onclick = async () => {
@@ -393,7 +410,6 @@ class DashboardContainer {
                 const moduleId = item.dataset.moduleId;
                 const widgetDef = availableWidgets.find(w => w.id === widgetId);
                 
-                // Добавляем в конфигурацию
                 this.dashboard.layout.widgets.push({
                     id: widgetId,
                     module: moduleId,
@@ -402,7 +418,6 @@ class DashboardContainer {
                     position: { order: this.dashboard.layout.widgets.length }
                 });
                 
-                // Сохраняем
                 const success = await saveDashboardLayout(this.dashboard.id, this.dashboard.layout);
                 if (success) {
                     palette.classList.remove('open');
@@ -431,7 +446,6 @@ class DashboardContainer {
     subscribeEvents() {
         if (!window.CRM?.EventBus) return;
         
-        // Обновляем виджеты при изменениях
         window.CRM.EventBus.on('task:created', () => {
             this.refreshAllWidgets();
         });
@@ -446,7 +460,6 @@ class DashboardContainer {
     }
 }
 
-// Экспортируем
 if (typeof window !== 'undefined') {
     window.CRM = window.CRM || {};
     window.CRM.DashboardContainer = DashboardContainer;
