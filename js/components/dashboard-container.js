@@ -5,11 +5,12 @@
  * 
  * ИСТОРИЯ:
  *   - 30.03.2026: Создание контейнера
- *   - 30.03.2026: Исправлена обработка виджетов
+ *   - 30.03.2026: Исправлена обработка ошибок
  * ============================================
  */
 
-import { getActiveDashboard, saveDashboardLayout, getAvailableWidgets } from '../services/dashboards-supabase.js';
+import { getActiveDashboard, saveDashboardLayout } from '../services/dashboards-supabase.js';
+import { getCurrentSupabaseUser } from '../core/supabase-session.js';
 
 console.log('[dashboard-container] Загрузка...');
 
@@ -20,6 +21,7 @@ class DashboardContainer {
         this.dashboard = null;
         this.widgets = new Map();
         this.editMode = false;
+        this.initialized = false;
         
         console.log('[dashboard-container] Создан');
     }
@@ -27,27 +29,62 @@ class DashboardContainer {
     async init() {
         console.log('[dashboard-container] Инициализация...');
         
-        this.dashboard = await getActiveDashboard();
-        if (!this.dashboard) {
-            console.error('[dashboard-container] Дашборд не найден');
-            this.showEmptyState();
-            return;
+        // Проверяем авторизацию
+        const user = getCurrentSupabaseUser();
+        if (!user) {
+            console.log('[dashboard-container] Пользователь не авторизован, ждем...');
+            // Ждем загрузки пользователя
+            await this.waitForUser();
         }
         
-        await this.render();
-        this.subscribeEvents();
-        
-        console.log('[dashboard-container] Инициализирован');
+        try {
+            this.dashboard = await getActiveDashboard();
+            if (!this.dashboard) {
+                console.error('[dashboard-container] Дашборд не найден');
+                this.showEmptyState();
+                return;
+            }
+            
+            await this.render();
+            this.subscribeEvents();
+            this.initialized = true;
+            console.log('[dashboard-container] Инициализирован');
+        } catch (error) {
+            console.error('[dashboard-container] Ошибка инициализации:', error);
+            this.showErrorState(error.message);
+        }
+    }
+    
+    waitForUser() {
+        return new Promise((resolve) => {
+            let attempts = 0;
+            const maxAttempts = 50;
+            
+            const checkUser = () => {
+                attempts++;
+                const user = getCurrentSupabaseUser();
+                if (user) {
+                    console.log('[dashboard-container] Пользователь загружен:', user.name);
+                    resolve();
+                } else if (attempts >= maxAttempts) {
+                    console.warn('[dashboard-container] Таймаут ожидания пользователя');
+                    resolve();
+                } else {
+                    setTimeout(checkUser, 100);
+                }
+            };
+            checkUser();
+        });
     }
     
     showEmptyState() {
         if (!this.container) return;
         this.container.innerHTML = `
-            <div class="dashboard-empty">
-                <i class="fas fa-puzzle-piece"></i>
+            <div class="dashboard-empty" style="text-align: center; padding: 40px;">
+                <i class="fas fa-puzzle-piece" style="font-size: 48px; opacity: 0.5; margin-bottom: 16px; display: block;"></i>
                 <h3>Нет виджетов</h3>
                 <p>Нажмите "Настроить", чтобы добавить виджеты</p>
-                <button class="dashboard-btn primary" id="initAddWidgetBtn">
+                <button class="dashboard-btn primary" id="initAddWidgetBtn" style="margin-top: 16px;">
                     <i class="fas fa-plus"></i> Добавить виджет
                 </button>
             </div>
@@ -59,11 +96,36 @@ class DashboardContainer {
         }
     }
     
+    showErrorState(message) {
+        if (!this.container) return;
+        this.container.innerHTML = `
+            <div class="dashboard-empty" style="text-align: center; padding: 40px;">
+                <i class="fas fa-exclamation-triangle" style="font-size: 48px; color: #ff6b6b; margin-bottom: 16px; display: block;"></i>
+                <h3>Ошибка загрузки</h3>
+                <p>${message || 'Не удалось загрузить дашборд'}</p>
+                <button class="dashboard-btn" id="retryInitBtn" style="margin-top: 16px;">
+                    <i class="fas fa-sync-alt"></i> Повторить
+                </button>
+            </div>
+        `;
+        
+        const retryBtn = this.container.querySelector('#retryInitBtn');
+        if (retryBtn) {
+            retryBtn.onclick = () => this.init();
+        }
+    }
+    
     async render() {
         if (!this.container) return;
         
-        const layout = this.dashboard.layout;
-        const widgets = layout?.widgets || [];
+        // Проверяем, что дашборд загружен
+        if (!this.dashboard || !this.dashboard.layout) {
+            console.warn('[dashboard-container] Дашборд не загружен');
+            this.showEmptyState();
+            return;
+        }
+        
+        const widgets = this.dashboard.layout.widgets || [];
         
         if (widgets.length === 0) {
             this.showEmptyState();
@@ -71,25 +133,25 @@ class DashboardContainer {
         }
         
         const gridHtml = `
-            <div class="dashboard-toolbar">
-                <div class="dashboard-title">
-                    <i class="fas fa-chart-line"></i> 
-                    ${this.dashboard.name}
+            <div class="dashboard-toolbar" style="display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; background: var(--card-bg); border-bottom: 1px solid var(--card-border);">
+                <div class="dashboard-title" style="font-size: 18px; font-weight: 600;">
+                    <i class="fas fa-chart-line" style="color: var(--accent);"></i> 
+                    ${this.dashboard.name || 'Мой дашборд'}
                 </div>
-                <div class="dashboard-controls">
-                    <button class="dashboard-btn" id="refreshDashboard">
+                <div class="dashboard-controls" style="display: flex; gap: 12px;">
+                    <button class="dashboard-btn" id="refreshDashboard" style="padding: 8px 16px; border-radius: 10px; background: var(--hover-bg); border: none; cursor: pointer;">
                         <i class="fas fa-sync-alt"></i> Обновить
                     </button>
-                    <button class="dashboard-btn" id="editDashboard">
+                    <button class="dashboard-btn" id="editDashboard" style="padding: 8px 16px; border-radius: 10px; background: var(--hover-bg); border: none; cursor: pointer;">
                         <i class="fas fa-edit"></i> 
                         ${this.editMode ? 'Сохранить' : 'Настроить'}
                     </button>
-                    <button class="dashboard-btn primary" id="addWidgetBtn">
-                        <i class="fas fa-plus"></i> Добавить виджет
+                    <button class="dashboard-btn primary" id="addWidgetBtn" style="padding: 8px 16px; border-radius: 10px; background: var(--accent); color: white; border: none; cursor: pointer;">
+                        <i class="fas fa-plus"></i> Добавить
                     </button>
                 </div>
             </div>
-            <div class="dashboard-grid ${this.editMode ? 'edit-mode' : ''}" id="dashboardGrid">
+            <div class="dashboard-grid ${this.editMode ? 'edit-mode' : ''}" id="dashboardGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 20px; padding: 20px;">
                 ${widgets.map((widget, index) => this.renderWidgetPlaceholder(widget, index)).join('')}
             </div>
         `;
@@ -108,29 +170,29 @@ class DashboardContainer {
         const widgetIcon = this.getWidgetIcon(widgetConfig.id);
         
         return `
-            <div class="widget-card" data-widget-id="${widgetConfig.id}" data-widget-index="${index}">
-                <div class="widget-header">
-                    <div class="widget-title">
-                        <i class="fas ${widgetIcon}"></i>
+            <div class="widget-card" data-widget-id="${widgetConfig.id}" data-widget-index="${index}" style="background: var(--card-bg); border-radius: 16px; border: 1px solid var(--card-border); overflow: hidden;">
+                <div class="widget-header" style="padding: 12px 16px; border-bottom: 1px solid var(--card-border); display: flex; justify-content: space-between; align-items: center;">
+                    <div class="widget-title" style="display: flex; align-items: center; gap: 8px; font-weight: 600;">
+                        <i class="fas ${widgetIcon}" style="color: var(--accent);"></i>
                         <span>${widgetConfig.title || widgetTitle}</span>
                     </div>
-                    <div class="widget-actions">
+                    <div class="widget-actions" style="display: flex; gap: 8px;">
                         ${this.editMode ? `
-                            <button class="widget-action-btn remove-widget" data-widget-id="${widgetConfig.id}" title="Удалить">
+                            <button class="widget-action-btn remove-widget" data-widget-id="${widgetConfig.id}" title="Удалить" style="background: none; border: none; cursor: pointer; color: var(--text-muted); padding: 4px;">
                                 <i class="fas fa-trash"></i>
                             </button>
-                            <button class="widget-action-btn drag-handle" title="Переместить">
+                            <button class="widget-action-btn drag-handle" title="Переместить" style="background: none; border: none; cursor: grab; color: var(--text-muted); padding: 4px;">
                                 <i class="fas fa-grip-vertical"></i>
                             </button>
                         ` : ''}
-                        <button class="widget-action-btn refresh-widget" data-widget-id="${widgetConfig.id}" title="Обновить">
+                        <button class="widget-action-btn refresh-widget" data-widget-id="${widgetConfig.id}" title="Обновить" style="background: none; border: none; cursor: pointer; color: var(--text-muted); padding: 4px;">
                             <i class="fas fa-sync-alt"></i>
                         </button>
                     </div>
                 </div>
-                <div class="widget-content" data-widget-content="${widgetConfig.id}">
-                    <div class="widget-loading">
-                        <div class="widget-spinner"></div>
+                <div class="widget-content" data-widget-content="${widgetConfig.id}" style="padding: 16px; min-height: 200px;">
+                    <div class="widget-loading" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;">
+                        <div class="widget-spinner" style="width: 32px; height: 32px; border: 3px solid var(--card-border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
                         <span>Загрузка ${widgetTitle}...</span>
                     </div>
                 </div>
@@ -142,12 +204,7 @@ class DashboardContainer {
         const titles = {
             'my-tasks': 'Мои задачи',
             'tasks-summary': 'Сводка задач',
-            'overdue-tasks': 'Просроченные задачи',
-            'kpi-summary': 'KPI показатели',
-            'weekly-chart': 'Динамика задач',
-            'agent-ranking': 'Топ агентов',
-            'deals-pipeline': 'Воронка продаж',
-            'calendar-mini': 'Календарь'
+            'overdue-tasks': 'Просроченные задачи'
         };
         return titles[widgetId] || widgetId;
     }
@@ -156,12 +213,7 @@ class DashboardContainer {
         const icons = {
             'my-tasks': 'fa-tasks',
             'tasks-summary': 'fa-chart-simple',
-            'overdue-tasks': 'fa-exclamation-triangle',
-            'kpi-summary': 'fa-chart-line',
-            'weekly-chart': 'fa-chart-line',
-            'agent-ranking': 'fa-trophy',
-            'deals-pipeline': 'fa-chart-line',
-            'calendar-mini': 'fa-calendar'
+            'overdue-tasks': 'fa-exclamation-triangle'
         };
         return icons[widgetId] || 'fa-puzzle-piece';
     }
@@ -180,8 +232,8 @@ class DashboardContainer {
             const WidgetClass = this.getWidgetClass(widgetConfig.id);
             if (!WidgetClass) {
                 contentContainer.innerHTML = `
-                    <div class="widget-empty">
-                        <i class="fas fa-puzzle-piece"></i>
+                    <div class="widget-empty" style="text-align: center; padding: 40px; color: var(--text-muted);">
+                        <i class="fas fa-puzzle-piece" style="font-size: 32px; margin-bottom: 12px; display: block;"></i>
                         <div>Виджет "${widgetConfig.id}" в разработке</div>
                         <small>Скоро появится</small>
                     </div>
@@ -193,7 +245,7 @@ class DashboardContainer {
                 widgetId: widgetConfig.id,
                 moduleId: widgetConfig.module,
                 settings: widgetConfig.settings || {},
-                dashboardId: this.dashboard.id
+                dashboardId: this.dashboard?.id
             });
             
             this.widgets.set(widgetConfig.id, widget);
@@ -202,27 +254,21 @@ class DashboardContainer {
         } catch (error) {
             console.error(`[dashboard-container] Ошибка загрузки виджета ${widgetConfig.id}:`, error);
             contentContainer.innerHTML = `
-                <div class="widget-error">
-                    <i class="fas fa-exclamation-triangle"></i>
+                <div class="widget-error" style="text-align: center; padding: 40px; color: #ff6b6b;">
+                    <i class="fas fa-exclamation-triangle" style="font-size: 32px; margin-bottom: 12px; display: block;"></i>
                     <div>Ошибка загрузки</div>
-                    <button onclick="location.reload()">Повторить</button>
+                    <button onclick="location.reload()" style="margin-top: 12px; padding: 6px 12px; border-radius: 8px; background: var(--accent); color: white; border: none; cursor: pointer;">Повторить</button>
                 </div>
             `;
         }
     }
     
     getWidgetClass(widgetId) {
-        // Только существующие виджеты
         const widgetsMap = {
             'my-tasks': window.CRM?.Widgets?.MyTasksWidget
         };
         
-        const WidgetClass = widgetsMap[widgetId];
-        if (!WidgetClass && widgetId !== 'my-tasks') {
-            console.log(`[dashboard-container] Виджет ${widgetId} не найден, будет показан плейсхолдер`);
-        }
-        
-        return WidgetClass;
+        return widgetsMap[widgetId];
     }
     
     bindEvents() {
@@ -319,10 +365,14 @@ class DashboardContainer {
     }
     
     async saveLayout() {
-        const grid = this.container.querySelector('#dashboardGrid');
-        const cards = grid.querySelectorAll('.widget-card');
+        if (!this.dashboard || !this.dashboard.layout) return;
         
+        const grid = this.container.querySelector('#dashboardGrid');
+        if (!grid) return;
+        
+        const cards = grid.querySelectorAll('.widget-card');
         const newWidgets = [];
+        
         cards.forEach((card, index) => {
             const widgetId = card.dataset.widgetId;
             const oldConfig = this.dashboard.layout.widgets.find(w => w.id === widgetId);
@@ -345,6 +395,8 @@ class DashboardContainer {
     }
     
     async removeWidget(widgetId) {
+        if (!this.dashboard || !this.dashboard.layout) return;
+        
         const index = this.dashboard.layout.widgets.findIndex(w => w.id === widgetId);
         if (index !== -1) {
             this.dashboard.layout.widgets.splice(index, 1);
@@ -374,20 +426,35 @@ class DashboardContainer {
         
         const palette = document.createElement('div');
         palette.className = 'widget-palette';
+        palette.style.cssText = `
+            position: fixed;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            width: 320px;
+            background: var(--card-bg);
+            border-left: 1px solid var(--card-border);
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+        `;
+        
         palette.innerHTML = `
-            <div class="widget-palette-header">
-                <div class="widget-palette-title">
+            <div class="widget-palette-header" style="padding: 20px; border-bottom: 1px solid var(--card-border); display: flex; justify-content: space-between; align-items: center;">
+                <div class="widget-palette-title" style="font-size: 18px; font-weight: 600;">
                     <i class="fas fa-plus"></i> Добавить виджет
                 </div>
-                <button class="widget-palette-close">&times;</button>
+                <button class="widget-palette-close" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-muted);">&times;</button>
             </div>
-            <div class="widget-palette-list">
+            <div class="widget-palette-list" style="flex: 1; overflow-y: auto; padding: 16px;">
                 ${availableWidgets.map(widget => `
-                    <div class="widget-palette-item" data-widget-id="${widget.id}" data-module-id="${widget.moduleId}">
-                        <i class="fas ${this.getWidgetIcon(widget.id)}"></i>
-                        <div class="widget-palette-info">
-                            <div class="widget-palette-name">${widget.title}</div>
-                            <div class="widget-palette-desc">${widget.description}</div>
+                    <div class="widget-palette-item" data-widget-id="${widget.id}" data-module-id="${widget.moduleId}" style="padding: 12px; background: var(--hover-bg); border-radius: 12px; margin-bottom: 12px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 12px;">
+                        <i class="fas ${this.getWidgetIcon(widget.id)}" style="font-size: 20px;"></i>
+                        <div class="widget-palette-info" style="flex: 1;">
+                            <div class="widget-palette-name" style="font-weight: 600; margin-bottom: 4px;">${widget.title}</div>
+                            <div class="widget-palette-desc" style="font-size: 12px; opacity: 0.7;">${widget.description}</div>
                         </div>
                     </div>
                 `).join('')}
@@ -395,11 +462,11 @@ class DashboardContainer {
         `;
         
         document.body.appendChild(palette);
-        setTimeout(() => palette.classList.add('open'), 10);
+        setTimeout(() => palette.style.transform = 'translateX(0)', 10);
         
         const closeBtn = palette.querySelector('.widget-palette-close');
         closeBtn.onclick = () => {
-            palette.classList.remove('open');
+            palette.style.transform = 'translateX(100%)';
             setTimeout(() => palette.remove(), 300);
         };
         
@@ -410,19 +477,21 @@ class DashboardContainer {
                 const moduleId = item.dataset.moduleId;
                 const widgetDef = availableWidgets.find(w => w.id === widgetId);
                 
-                this.dashboard.layout.widgets.push({
-                    id: widgetId,
-                    module: moduleId,
-                    title: widgetDef.title,
-                    settings: widgetDef.settings || {},
-                    position: { order: this.dashboard.layout.widgets.length }
-                });
-                
-                const success = await saveDashboardLayout(this.dashboard.id, this.dashboard.layout);
-                if (success) {
-                    palette.classList.remove('open');
-                    setTimeout(() => palette.remove(), 300);
-                    await this.render();
+                if (this.dashboard && this.dashboard.layout) {
+                    this.dashboard.layout.widgets.push({
+                        id: widgetId,
+                        module: moduleId,
+                        title: widgetDef.title,
+                        settings: widgetDef.settings || {},
+                        position: { order: this.dashboard.layout.widgets.length }
+                    });
+                    
+                    const success = await saveDashboardLayout(this.dashboard.id, this.dashboard.layout);
+                    if (success) {
+                        palette.style.transform = 'translateX(100%)';
+                        setTimeout(() => palette.remove(), 300);
+                        await this.render();
+                    }
                 }
             };
         });
@@ -459,6 +528,15 @@ class DashboardContainer {
         });
     }
 }
+
+// Добавляем анимацию спиннера
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+`;
+document.head.appendChild(style);
 
 if (typeof window !== 'undefined') {
     window.CRM = window.CRM || {};
