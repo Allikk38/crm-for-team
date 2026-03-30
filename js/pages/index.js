@@ -17,6 +17,7 @@
  * 
  * ИСТОРИЯ:
  *   - 27.03.2026: Создание файла, вынос логики из index-supabase.html
+ *   - 30.03.2026: Добавлена загрузка объектов и пользователей
  * ============================================
  */
 
@@ -68,6 +69,58 @@ function animateValue(element, targetValue, suffix = '') {
 
 // ========== ЗАГРУЗКА ДАННЫХ ==========
 
+// Загрузка количества объектов
+async function loadComplexesCount() {
+    try {
+        const { data, error } = await supabase
+            .from('complexes')
+            .select('*', { count: 'exact', head: true });
+        
+        if (!error && data) {
+            const complexesCount = data.length;
+            const complexesElement = document.getElementById('complexesCount');
+            if (complexesElement) {
+                complexesElement.textContent = complexesCount;
+                console.log('[index] Загружено объектов:', complexesCount);
+            }
+        } else {
+            console.error('[index] Ошибка загрузки объектов:', error);
+            const complexesElement = document.getElementById('complexesCount');
+            if (complexesElement) complexesElement.textContent = '0';
+        }
+    } catch (error) {
+        console.error('[index] Ошибка загрузки объектов:', error);
+        const complexesElement = document.getElementById('complexesCount');
+        if (complexesElement) complexesElement.textContent = '0';
+    }
+}
+
+// Загрузка количества пользователей
+async function loadUsersCount() {
+    try {
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('*', { count: 'exact', head: true });
+        
+        if (!error && data) {
+            const usersCount = data.length;
+            const usersElement = document.getElementById('usersCount');
+            if (usersElement) {
+                usersElement.textContent = usersCount;
+                console.log('[index] Загружено пользователей:', usersCount);
+            }
+        } else {
+            console.error('[index] Ошибка загрузки пользователей:', error);
+            const usersElement = document.getElementById('usersCount');
+            if (usersElement) usersElement.textContent = '1';
+        }
+    } catch (error) {
+        console.error('[index] Ошибка загрузки пользователей:', error);
+        const usersElement = document.getElementById('usersCount');
+        if (usersElement) usersElement.textContent = '1';
+    }
+}
+
 async function loadDashboardData() {
     try {
         tasks = await getTasks();
@@ -75,7 +128,8 @@ async function loadDashboardData() {
         
         // Активные задачи (не завершенные)
         const activeTasks = tasks.filter(t => t.status !== 'completed');
-        document.getElementById('tasksCount').textContent = activeTasks.length;
+        const tasksCountElement = document.getElementById('tasksCount');
+        if (tasksCountElement) tasksCountElement.textContent = activeTasks.length;
         
         // Завершенные за неделю
         const weekAgo = new Date();
@@ -85,7 +139,8 @@ async function loadDashboardData() {
             if (!t.completed_at) return false;
             return new Date(t.completed_at) > weekAgo;
         }).length;
-        document.getElementById('kpiCompletedWeek').textContent = completedThisWeek;
+        const kpiCompletedElement = document.getElementById('kpiCompletedWeek');
+        if (kpiCompletedElement) kpiCompletedElement.textContent = completedThisWeek;
         
         // Просроченные
         const today = new Date().toISOString().split('T')[0];
@@ -94,19 +149,26 @@ async function loadDashboardData() {
             if (!t.due_date) return false;
             return t.due_date < today;
         });
-        document.getElementById('kpiOverdue').textContent = overdueTasks.length;
+        const kpiOverdueElement = document.getElementById('kpiOverdue');
+        if (kpiOverdueElement) kpiOverdueElement.textContent = overdueTasks.length;
         
         // Конверсия
         const completedTasks = tasks.filter(t => t.status === 'completed').length;
         const totalTasks = tasks.length;
         const conversion = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-        document.getElementById('kpiConversion').textContent = conversion + '%';
+        const kpiConversionElement = document.getElementById('kpiConversion');
+        if (kpiConversionElement) kpiConversionElement.textContent = conversion + '%';
         
         // Прогресс
-        document.getElementById('completedTasksLarge').textContent = completedTasks;
-        document.getElementById('totalTasksLarge').textContent = totalTasks;
+        const completedTasksLarge = document.getElementById('completedTasksLarge');
+        const totalTasksLarge = document.getElementById('totalTasksLarge');
+        if (completedTasksLarge) completedTasksLarge.textContent = completedTasks;
+        if (totalTasksLarge) totalTasksLarge.textContent = totalTasks;
+        
         const progressPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-        document.getElementById('progressPercentLarge').textContent = progressPercent + '%';
+        const progressPercentLarge = document.getElementById('progressPercentLarge');
+        if (progressPercentLarge) progressPercentLarge.textContent = progressPercent + '%';
+        
         const progressFill = document.getElementById('progressFillLarge');
         if (progressFill) progressFill.style.width = progressPercent + '%';
         
@@ -129,7 +191,10 @@ async function loadDashboardData() {
             if (hour < 12) greeting = 'Доброе утро';
             else if (hour < 18) greeting = 'Добрый день';
             else greeting = 'Добрый вечер';
-            document.getElementById('welcomeMessage').innerHTML = greeting + ', ' + escapeHtml(currentUser.name) + '! 👋 Рады видеть вас в CRM.';
+            const welcomeMessage = document.getElementById('welcomeMessage');
+            if (welcomeMessage) {
+                welcomeMessage.innerHTML = greeting + ', ' + escapeHtml(currentUser.name) + '! 👋 Рады видеть вас в CRM.';
+            }
         }
         
         console.log('[index] Дашборд загружен');
@@ -171,10 +236,16 @@ function renderWeeklyChart() {
 async function loadAgentRanking() {
     try {
         // Загружаем всех пользователей с ролью agent
-        const { data: agents } = await supabase
+        const { data: agents, error } = await supabase
             .from('profiles')
             .select('*')
             .eq('role', 'agent');
+        
+        if (error) {
+            console.error('[index] Ошибка загрузки агентов:', error);
+            renderEmptyRanking();
+            return;
+        }
         
         if (!agents || agents.length === 0) {
             renderEmptyRanking();
@@ -217,6 +288,7 @@ async function loadAgentRanking() {
             `;
         }
         container.innerHTML = html;
+        console.log('[index] Рейтинг агентов загружен');
         
     } catch (error) {
         console.error('[index] Ошибка загрузки рейтинга агентов:', error);
