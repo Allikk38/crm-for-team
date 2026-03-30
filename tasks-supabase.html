@@ -740,7 +740,17 @@
             </div>
         </div>
     </div>
-<!-- Инициализация -->
+    <!-- ========== ПОДКЛЮЧАЕМ ЗАВИСИМОСТИ (обычные скрипты) ========== -->
+    <script src="js/utils/helpers.js"></script>
+    <script src="js/components/kanban.js"></script>
+    <script src="js/ui/animations.js"></script>
+    <script src="js/core/permissions.js"></script>
+    <script src="js/core/registry.js"></script>
+    
+    <!-- Загружаем модуль задач (обычный скрипт, без type="module") -->
+    <script src="js/modules/tasks/index.js"></script>
+    
+    <!-- Инициализация - ждем загрузки пользователя -->
     <script>
         (function init() {
             // Проверяем, что реестр и модуль загружены
@@ -778,11 +788,16 @@
                     console.error('[tasks] Ошибка загрузки модуля:', err);
                     // Fallback на прямую загрузку
                     import('./js/pages/tasks.js').then(module => {
+                        console.log('[tasks] Используем fallback');
                         module.initTasksPage();
+                    }).catch(fallbackErr => {
+                        console.error('[tasks] Fallback тоже не сработал:', fallbackErr);
                     });
                 });
             }
         })();
     </script>
+    
+    <script src="layout.js"></script>
 </body>
 </html>
