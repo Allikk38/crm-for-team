@@ -1,52 +1,75 @@
 /**
  * ============================================
  * ФАЙЛ: js/modules/deals/index.js
- * РОЛЬ: Модуль сделок - с опциональной интеграцией с Tasks
+ * РОЛЬ: Модуль сделок - регистрация и инициализация
  * 
  * ОСОБЕННОСТИ:
- *   - Не зависит от Tasks (нет в dependencies)
- *   - Использует EventBus для опционального взаимодействия
- *   - Если Tasks загружен - показываем дополнительные функции
- *   - Если Tasks не загружен - работаем в базовом режиме
+ *   - Регистрация модуля в реестре
+ *   - Определение страниц и виджетов
+ *   - Инициализация Kanban-доски со сделками
+ *   - Использует отдельный файл permissions.js для прав
+ * 
+ * ЗАВИСИМОСТИ:
+ *   - js/core/registry.js
+ *   - js/core/permissions.js
+ *   - js/services/deals-supabase.js
+ *   - ./permissions.js (локальный)
  * 
  * ИСТОРИЯ:
- *   - 30.03.2026: Создание модуля с опциональной интеграцией
+ *   - 30.03.2026: Создание модуля сделок
+ *   - 30.03.2026: Интеграция с локальным permissions.js
  * ============================================
  */
 
 console.log('[deals-module] Загрузка модуля сделок...');
+
+// Импортируем локальные права
+import { DEAL_PERMISSIONS, canViewDeal, canEditDeal } from './permissions.js';
 
 // Определение модуля
 const dealsModule = {
     id: 'deals',
     name: 'Сделки',
     version: '2.0.0',
-    description: 'Управление заявками и сделками',
+    description: 'Управление заявками и сделками с Kanban-доской на 6 статусов',
     
     // Нет жестких зависимостей - модуль работает сам по себе
     dependencies: [],
     
-    requiredPermissions: ['view_own_deals'],
-    requiredPlans: ['pro', 'business'],
+    // Необходимые разрешения (из локального файла)
+    requiredPermissions: [DEAL_PERMISSIONS.VIEW_OWN_DEALS],
     
+    // Доступные тарифы
+    requiredPlans: ['pro', 'business', 'enterprise'],
+    
+    // Страницы модуля
     pages: {
         'deals-supabase.html': {
             title: 'Сделки',
             icon: 'fa-handshake',
-            permissions: ['view_own_deals']
+            permissions: [DEAL_PERMISSIONS.VIEW_OWN_DEALS]
         }
     },
     
+    // Виджеты для дашборда
     widgets: {
         'deals-summary': {
             title: 'Статистика сделок',
+            component: null,
             defaultSize: { w: 2, h: 2 },
-            permissions: ['view_own_deals']
+            permissions: [DEAL_PERMISSIONS.VIEW_OWN_DEALS]
         },
         'deals-pipeline': {
             title: 'Воронка сделок',
+            component: null,
             defaultSize: { w: 3, h: 3 },
-            permissions: ['view_own_deals']
+            permissions: [DEAL_PERMISSIONS.VIEW_OWN_DEALS]
+        },
+        'overdue-deals': {
+            title: 'Просроченные сделки',
+            component: null,
+            defaultSize: { w: 2, h: 2 },
+            permissions: [DEAL_PERMISSIONS.VIEW_OWN_DEALS]
         }
     },
     
@@ -62,11 +85,12 @@ const dealsModule = {
         }
     },
     
+    // Callback при загрузке модуля
     onLoad: async () => {
         console.log('[deals-module] Модуль сделок загружен');
         
         // Проверяем, загружен ли Tasks модуль
-        const tasksAvailable = window.CRM.Registry.isModuleAvailable('tasks');
+        const tasksAvailable = window.CRM?.Registry?.isModuleAvailable('tasks');
         
         if (tasksAvailable) {
             console.log('[deals-module] Модуль Tasks доступен, включаем расширенную функциональность');
@@ -95,8 +119,10 @@ const dealsModule = {
         }
     },
     
+    // Callback при выгрузке модуля
     onUnload: async () => {
         console.log('[deals-module] Модуль сделок выгружен');
+        // Очистка событий и данных
     }
 };
 
@@ -113,7 +139,10 @@ function enhanceDealsWithTasks() {
                 const tasksBadge = document.createElement('div');
                 tasksBadge.className = 'tasks-badge';
                 tasksBadge.innerHTML = `<i class="fas fa-tasks"></i> ${tasks.length}`;
-                dealCard.querySelector('.deal-meta').appendChild(tasksBadge);
+                const metaDiv = dealCard.querySelector('.deal-meta');
+                if (metaDiv) {
+                    metaDiv.appendChild(tasksBadge);
+                }
             }
         });
     });
@@ -136,7 +165,12 @@ function enhanceDealsWithTasks() {
     });
 }
 
-// Делаем глобальным
+// Экспортируем также права для использования в других модулях
+dealsModule.permissions = DEAL_PERMISSIONS;
+dealsModule.canViewDeal = canViewDeal;
+dealsModule.canEditDeal = canEditDeal;
+
+// Делаем глобальным для доступа из других скриптов
 window.dealsModule = dealsModule;
 
 console.log('[deals-module] Модуль готов к регистрации');
