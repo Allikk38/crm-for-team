@@ -347,7 +347,8 @@ window.CRM.Permissions = {
         return false;
     },
     getPermissionSetInfo: (setName) => PERMISSION_SETS[setName] || null,
-    getAllPermissionSets: () => ({ ...PERMISSION_SETS })
+    getAllPermissionSets: () => ({ ...PERMISSION_SETS }),
+    updatePermissionsCache  // 👈 Добавлена запятая выше и сам метод
 };
 
 console.log('[permissions] Модуль загружен');
