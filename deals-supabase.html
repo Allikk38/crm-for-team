@@ -469,70 +469,8 @@
         </div>
     </div>
     
-    <!-- ========== ПОДКЛЮЧАЕМ ЗАВИСИМОСТИ ========== -->
-    <script src="js/utils/helpers.js"></script>
-    <script src="js/components/kanban.js"></script>
-    <script src="js/ui/animations.js"></script>
-    <script src="js/core/supabase.js" type="module"></script>
-    <script src="js/core/eventBus.js"></script>
-    <script src="js/core/planManager.js"></script>
-    <script src="js/core/permissions.js"></script>
-    <script src="js/core/registry.js"></script>
-    <script src="js/modules/deals/index.js"></script>
-    
-    <!-- Инициализация модуля с таймаутом -->
-    <script type="module">
-        import { checkSupabaseSession } from './js/core/supabase-session.js';
-        
-        console.log('[deals-init] Загрузка пользователя...');
-        
-        // Загружаем пользователя
-        await checkSupabaseSession();
-        
-        console.log('[deals-init] Пользователь загружен:', window.currentSupabaseUser?.name);
-        
-        // Ждем загрузки реестра и модуля с таймаутом
-        let attempts = 0;
-        const maxAttempts = 50;
-        
-        function waitForRegistryAndModule() {
-            attempts++;
-            
-            if (window.CRM?.Registry && window.dealsModule) {
-                console.log('[deals-init] Реестр и модуль готовы');
-                
-                // Регистрируем модуль
-                window.CRM.Registry.registerModule(window.dealsModule);
-                
-                // Загружаем модуль
-                window.CRM.Registry.loadModule('deals').then(() => {
-                    console.log('[deals] Модуль загружен через реестр');
-                }).catch(err => {
-                    console.error('[deals] Ошибка загрузки модуля:', err);
-                    // Fallback на прямую загрузку
-                    import('./js/pages/deals.js').then(module => {
-                        console.log('[deals] Используем fallback');
-                        module.initDealsPage();
-                    });
-                });
-            } else if (attempts >= maxAttempts) {
-                console.error('[deals-init] Таймаут ожидания реестра и модуля');
-                // Fallback
-                import('./js/pages/deals.js').then(module => {
-                    module.initDealsPage();
-                });
-            } else {
-                if (attempts === 1 || attempts % 10 === 0) {
-                    console.log(`[deals-init] Ожидаем загрузку реестра и модуля... (${attempts}/${maxAttempts})`);
-                }
-                setTimeout(waitForRegistryAndModule, 100);
-            }
-        }
-        
-        // Начинаем ожидание
-        setTimeout(waitForRegistryAndModule, 100);
-    </script>
-    
+    <!-- ========== УНИВЕРСАЛЬНЫЙ ЗАГРУЗЧИК МОДУЛЕЙ ========== -->
+    <script type="module" src="js/core/moduleLoader.js"></script>
     <script src="layout.js"></script>
 </body>
 </html>
