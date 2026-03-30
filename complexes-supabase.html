@@ -548,7 +548,7 @@
                     // Fallback на прямую загрузку
                     import('./js/pages/complexes.js').then(module => {
                         console.log('[complexes] Используем fallback');
-                        module.initComplexesPage();
+                        module.initComplexesPage(); 
                     });
                 });
             } else if (attempts >= maxAttempts) {
