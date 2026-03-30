@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    
+    <script>
+        (function() {
+            try {
+                const savedTheme = localStorage.getItem('crm_theme');
+                if (savedTheme === 'light') {
+                    if (document.documentElement) document.documentElement.classList.add('theme-light');
+                    if (document.body) document.body.classList.add('theme-light');
+                } else if (savedTheme === 'dark') {
+                    if (document.documentElement) document.documentElement.classList.add('theme-dark');
+                    if (document.body) document.body.classList.add('theme-dark');
+                }
+            } catch(e) {}
+        })();
+    </script>
+    
+    <title>Команда - CRM</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/responsive.css">
+    <link rel="stylesheet" href="css/animations.css">
+    
+    <style>
+        .team-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        
+        .page-header {
+            margin-bottom: 32px;
+            animation: fadeInUp 0.4s ease;
+        }
+        
+        .page-header h1 {
+            font-size: 2rem;
+            background: linear-gradient(135deg, var(--text-primary), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+        
+        .page-header p {
+            color: var(--text-muted);
+        }
+        
+        .invite-section {
+            background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+            border-radius: 20px;
+            padding: 24px;
+            margin-bottom: 32px;
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        
+        .invite-section h3 {
+            margin-bottom: 8px;
+        }
+        
+        .invite-section p {
+            opacity: 0.9;
+            font-size: 0.85rem;
+        }
+        
+        .invite-btn {
+            background: white;
+            color: var(--accent);
+            border: none;
+            padding: 12px 24px;
+            border-radius: 40px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .invite-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+        
+        .section-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 32px 0 20px;
+        }
+        
+        .section-title i {
+            font-size: 24px;
+            color: var(--accent);
+        }
+        
+        .section-title h2 {
+            font-size: 1.3rem;
+        }
+        
+        .team-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 32px;
+        }
+        
+        .stat-card {
+            background: var(--card-bg);
+            border-radius: 20px;
+            border: 1px solid var(--card-border);
+            padding: 20px;
+            text-align: center;
+            transition: all 0.3s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--accent);
+        }
+        
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+        
+        .stat-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-top: 8px;
+        }
+        
+        .members-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+        }
+        
+        .member-card {
+            background: var(--card-bg);
+            border-radius: 20px;
+            border: 1px solid var(--card-border);
+            padding: 20px;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        
+        .member-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--accent);
+        }
+        
+        .member-avatar {
+            width: 56px;
+            height: 56px;
+            background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+        
+        .member-info {
+            flex: 1;
+        }
+        
+        .member-name {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        
+        .member-role {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+        
+        .member-stats {
+            display: flex;
+            gap: 12px;
+            font-size: 0.7rem;
+        }
+        
+        .member-stats span {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .role-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 0.65rem;
+        }
+        
+        .role-admin {
+            background: rgba(108, 108, 255, 0.2);
+            color: var(--accent);
+        }
+        
+        .role-manager {
+            background: rgba(255, 193, 7, 0.2);
+            color: #ffc107;
+        }
+        
+        .role-agent {
+            background: rgba(76, 175, 80, 0.2);
+            color: #4caf50;
+        }
+        
+        .invite-list {
+            background: var(--card-bg);
+            border-radius: 20px;
+            border: 1px solid var(--card-border);
+            overflow: hidden;
+        }
+        
+        .invite-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--card-border);
+        }
+        
+        .invite-item:last-child {
+            border-bottom: none;
+        }
+        
+        .invite-email {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .invite-status {
+            font-size: 0.7rem;
+            padding: 2px 8px;
+            border-radius: 20px;
+        }
+        
+        .status-pending {
+            background: rgba(255, 193, 7, 0.2);
+            color: #ffc107;
+        }
+        
+        .status-accepted {
+            background: rgba(76, 175, 80, 0.2);
+            color: #4caf50;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px;
+            color: var(--text-muted);
+        }
+        
+        @media (max-width: 768px) {
+            .invite-section {
+                flex-direction: column;
+                text-align: center;
+            }
+            .member-card {
+                flex-direction: column;
+                text-align: center;
+            }
+            .member-stats {
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-layout">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-logo">
+                <i class="fas fa-chart-line"></i>
+                <span>CRM Team</span>
+            </div>
+            <nav class="sidebar-nav" id="sidebar-nav"></nav>
+            <div class="sidebar-footer">
+                <button class="collapse-btn" onclick="window.sidebar?.toggleSidebar()">
+                    <i class="fas fa-chevron-left"></i>
+                    <span>Свернуть</span>
+                </button>
+                <button class="logout-btn" onclick="window.sidebar?.logout()" style="margin-top: 12px; width: 100%; padding: 10px; background: rgba(255, 107, 107, 0.2); border: none; border-radius: 12px; color: #ff6b6b; cursor: pointer;">
+                    <i class="fas fa-sign-out-alt"></i> Выйти
+                </button>
+            </div>
+        </aside>
+        
+        <main class="main-content">
+            <div class="top-bar">
+                <div class="user-profile" onclick="window.sidebar?.goToProfile()">
+                    <div class="user-info">
+                        <div class="user-name" id="userName">Загрузка...</div>
+                        <div class="user-role" id="userRole">—</div>
+                    </div>
+                    <div class="user-avatar" id="userAvatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="team-container">
+                <div class="page-header">
+                    <h1><i class="fas fa-users"></i> Команда</h1>
+                    <p>Управляйте участниками команды и приглашайте новых коллег</p>
+                </div>
+                
+                <div class="invite-section">
+                    <div>
+                        <h3><i class="fas fa-envelope"></i> Пригласить в команду</h3>
+                        <p>Пригласите коллег для совместной работы над проектами</p>
+                    </div>
+                    <button class="invite-btn" onclick="window.location.href='invite-supabase.html'">
+                        <i class="fas fa-plus"></i> Пригласить
+                    </button>
+                </div>
+                
+                <div class="team-stats" id="teamStats">
+                    <div class="stat-card">
+                        <div class="stat-value" id="membersCount">0</div>
+                        <div class="stat-label">Участников</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="activeModulesCount">0</div>
+                        <div class="stat-label">Активных модулей</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="tasksCompleted">0</div>
+                        <div class="stat-label">Завершено задач</div>
+                    </div>
+                </div>
+                
+                <div class="section-title">
+                    <i class="fas fa-user-friends"></i>
+                    <h2>Участники команды</h2>
+                </div>
+                <div id="membersList" class="members-grid">
+                    <div class="empty-state">
+                        <i class="fas fa-spinner fa-pulse"></i>
+                        <p>Загрузка...</p>
+                    </div>
+                </div>
+                
+                <div class="section-title">
+                    <i class="fas fa-clock"></i>
+                    <h2>Приглашения</h2>
+                </div>
+                <div id="invitesList" class="invite-list">
+                    <div class="empty-state">
+                        <i class="fas fa-envelope"></i>
+                        <p>Нет активных приглашений</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <script type="module">
+        import { getCurrentSupabaseUser, requireSupabaseAuth, updateSupabaseUserInterface } from './js/core/supabase-session.js';
+        import { supabase } from './js/core/supabase.js';
+        
+        let currentUser = null;
+        let teamMembers = [];
+        let invites = [];
+        let tasks = [];
+        
+        function loadDemoData() {
+            // Демо-данные участников
+            const saved = localStorage.getItem('team_members');
+            if (saved) {
+                teamMembers = JSON.parse(saved);
+            } else {
+                teamMembers = [
+                    { id: 'admin', name: 'Администратор', email: 'admin@crm.com', role: 'admin', github_username: 'admin', tasks_completed: 45, tasks_active: 3 },
+                    { id: 'manager1', name: 'Дмитрий Волков', email: 'dmitry@crm.com', role: 'manager', github_username: 'dmitry', tasks_completed: 32, tasks_active: 5 },
+                    { id: 'agent1', name: 'Анна Петрова', email: 'anna@crm.com', role: 'agent', github_username: 'anna', tasks_completed: 28, tasks_active: 4 },
+                    { id: 'agent2', name: 'Иван Соколов', email: 'ivan@crm.com', role: 'agent', github_username: 'ivan', tasks_completed: 19, tasks_active: 6 },
+                    { id: 'agent3', name: 'Елена Смирнова', email: 'elena@crm.com', role: 'agent', github_username: 'elena', tasks_completed: 24, tasks_active: 2 }
+                ];
+            }
+            
+            const savedInvites = localStorage.getItem('team_invites');
+            if (savedInvites) {
+                invites = JSON.parse(savedInvites);
+            } else {
+                invites = [
+                    { email: 'new@crm.com', status: 'pending', invitedAt: '2026-03-28' },
+                    { email: 'colleague@crm.com', status: 'pending', invitedAt: '2026-03-29' }
+                ];
+            }
+        }
+        
+        function getRoleLabel(role) {
+            const labels = {
+                admin: 'Администратор',
+                manager: 'Менеджер',
+                agent: 'Агент'
+            };
+            return labels[role] || role;
+        }
+        
+        function getRoleClass(role) {
+            return `role-${role}`;
+        }
+        
+        function getInitials(name) {
+            return name.split(' ').map(n => n[0]).join('').toUpperCase();
+        }
+        
+        function renderTeamStats() {
+            const totalMembers = teamMembers.length;
+            const totalTasksCompleted = teamMembers.reduce((sum, m) => sum + (m.tasks_completed || 0), 0);
+            const activeModules = 2; // Демо: продуктивность + недвижимость
+            
+            document.getElementById('membersCount').textContent = totalMembers;
+            document.getElementById('activeModulesCount').textContent = activeModules;
+            document.getElementById('tasksCompleted').textContent = totalTasksCompleted;
+        }
+        
+        function renderMembersList() {
+            const container = document.getElementById('membersList');
+            if (!container) return;
+            
+            if (teamMembers.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-users"></i>
+                        <p>Пока нет участников</p>
+                        <button onclick="window.location.href='invite-supabase.html'" style="margin-top: 12px; padding: 8px 20px; background: var(--accent); border: none; border-radius: 40px; color: white; cursor: pointer;">
+                            Пригласить
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = teamMembers.map(member => `
+                <div class="member-card">
+                    <div class="member-avatar">
+                        ${getInitials(member.name)}
+                    </div>
+                    <div class="member-info">
+                        <div class="member-name">${escapeHtml(member.name)}</div>
+                        <div class="member-role">
+                            <span class="role-badge ${getRoleClass(member.role)}">${getRoleLabel(member.role)}</span>
+                        </div>
+                        <div class="member-stats">
+                            <span><i class="fas fa-check-circle"></i> ${member.tasks_completed || 0}</span>
+                            <span><i class="fas fa-tasks"></i> ${member.tasks_active || 0}</span>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function renderInvitesList() {
+            const container = document.getElementById('invitesList');
+            if (!container) return;
+            
+            if (invites.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-envelope"></i>
+                        <p>Нет активных приглашений</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = invites.map(invite => `
+                <div class="invite-item">
+                    <div class="invite-email">
+                        <i class="fas fa-envelope"></i>
+                        <span>${escapeHtml(invite.email)}</span>
+                    </div>
+                    <div class="invite-status status-${invite.status}">
+                        ${invite.status === 'pending' ? '⏳ Ожидает' : '✅ Принято'}
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        async function init() {
+            const isAuth = await requireSupabaseAuth('auth-supabase.html');
+            if (!isAuth) return;
+            
+            currentUser = getCurrentSupabaseUser();
+            updateSupabaseUserInterface();
+            
+            loadDemoData();
+            renderTeamStats();
+            renderMembersList();
+            renderInvitesList();
+            
+            const sidebar = document.getElementById('sidebar');
+            if (sidebar && localStorage.getItem('sidebar_collapsed') === 'true') {
+                sidebar.classList.add('collapsed');
+            }
+            
+            console.log('[team] Страница загружена');
+        }
+        
+        init();
+    </script>
+    
+    <script type="module" src="layout.js"></script>
+</body>
+</html>

@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- 
+    ============================================
+    ФАЙЛ: marketplace-supabase.html
+    РОЛЬ: Маркетплейс модулей и виджетов
+    
+    ОСОБЕННОСТИ:
+      - Каталог доступных модулей
+      - Покупка модулей для команды
+      - Управление лицензиями (для админа)
+      - Интеграция с системой прав
+    
+    ИСТОРИЯ:
+      - 30.03.2026: Создание страницы маркетплейса
+    ============================================
+    -->
+    
+    <script>
+        (function() {
+            try {
+                const savedTheme = localStorage.getItem('crm_theme');
+                if (savedTheme === 'light') {
+                    if (document.documentElement) document.documentElement.classList.add('theme-light');
+                    if (document.body) document.body.classList.add('theme-light');
+                } else if (savedTheme === 'dark') {
+                    if (document.documentElement) document.documentElement.classList.add('theme-dark');
+                    if (document.body) document.body.classList.add('theme-dark');
+                }
+            } catch(e) {}
+        })();
+    </script>
+    
+    <title>Маркетплейс - CRM для команды</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/responsive.css">
+    <link rel="stylesheet" href="css/animations.css">
+    
+    <style>
+        .marketplace-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        
+        .marketplace-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-bottom: 32px;
+            animation: fadeInUp 0.4s ease;
+        }
+        
+        .marketplace-header h1 {
+            font-size: 2rem;
+            background: linear-gradient(135deg, var(--text-primary), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .marketplace-tabs {
+            display: flex;
+            gap: 12px;
+            border-bottom: 1px solid var(--card-border);
+            margin-bottom: 32px;
+        }
+        
+        .tab-btn {
+            padding: 12px 24px;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+            border-bottom: 2px solid transparent;
+        }
+        
+        .tab-btn.active {
+            color: var(--accent);
+            border-bottom-color: var(--accent);
+        }
+        
+        .tab-btn:hover:not(.active) {
+            color: var(--text-primary);
+        }
+        
+        .modules-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+        
+        .module-card {
+            background: var(--card-bg);
+            border-radius: 20px;
+            border: 1px solid var(--card-border);
+            padding: 24px;
+            transition: all 0.3s ease;
+            animation: fadeInScale 0.3s ease backwards;
+        }
+        
+        .module-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--accent);
+            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.15);
+        }
+        
+        .module-card.purchased {
+            border-left: 4px solid #4caf50;
+        }
+        
+        .module-icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 16px;
+        }
+        
+        .module-icon i {
+            font-size: 24px;
+            color: white;
+        }
+        
+        .module-name {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        
+        .module-description {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            margin-bottom: 16px;
+            line-height: 1.4;
+        }
+        
+        .module-features {
+            list-style: none;
+            margin: 16px 0;
+            padding: 0;
+        }
+        
+        .module-features li {
+            padding: 6px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+        
+        .module-features i {
+            font-size: 0.75rem;
+        }
+        
+        .module-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 20px;
+            padding-top: 16px;
+            border-top: 1px solid var(--card-border);
+        }
+        
+        .module-price {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+        
+        .module-price small {
+            font-size: 0.7rem;
+            font-weight: 400;
+            color: var(--text-muted);
+        }
+        
+        .module-btn {
+            padding: 8px 20px;
+            border-radius: 40px;
+            border: none;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .module-btn.primary {
+            background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+            color: white;
+        }
+        
+        .module-btn.secondary {
+            background: var(--hover-bg);
+            color: var(--text-primary);
+            border: 1px solid var(--card-border);
+        }
+        
+        .module-btn.purchased {
+            background: #4caf50;
+            color: white;
+            cursor: default;
+        }
+        
+        .module-btn:hover:not(.purchased) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(108, 108, 255, 0.3);
+        }
+        
+        .license-stats {
+            background: var(--hover-bg);
+            border-radius: 12px;
+            padding: 12px;
+            margin-top: 12px;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+        
+        .company-info {
+            background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 32px;
+            color: white;
+        }
+        
+        .company-info h3 {
+            margin-bottom: 8px;
+        }
+        
+        .company-info p {
+            opacity: 0.9;
+            font-size: 0.85rem;
+        }
+        
+        .license-list {
+            background: var(--card-bg);
+            border-radius: 16px;
+            border: 1px solid var(--card-border);
+            overflow: hidden;
+        }
+        
+        .license-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--card-border);
+        }
+        
+        .license-item:last-child {
+            border-bottom: none;
+        }
+        
+        .license-info h4 {
+            margin-bottom: 4px;
+        }
+        
+        .license-info p {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+        
+        .license-users {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        
+        .user-badge {
+            background: var(--hover-bg);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px;
+            color: var(--text-muted);
+        }
+        
+        @media (max-width: 768px) {
+            .modules-grid {
+                grid-template-columns: 1fr;
+            }
+            .license-item {
+                flex-direction: column;
+                gap: 12px;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-layout">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-logo">
+                <i class="fas fa-chart-line"></i>
+                <span>CRM Team</span>
+            </div>
+            <nav class="sidebar-nav" id="sidebar-nav"></nav>
+            <div class="sidebar-footer">
+                <button class="collapse-btn" onclick="window.sidebar?.toggleSidebar()">
+                    <i class="fas fa-chevron-left"></i>
+                    <span>Свернуть</span>
+                </button>
+                <button class="logout-btn" onclick="window.sidebar?.logout()" style="margin-top: 12px; width: 100%; padding: 10px; background: rgba(255, 107, 107, 0.2); border: none; border-radius: 12px; color: #ff6b6b; cursor: pointer;">
+                    <i class="fas fa-sign-out-alt"></i> Выйти
+                </button>
+            </div>
+        </aside>
+        
+        <main class="main-content">
+            <div class="top-bar">
+                <div class="user-profile" onclick="window.sidebar?.goToProfile()">
+                    <div class="user-info">
+                        <div class="user-name" id="userName">Загрузка...</div>
+                        <div class="user-role" id="userRole">—</div>
+                    </div>
+                    <div class="user-avatar" id="userAvatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="marketplace-container">
+                <div class="marketplace-header">
+                    <h1><i class="fas fa-store"></i> Маркетплейс модулей</h1>
+                    <div id="companyBadge" style="background: var(--hover-bg); padding: 8px 16px; border-radius: 40px; font-size: 0.85rem;">
+                        <i class="fas fa-building"></i> <span id="companyName">Моя компания</span>
+                    </div>
+                </div>
+                
+                <div class="marketplace-tabs">
+                    <button class="tab-btn active" data-tab="catalog">📦 Каталог модулей</button>
+                    <button class="tab-btn" data-tab="licenses">🔑 Мои лицензии</button>
+                    <button class="tab-btn" data-tab="users">👥 Назначение прав</button>
+                </div>
+                
+                <!-- Вкладка: Каталог модулей -->
+                <div id="tabCatalog" class="tab-content">
+                    <div class="modules-grid" id="modulesGrid">
+                        <div class="loading-state" style="text-align: center; padding: 60px;">
+                            <i class="fas fa-spinner fa-pulse"></i>
+                            <p>Загрузка модулей...</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Вкладка: Мои лицензии -->
+                <div id="tabLicenses" class="tab-content" style="display: none;">
+                    <div class="company-info">
+                        <h3><i class="fas fa-crown"></i> Лицензии компании</h3>
+                        <p>Управляйте модулями, приобретенными для вашей команды</p>
+                    </div>
+                    <div id="licensesList" class="license-list">
+                        <div class="empty-state">
+                            <i class="fas fa-shopping-cart"></i>
+                            <p>Нет приобретенных модулей</p>
+                            <button onclick="document.querySelector('[data-tab=\"catalog\"]').click()" style="margin-top: 12px; padding: 8px 20px; background: var(--accent); border: none; border-radius: 40px; color: white; cursor: pointer;">
+                                Перейти в каталог
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Вкладка: Назначение прав -->
+                <div id="tabUsers" class="tab-content" style="display: none;">
+                    <div class="company-info">
+                        <h3><i class="fas fa-users"></i> Назначение прав пользователям</h3>
+                        <p>Выберите, кому из сотрудников доступны купленные модули</p>
+                    </div>
+                    <div id="usersAssignments" class="license-list">
+                        <div class="empty-state">
+                            <i class="fas fa-users"></i>
+                            <p>Загрузка пользователей...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <script type="module">
+        import { getCurrentSupabaseUser, requireSupabaseAuth, updateSupabaseUserInterface } from './js/core/supabase-session.js';
+        
+        // Каталог модулей
+        const MODULES_CATALOG = [
+            {
+                id: 'real_estate',
+                name: 'Недвижимость',
+                icon: 'fa-building',
+                description: 'Полноценный CRM для агентов недвижимости',
+                price: 500,
+                period: 'мес',
+                licenseType: 'team',
+                features: ['Объекты недвижимости', 'Сделки', 'Контрагенты', 'Ипотечный калькулятор', 'Документооборот']
+            },
+            {
+                id: 'finance',
+                name: 'Финансы',
+                icon: 'fa-coins',
+                description: 'Управление личными и семейными финансами',
+                price: 300,
+                period: 'мес',
+                licenseType: 'team',
+                features: ['Бюджет', 'Расходы/Доходы', 'Отчеты', 'Категории', 'Экспорт в Excel']
+            },
+            {
+                id: 'education',
+                name: 'Образование',
+                icon: 'fa-graduation-cap',
+                description: 'Для студентов, учителей и родителей',
+                price: 200,
+                period: 'мес',
+                licenseType: 'team',
+                features: ['Расписание', 'Оценки', 'Домашние задания', 'Успеваемость', 'Заметки']
+            },
+            {
+                id: 'health',
+                name: 'Здоровье',
+                icon: 'fa-heartbeat',
+                description: 'Трекер здоровья и физической активности',
+                price: 150,
+                period: 'мес',
+                licenseType: 'team',
+                features: ['Тренировки', 'Питание', 'Замеры тела', 'Водный баланс', 'Сон']
+            },
+            {
+                id: 'productivity',
+                name: 'Продуктивность',
+                icon: 'fa-rocket',
+                description: 'Базовые инструменты для организации работы',
+                price: 0,
+                period: '',
+                licenseType: 'free',
+                features: ['Задачи', 'Календарь', 'Заметки', 'Привычки', 'Таймер Pomodoro']
+            }
+        ];
+        
+        let currentUser = null;
+        let isAdmin = false;
+        
+        // Демо-данные для лицензий (в реальности из БД)
+        let licenses = [];
+        
+        // Демо-данные для назначений
+        let assignments = [];
+        
+        function loadDemoData() {
+            // Загружаем из localStorage или создаем демо
+            const saved = localStorage.getItem('marketplace_licenses');
+            if (saved) {
+                licenses = JSON.parse(saved);
+            } else {
+                licenses = [
+                    { moduleId: 'productivity', name: 'Продуктивность', price: 0, users: [], maxUsers: 100, purchasedAt: '2026-01-01', status: 'active' },
+                    { moduleId: 'real_estate', name: 'Недвижимость', price: 500, users: [], maxUsers: 10, purchasedAt: '2026-03-01', status: 'active' }
+                ];
+            }
+            
+            const savedAssignments = localStorage.getItem('marketplace_assignments');
+            if (savedAssignments) {
+                assignments = JSON.parse(savedAssignments);
+            } else {
+                assignments = [
+                    { userId: 'admin', userName: 'Администратор', moduleId: 'real_estate', assignedAt: '2026-03-01' },
+                    { userId: 'agent1', userName: 'Анна Петрова', moduleId: 'real_estate', assignedAt: '2026-03-01' },
+                    { userId: 'agent2', userName: 'Иван Соколов', moduleId: 'real_estate', assignedAt: '2026-03-01' }
+                ];
+            }
+        }
+        
+        function saveDemoData() {
+            localStorage.setItem('marketplace_licenses', JSON.stringify(licenses));
+            localStorage.setItem('marketplace_assignments', JSON.stringify(assignments));
+        }
+        
+        function isModulePurchased(moduleId) {
+            return licenses.some(l => l.moduleId === moduleId);
+        }
+        
+        function getModuleLicense(moduleId) {
+            return licenses.find(l => l.moduleId === moduleId);
+        }
+        
+        function purchaseModule(moduleId) {
+            const module = MODULES_CATALOG.find(m => m.id === moduleId);
+            if (!module) return;
+            
+            if (module.price === 0) {
+                alert('Базовый модуль уже доступен бесплатно');
+                return;
+            }
+            
+            if (isModulePurchased(moduleId)) {
+                alert('Модуль уже приобретен');
+                return;
+            }
+            
+            const newLicense = {
+                moduleId: module.id,
+                name: module.name,
+                price: module.price,
+                users: [],
+                maxUsers: module.licenseType === 'team' ? 10 : 100,
+                purchasedAt: new Date().toISOString().split('T')[0],
+                status: 'active'
+            };
+            
+            licenses.push(newLicense);
+            saveDemoData();
+            renderCatalog();
+            renderLicenses();
+            
+            alert(`Модуль "${module.name}" приобретен для команды!`);
+        }
+        
+        function assignModuleToUser(moduleId, userId, userName) {
+            const license = getModuleLicense(moduleId);
+            if (!license) {
+                alert('Модуль не приобретен');
+                return;
+            }
+            
+            if (license.users.length >= license.maxUsers) {
+                alert(`Достигнут лимит пользователей (${license.maxUsers})`);
+                return;
+            }
+            
+            if (assignments.some(a => a.userId === userId && a.moduleId === moduleId)) {
+                alert('Пользователю уже назначен этот модуль');
+                return;
+            }
+            
+            assignments.push({
+                userId,
+                userName,
+                moduleId,
+                assignedAt: new Date().toISOString().split('T')[0]
+            });
+            
+            license.users.push({ userId, userName });
+            saveDemoData();
+            renderUsersAssignments();
+            renderLicenses();
+            
+            alert(`Модуль "${license.name}" назначен пользователю ${userName}`);
+        }
+        
+        function removeAssignment(userId, moduleId) {
+            assignments = assignments.filter(a => !(a.userId === userId && a.moduleId === moduleId));
+            const license = getModuleLicense(moduleId);
+            if (license) {
+                license.users = license.users.filter(u => u.userId !== userId);
+            }
+            saveDemoData();
+            renderUsersAssignments();
+            renderLicenses();
+        }
+        
+        function renderCatalog() {
+            const container = document.getElementById('modulesGrid');
+            if (!container) return;
+            
+            container.innerHTML = MODULES_CATALOG.map((module, index) => {
+                const purchased = isModulePurchased(module.id);
+                const license = getModuleLicense(module.id);
+                const priceDisplay = module.price === 0 ? 'Бесплатно' : `${module.price} ₽`;
+                
+                let buttonHtml = '';
+                if (module.price === 0) {
+                    buttonHtml = `<button class="module-btn purchased" disabled><i class="fas fa-check"></i> Бесплатный</button>`;
+                } else if (purchased) {
+                    buttonHtml = `<button class="module-btn purchased" disabled><i class="fas fa-check"></i> Приобретен</button>`;
+                } else {
+                    buttonHtml = `<button class="module-btn primary" onclick="window.purchaseModule('${module.id}')"><i class="fas fa-shopping-cart"></i> Купить ${priceDisplay}/${module.period}</button>`;
+                }
+                
+                let licenseInfo = '';
+                if (purchased && license) {
+                    licenseInfo = `<div class="license-stats">
+                        <i class="fas fa-users"></i> Лицензий: ${license.users.length}/${license.maxUsers}
+                    </div>`;
+                }
+                
+                return `
+                    <div class="module-card ${purchased ? 'purchased' : ''}" style="animation-delay: ${index * 0.05}s">
+                        <div class="module-icon">
+                            <i class="fas ${module.icon}"></i>
+                        </div>
+                        <div class="module-name">${module.name}</div>
+                        <div class="module-description">${module.description}</div>
+                        <ul class="module-features">
+                            ${module.features.map(f => `<li><i class="fas fa-check-circle" style="color: #4caf50;"></i> ${f}</li>`).join('')}
+                        </ul>
+                        ${licenseInfo}
+                        <div class="module-footer">
+                            <div class="module-price">${priceDisplay}${module.price > 0 ? `<small>/${module.period}</small>` : ''}</div>
+                            ${buttonHtml}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function renderLicenses() {
+            const container = document.getElementById('licensesList');
+            if (!container) return;
+            
+            if (licenses.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-shopping-cart"></i>
+                        <p>Нет приобретенных модулей</p>
+                        <button onclick="document.querySelector('[data-tab=\"catalog\"]').click()" style="margin-top: 12px; padding: 8px 20px; background: var(--accent); border: none; border-radius: 40px; color: white; cursor: pointer;">
+                            Перейти в каталог
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = licenses.map(license => `
+                <div class="license-item">
+                    <div class="license-info">
+                        <h4><i class="fas ${MODULES_CATALOG.find(m => m.id === license.moduleId)?.icon || 'fa-puzzle-piece'}"></i> ${license.name}</h4>
+                        <p>Приобретен: ${license.purchasedAt} • Лицензий: ${license.users.length}/${license.maxUsers}</p>
+                    </div>
+                    <div class="license-users">
+                        <span class="user-badge"><i class="fas fa-users"></i> ${license.users.length} пользователей</span>
+                        <button class="module-btn secondary" onclick="window.openAssignModal('${license.moduleId}', '${license.name}')">
+                            <i class="fas fa-user-plus"></i> Назначить
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function renderUsersAssignments() {
+            const container = document.getElementById('usersAssignments');
+            if (!container) return;
+            
+            // Демо-пользователи
+            const demoUsers = [
+                { id: 'admin', name: 'Администратор', role: 'admin' },
+                { id: 'manager1', name: 'Дмитрий Волков', role: 'manager' },
+                { id: 'agent1', name: 'Анна Петрова', role: 'agent' },
+                { id: 'agent2', name: 'Иван Соколов', role: 'agent' },
+                { id: 'agent3', name: 'Елена Смирнова', role: 'agent' }
+            ];
+            
+            container.innerHTML = `
+                <div class="license-list">
+                    ${demoUsers.map(user => {
+                        const userModules = assignments.filter(a => a.userId === user.id);
+                        return `
+                            <div class="license-item">
+                                <div class="license-info">
+                                    <h4><i class="fas fa-user"></i> ${user.name}</h4>
+                                    <p>Роль: ${user.role === 'admin' ? 'Администратор' : user.role === 'manager' ? 'Менеджер' : 'Агент'}</p>
+                                </div>
+                                <div class="license-users">
+                                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                                        ${userModules.map(m => `
+                                            <span class="user-badge" style="background: var(--accent); color: white;">
+                                                ${MODULES_CATALOG.find(c => c.id === m.moduleId)?.name || m.moduleId}
+                                                <i class="fas fa-times" style="margin-left: 6px; cursor: pointer;" onclick="window.removeAssignment('${user.id}', '${m.moduleId}')"></i>
+                                            </span>
+                                        `).join('')}
+                                        ${userModules.length === 0 ? '<span class="user-badge">Нет модулей</span>' : ''}
+                                    </div>
+                                    <button class="module-btn secondary" onclick="window.openAssignUserModal('${user.id}', '${user.name}')">
+                                        <i class="fas fa-plus"></i> Назначить модуль
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        }
+        
+        // Глобальные функции для вызова из HTML
+        window.purchaseModule = purchaseModule;
+        window.assignModuleToUser = assignModuleToUser;
+        window.removeAssignment = removeAssignment;
+        window.openAssignModal = (moduleId, moduleName) => {
+            const userId = prompt(`Введите ID пользователя для назначения модуля "${moduleName}"\nДоступные пользователи: admin, manager1, agent1, agent2, agent3`);
+            if (userId) {
+                const userMap = {
+                    'admin': 'Администратор',
+                    'manager1': 'Дмитрий Волков',
+                    'agent1': 'Анна Петрова',
+                    'agent2': 'Иван Соколов',
+                    'agent3': 'Елена Смирнова'
+                };
+                const userName = userMap[userId] || userId;
+                assignModuleToUser(moduleId, userId, userName);
+            }
+        };
+        window.openAssignUserModal = (userId, userName) => {
+            const availableModules = licenses.filter(l => !assignments.some(a => a.userId === userId && a.moduleId === l.moduleId));
+            if (availableModules.length === 0) {
+                alert('Нет доступных модулей для назначения');
+                return;
+            }
+            const moduleOptions = availableModules.map((m, i) => `${i + 1}. ${m.name}`).join('\n');
+            const choice = prompt(`Выберите модуль для ${userName}:\n${moduleOptions}\n\nВведите номер модуля:`);
+            if (choice) {
+                const index = parseInt(choice) - 1;
+                if (availableModules[index]) {
+                    assignModuleToUser(availableModules[index].moduleId, userId, userName);
+                } else {
+                    alert('Неверный выбор');
+                }
+            }
+        };
+        
+        // Переключение вкладок
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                
+                const tabName = btn.dataset.tab;
+                document.getElementById('tabCatalog').style.display = tabName === 'catalog' ? 'block' : 'none';
+                document.getElementById('tabLicenses').style.display = tabName === 'licenses' ? 'block' : 'none';
+                document.getElementById('tabUsers').style.display = tabName === 'users' ? 'block' : 'none';
+                
+                if (tabName === 'licenses') renderLicenses();
+                if (tabName === 'users') renderUsersAssignments();
+            });
+        });
+        
+        // Инициализация
+        async function init() {
+            const isAuth = await requireSupabaseAuth('auth-supabase.html');
+            if (!isAuth) return;
+            
+            currentUser = getCurrentSupabaseUser();
+            updateSupabaseUserInterface();
+            isAdmin = currentUser?.role === 'admin';
+            
+            loadDemoData();
+            renderCatalog();
+            
+            const sidebar = document.getElementById('sidebar');
+            if (sidebar && localStorage.getItem('sidebar_collapsed') === 'true') {
+                sidebar.classList.add('collapsed');
+            }
+            
+            console.log('[marketplace] Страница загружена');
+        }
+        
+        init();
+    </script>
+    
+    <script type="module" src="layout.js"></script>
+</body>
+</html>

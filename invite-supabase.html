@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <script>
+        (function() {
+            try {
+                const savedTheme = localStorage.getItem('crm_theme');
+                if (savedTheme === 'light') {
+                    if (document.documentElement) document.documentElement.classList.add('theme-light');
+                    if (document.body) document.body.classList.add('theme-light');
+                } else if (savedTheme === 'dark') {
+                    if (document.documentElement) document.documentElement.classList.add('theme-dark');
+                    if (document.body) document.body.classList.add('theme-dark');
+                }
+            } catch(e) {}
+        })();
+    </script>
+    
+    <title>Пригласить команду - CRM</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/responsive.css">
+    <link rel="stylesheet" href="css/animations.css">
+    
+    <style>
+        .invite-container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        
+        .invite-card {
+            background: var(--card-bg);
+            border-radius: 24px;
+            border: 1px solid var(--card-border);
+            padding: 32px;
+            animation: fadeInScale 0.3s ease;
+        }
+        
+        .invite-header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        
+        .invite-header i {
+            font-size: 48px;
+            color: var(--accent);
+            margin-bottom: 16px;
+        }
+        
+        .invite-header h1 {
+            font-size: 1.8rem;
+            margin-bottom: 8px;
+        }
+        
+        .invite-header p {
+            color: var(--text-muted);
+        }
+        
+        .team-info {
+            background: var(--hover-bg);
+            border-radius: 16px;
+            padding: 16px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .team-avatar {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 20px;
+        }
+        
+        .team-details h3 {
+            font-size: 1rem;
+            margin-bottom: 4px;
+        }
+        
+        .team-details p {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+        
+        .invite-link-box {
+            background: var(--input-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        
+        .invite-link {
+            font-family: monospace;
+            font-size: 0.85rem;
+            color: var(--text-primary);
+            word-break: break-all;
+            flex: 1;
+        }
+        
+        .copy-btn {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .copy-btn:hover {
+            transform: scale(1.02);
+        }
+        
+        .email-input-group {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+        
+        .email-input-group input {
+            flex: 1;
+            padding: 12px 16px;
+            background: var(--input-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            color: var(--text-primary);
+        }
+        
+        .email-input-group button {
+            padding: 12px 24px;
+            background: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+        }
+        
+        .invited-list {
+            margin-top: 24px;
+        }
+        
+        .invited-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--card-border);
+        }
+        
+        .invited-email {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .invited-status {
+            font-size: 0.7rem;
+            padding: 2px 8px;
+            border-radius: 20px;
+        }
+        
+        .status-pending {
+            background: rgba(255, 193, 7, 0.2);
+            color: #ffc107;
+        }
+        
+        .status-accepted {
+            background: rgba(76, 175, 80, 0.2);
+            color: #4caf50;
+        }
+        
+        .tip-box {
+            background: rgba(108, 108, 255, 0.1);
+            border-left: 3px solid var(--accent);
+            padding: 16px;
+            border-radius: 12px;
+            margin-top: 24px;
+        }
+        
+        .tip-box i {
+            color: var(--accent);
+            margin-right: 8px;
+        }
+        
+        @media (max-width: 768px) {
+            .invite-container {
+                padding: 20px;
+            }
+            .invite-card {
+                padding: 20px;
+            }
+            .email-input-group {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-layout">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-logo">
+                <i class="fas fa-chart-line"></i>
+                <span>CRM Team</span>
+            </div>
+            <nav class="sidebar-nav" id="sidebar-nav"></nav>
+            <div class="sidebar-footer">
+                <button class="collapse-btn" onclick="window.sidebar?.toggleSidebar()">
+                    <i class="fas fa-chevron-left"></i>
+                    <span>Свернуть</span>
+                </button>
+                <button class="logout-btn" onclick="window.sidebar?.logout()" style="margin-top: 12px; width: 100%; padding: 10px; background: rgba(255, 107, 107, 0.2); border: none; border-radius: 12px; color: #ff6b6b; cursor: pointer;">
+                    <i class="fas fa-sign-out-alt"></i> Выйти
+                </button>
+            </div>
+        </aside>
+        
+        <main class="main-content">
+            <div class="top-bar">
+                <div class="user-profile" onclick="window.sidebar?.goToProfile()">
+                    <div class="user-info">
+                        <div class="user-name" id="userName">Загрузка...</div>
+                        <div class="user-role" id="userRole">—</div>
+                    </div>
+                    <div class="user-avatar" id="userAvatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="invite-container">
+                <div class="invite-card">
+                    <div class="invite-header">
+                        <i class="fas fa-users"></i>
+                        <h1>Пригласить команду</h1>
+                        <p>Пригласите коллег для совместной работы</p>
+                    </div>
+                    
+                    <div class="team-info" id="teamInfo">
+                        <div class="team-avatar">
+                            <i class="fas fa-user-circle"></i>
+                        </div>
+                        <div class="team-details">
+                            <h3 id="adminName">Загрузка...</h3>
+                            <p>Администратор команды</p>
+                        </div>
+                    </div>
+                    
+                    <div class="invite-link-box">
+                        <span class="invite-link" id="inviteLink">https://crm.com/invite/...</span>
+                        <button class="copy-btn" onclick="copyInviteLink()">
+                            <i class="fas fa-copy"></i> Копировать
+                        </button>
+                    </div>
+                    
+                    <div class="email-input-group">
+                        <input type="email" id="inviteEmail" placeholder="email@пример.com">
+                        <button onclick="sendInvite()">
+                            <i class="fas fa-paper-plane"></i> Пригласить
+                        </button>
+                    </div>
+                    
+                    <div class="invited-list" id="invitedList">
+                        <h4 style="margin-bottom: 12px;"><i class="fas fa-clock"></i> Приглашенные</h4>
+                        <div id="invitedItems">
+                            <div style="text-align: center; padding: 20px; color: var(--text-muted);">
+                                <i class="fas fa-envelope"></i>
+                                <p>Пока нет приглашений</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="tip-box">
+                        <i class="fas fa-lightbulb"></i>
+                        <strong>Совет:</strong> Пригласите команду, чтобы открыть доступ к общим проектам и покупать модули для всей компании со скидкой.
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <script type="module">
+        import { getCurrentSupabaseUser, requireSupabaseAuth, updateSupabaseUserInterface } from './js/core/supabase-session.js';
+        
+        let currentUser = null;
+        let invites = [];
+        
+        // Генерация уникального кода приглашения
+        function generateInviteCode() {
+            return Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
+        }
+        
+        function getInviteLink() {
+            const code = localStorage.getItem('team_invite_code');
+            if (!code) {
+                const newCode = generateInviteCode();
+                localStorage.setItem('team_invite_code', newCode);
+                return `${window.location.origin}/join?code=${newCode}`;
+            }
+            return `${window.location.origin}/join?code=${code}`;
+        }
+        
+        function loadInvites() {
+            const saved = localStorage.getItem('team_invites');
+            if (saved) {
+                invites = JSON.parse(saved);
+            } else {
+                invites = [];
+            }
+            renderInvitedList();
+        }
+        
+        function saveInvites() {
+            localStorage.setItem('team_invites', JSON.stringify(invites));
+        }
+        
+        function renderInvitedList() {
+            const container = document.getElementById('invitedItems');
+            if (!container) return;
+            
+            if (invites.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 20px; color: var(--text-muted);">
+                        <i class="fas fa-envelope"></i>
+                        <p>Пока нет приглашений</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = invites.map(invite => `
+                <div class="invited-item">
+                    <div class="invited-email">
+                        <i class="fas fa-envelope"></i>
+                        <span>${escapeHtml(invite.email)}</span>
+                    </div>
+                    <span class="invited-status status-${invite.status}">
+                        ${invite.status === 'pending' ? '⏳ Ожидает' : '✅ Принято'}
+                    </span>
+                </div>
+            `).join('');
+        }
+        
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.innerHTML = `<span>${escapeHtml(message)}</span>`;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+        
+        window.copyInviteLink = function() {
+            const link = document.getElementById('inviteLink').textContent;
+            navigator.clipboard.writeText(link);
+            showToast('Ссылка скопирована!', 'success');
+        };
+        
+        window.sendInvite = function() {
+            const emailInput = document.getElementById('inviteEmail');
+            const email = emailInput.value.trim();
+            
+            if (!email) {
+                showToast('Введите email', 'error');
+                return;
+            }
+            
+            if (!email.includes('@')) {
+                showToast('Введите корректный email', 'error');
+                return;
+            }
+            
+            // Проверяем, не приглашали ли уже
+            if (invites.some(i => i.email === email)) {
+                showToast('Этот email уже приглашен', 'warning');
+                return;
+            }
+            
+            invites.push({
+                email: email,
+                status: 'pending',
+                invitedAt: new Date().toISOString()
+            });
+            
+            saveInvites();
+            renderInvitedList();
+            emailInput.value = '';
+            
+            // Демо-отправка
+            console.log(`[DEMO] Приглашение отправлено на ${email}`);
+            showToast(`Приглашение отправлено на ${email}`, 'success');
+        };
+        
+        async function init() {
+            const isAuth = await requireSupabaseAuth('auth-supabase.html');
+            if (!isAuth) return;
+            
+            currentUser = getCurrentSupabaseUser();
+            updateSupabaseUserInterface();
+            
+            // Заполняем информацию о команде
+            document.getElementById('adminName').textContent = currentUser?.name || 'Администратор';
+            document.getElementById('inviteLink').textContent = getInviteLink();
+            
+            loadInvites();
+            
+            const sidebar = document.getElementById('sidebar');
+            if (sidebar && localStorage.getItem('sidebar_collapsed') === 'true') {
+                sidebar.classList.add('collapsed');
+            }
+            
+            console.log('[invite] Страница загружена');
+        }
+        
+        init();
+    </script>
+    
+    <script type="module" src="layout.js"></script>
+</body>
+</html>

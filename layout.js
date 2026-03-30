@@ -23,7 +23,9 @@ const NAVIGATION_ITEMS = [
     { href: "deals-supabase.html", icon: "fa-handshake", label: "Заявки", roles: null },
     { href: "counterparties-supabase.html", icon: "fa-users", label: "Контрагенты", roles: null },
     { href: "calendar-supabase.html", icon: "fa-calendar-alt", label: "Календарь", roles: null },
-    { href: "manager-supabase.html", icon: "fa-chart-simple", label: "Панель менеджера", roles: ["admin", "manager"] },
+    { href: "marketplace-supabase.html", icon: "fa-store", label: "Маркетплейс", roles: null },
+    { href: "my-modules-supabase.html", icon: "fa-puzzle-piece", label: "Мои модули", roles: null },
+    { href: "team-supabase.html", icon: "fa-users", label: "Команда", roles: ["admin", "manager"] },
     { href: "admin-supabase.html", icon: "fa-users-cog", label: "Управление", roles: ["admin"] },
     { href: "notifications-supabase.html", icon: "fa-bell", label: "Уведомления", roles: null }
 ];

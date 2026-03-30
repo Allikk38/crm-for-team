@@ -24,6 +24,7 @@ import MyTasksWidget from '../../components/widgets/my-tasks-widget.js';
 import ProjectProgressWidget from '../../components/widgets/project-progress-widget.js';
 import WelcomeWidget from '../../components/widgets/welcome-widget.js';
 import AgentRankingWidget from '../../components/widgets/agent-ranking-widget.js';
+import TeamAnalyticsWidget from '../../components/widgets/team-analytics-widget.js';
 
 console.log('[index-module] Загрузка модуля дашборда...');
 
@@ -83,6 +84,13 @@ const indexModule = {
             component: AgentRankingWidget,
             defaultSize: { w: 2, h: 2 },
             permissions: [INDEX_PERMISSIONS.VIEW_STATISTICS]
+        },
+        'team-analytics': {
+            title: 'Аналитика команды',
+            component: TeamAnalyticsWidget,
+            defaultSize: { w: 2, h: 3 },
+            permissions: ['view_team_kpi'],  // только для менеджеров и админов
+            requiredRoles: ['admin', 'manager']
         }
     },
     

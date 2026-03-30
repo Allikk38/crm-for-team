@@ -8,6 +8,7 @@
  *   - 30.03.2026: Исправлено дублирование виджетов
  *   - 30.03.2026: Добавлены новые виджеты (KPI, прогресс, приветствие)
  *   - 30.03.2026: Переход на чистые импорты виджетов
+ *   - 30.03.2026: Добавлен виджет TeamAnalyticsWidget
  * ============================================
  */
 
@@ -20,6 +21,7 @@ import MyTasksWidget from './widgets/my-tasks-widget.js';
 import ProjectProgressWidget from './widgets/project-progress-widget.js';
 import WelcomeWidget from './widgets/welcome-widget.js';
 import AgentRankingWidget from './widgets/agent-ranking-widget.js';
+import TeamAnalyticsWidget from './widgets/team-analytics-widget.js';
 
 console.log('[dashboard-container] Загрузка...');
 
@@ -190,7 +192,26 @@ class DashboardContainer {
                 </div>
             `;
             
-            this.container.innerHTML = gridHtml;
+            // После сетки виджетов добавляем блоки-подсказки
+            const fullHtml = gridHtml + `
+                <div class="dashboard-promo" style="margin-top: 32px; display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px;">
+                    <div class="promo-card" style="background: linear-gradient(135deg, var(--accent), var(--accent-hover)); border-radius: 20px; padding: 24px; color: white; cursor: pointer;" onclick="window.location.href='marketplace-supabase.html'">
+                        <i class="fas fa-store" style="font-size: 32px; margin-bottom: 12px; display: block;"></i>
+                        <h3 style="margin-bottom: 8px;">🧩 Маркетплейс модулей</h3>
+                        <p style="opacity: 0.9; font-size: 0.85rem;">Расширьте возможности платформы. Добавьте модули для недвижимости, финансов, образования и здоровья.</p>
+                        <button style="margin-top: 16px; padding: 8px 20px; background: white; border: none; border-radius: 40px; color: var(--accent); font-weight: 500; cursor: pointer;">Перейти в магазин →</button>
+                    </div>
+                    
+                    <div class="promo-card" style="background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 20px; padding: 24px; cursor: pointer;" onclick="window.location.href='invite-supabase.html'">
+                        <i class="fas fa-users" style="font-size: 32px; margin-bottom: 12px; display: block; color: var(--accent);"></i>
+                        <h3 style="margin-bottom: 8px;">👥 Пригласить команду</h3>
+                        <p style="color: var(--text-muted); font-size: 0.85rem;">Работайте вместе над проектами, делясь задачами и достижениями. Пригласите коллег в команду.</p>
+                        <button style="margin-top: 16px; padding: 8px 20px; background: var(--hover-bg); border: 1px solid var(--card-border); border-radius: 40px; color: var(--text-primary); font-weight: 500; cursor: pointer;">Пригласить →</button>
+                    </div>
+                </div>
+            `;
+
+            this.container.innerHTML = fullHtml;
             
             // Загружаем виджеты
             for (const widgetConfig of uniqueWidgets) {
@@ -242,7 +263,8 @@ class DashboardContainer {
             'kpi-summary': 'Ключевые показатели',
             'project-progress': 'Прогресс проекта',
             'welcome': 'Приветствие',
-            'agent-ranking': 'Топ агентов'
+            'agent-ranking': 'Топ агентов',
+            'team-analytics': 'Аналитика команды'
         };
         return titles[widgetId] || widgetId;
     }
@@ -253,7 +275,8 @@ class DashboardContainer {
             'kpi-summary': 'fa-chart-line',
             'project-progress': 'fa-chart-simple',
             'welcome': 'fa-rocket',
-            'agent-ranking': 'fa-trophy'
+            'agent-ranking': 'fa-trophy',
+            'team-analytics': 'fa-chart-simple'
         };
         return icons[widgetId] || 'fa-puzzle-piece';
     }
@@ -310,7 +333,8 @@ class DashboardContainer {
             'kpi-summary': KpiSummaryWidget,
             'project-progress': ProjectProgressWidget,
             'welcome': WelcomeWidget,
-            'agent-ranking': AgentRankingWidget
+            'agent-ranking': AgentRankingWidget,
+            'team-analytics': TeamAnalyticsWidget
         };
         return widgetsMap[widgetId];
     }
@@ -412,6 +436,13 @@ class DashboardContainer {
                 title: 'Приветствие',
                 description: 'Персональное приветствие и советы',
                 settings: {}
+            },
+            {
+                id: 'team-analytics',
+                moduleId: 'index',
+                title: 'Аналитика команды',
+                description: 'KPI команды, топ агентов, график активности',
+                settings: { refreshInterval: 300000 }
             }
         ];
         
