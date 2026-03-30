@@ -90,57 +90,24 @@ export function createDealCard(deal, options = {}) {
     
     const canEdit = options.canEdit === true;
     
-    // Отключаем стандартный drag-and-drop
-    card.draggable = false;
-    card.setAttribute('draggable', 'false');
+    // Включаем стандартный drag-and-drop
+    card.draggable = canEdit;
+    card.setAttribute('draggable', canEdit ? 'true' : 'false');
     
     if (canEdit) {
-        // Добавляем классы анимации при нажатии
-        let isDragging = false;
-        let dragTimeout;
-        
-        card.addEventListener('mousedown', (e) => {
-            // Только левая кнопка мыши
-            if (e.button !== 0) return;
-            
-            // Не срабатывать на кнопке удаления
-            if (e.target.closest('.delete-deal')) return;
-            
-            e.preventDefault();
-            
-            // Добавляем классы анимации
+        card.ondragstart = function(e) {
             card.classList.add('dragging');
             card.classList.add('drag-ghost');
-            isDragging = true;
-            
-            // Убираем классы при отпускании
-            const onMouseUp = () => {
-                if (isDragging) {
-                    card.classList.remove('dragging');
-                    card.classList.remove('drag-ghost');
-                    isDragging = false;
-                }
-                document.removeEventListener('mouseup', onMouseUp);
-                clearTimeout(dragTimeout);
-            };
-            
-            // Таймаут на случай, если mouseup не сработает
-            dragTimeout = setTimeout(() => {
-                if (isDragging) {
-                    card.classList.remove('dragging');
-                    card.classList.remove('drag-ghost');
-                    isDragging = false;
-                }
-            }, 5000);
-            
-            document.addEventListener('mouseup', onMouseUp);
-        });
+            e.dataTransfer.setData('text/plain', deal.id);
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setDragImage(new Image(), 0, 0);
+            return true;
+        };
         
-        // Предотвращаем стандартный drag
-        card.addEventListener('dragstart', (e) => {
-            e.preventDefault();
-            return false;
-        });
+        card.ondragend = function() {
+            card.classList.remove('dragging');
+            card.classList.remove('drag-ghost');
+        };
     }
     
     const typeLabels = {

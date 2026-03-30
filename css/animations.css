@@ -902,3 +902,13 @@ input[type="checkbox"]:checked {
         margin-left: 0 !important;
     }
 }
+/* Скрываем стандартную призрачную копию */
+.deal-card:active {
+    -webkit-user-drag: element;
+    user-drag: element;
+}
+
+/* Убираем стандартный курсор drag */
+.deal-card.dragging {
+    cursor: grabbing !important;
+}

@@ -26,7 +26,8 @@
  *   - 28.03.2026: Добавлена панель фильтров и статистика
  * ============================================
  */
-
+// В начале tasks.js добавить:
+import { createTaskCard, setupDragAndDrop } from '../components/kanban.js';
 import { supabase } from '../core/supabase.js';
 import { 
     getCurrentSupabaseUser, 
