@@ -87,3 +87,41 @@ body::before {
 .sidebar.collapsed .sidebar-footer .logout-btn i {
     margin: 0;
 }
+
+/* Toast notifications */
+.toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: var(--accent);
+  color: white;
+  padding: 12px 20px;
+  border-radius: 8px;
+  z-index: 10000;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  transform: translateX(400px);
+  opacity: 0;
+  transition: all 0.3s ease;
+  animation: toastSlideIn 0.3s forwards;
+  font-size: 0.9rem;
+  max-width: 350px;
+  word-wrap: break-word;
+}
+
+.toast.toast-success { background: #10b981; }
+.toast.toast-error { background: #ef4444; }
+.toast.toast-info { background: var(--accent); }
+
+@keyframes toastSlideIn {
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes toastSlideOut {
+  to {
+    transform: translateX(400px);
+    opacity: 0;
+  }
+}

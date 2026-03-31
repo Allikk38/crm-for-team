@@ -79,7 +79,7 @@ const MODULE_METADATA = {
         category: 'personal',
         order: 100,
         mainPage: '/app/notes.html',
-        requiredPermissions: []
+        requiredPermissions: ['view_notes']
     },
     'habits': {
         name: 'Привычки',
@@ -381,7 +381,7 @@ const MODULE_INIT = {
     'team': () => import('../pages/team.js').then(m => m.initTeamPage()),
     'marketplace': () => import('../pages/marketplace.js').then(m => m.initMarketplacePage()),
     'my-modules': () => import('../pages/my-modules.js').then(m => m.initMyModulesPage()),
-    'notes': () => import('../pages/notes.js').then(m => m.initNotesPage()),
+'notes': () => import('../pages/notes.js').then(m => m.initNotesPage()),
     'habits': () => import('../pages/habits.js').then(m => m.initHabitsPage()),
     'pomodoro': () => import('../pages/pomodoro.js').then(m => m.initPomodoroPage())
 };
