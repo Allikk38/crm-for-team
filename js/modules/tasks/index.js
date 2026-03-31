@@ -21,7 +21,7 @@
  * ============================================
  */
 
-console.log('[tasks-module] Загрузка модуля задач...');
+// console.log('[tasks-module] Загрузка модуля задач...'); // DEBUG removed
 
 // Определение прав для задач
 const TASK_PERMISSIONS = {
@@ -95,7 +95,7 @@ const tasksModule = {
     },
     
     onLoad: async () => {
-        console.log('[tasks-module] Модуль задач загружен');
+// console.log('[tasks-module] Модуль задач загружен'); // DEBUG removed
         
         // Инициализируем глобальный объект для виджетов
         if (typeof window !== 'undefined') {
@@ -108,7 +108,7 @@ const tasksModule = {
             // Загружаем MyTasksWidget
             const { default: MyTasksWidget } = await import('../../components/widgets/my-tasks-widget.js');
             window.CRM.Widgets.MyTasksWidget = MyTasksWidget;
-            console.log('[tasks-module] ✅ Виджет MyTasksWidget зарегистрирован');
+// console.log('[tasks-module] ✅ Виджет MyTasksWidget зарегистрирован'); // DEBUG removed
             
             // TODO: Загрузить другие виджеты по мере создания
             // const { default: TasksSummaryWidget } = await import('../../components/widgets/tasks-summary-widget.js');
@@ -120,13 +120,13 @@ const tasksModule = {
             // console.log('[tasks-module] ✅ Виджет OverdueTasksWidget зарегистрирован');
             
         } catch (error) {
-            console.error('[tasks-module] ❌ Ошибка загрузки виджетов:', error);
+console.error('[tasks-module] ❌ Ошибка загрузки виджетов:', error); // ERROR kept
         }
         
         // Регистрируем обработчики для межмодульного взаимодействия
         if (window.CRM?.EventBus) {
             window.CRM.EventBus.on('tasks:getByDealId', async (request) => {
-                console.log('[tasks-module] Запрос задач по сделке:', request);
+// console.log('[tasks-module] Запрос задач по сделке:', request); // DEBUG removed
                 const tasks = await getTasksByDealId(request.dealId);
                 // Отправляем ответ
                 window.CRM.EventBus.emit(`tasks:getByDealId:response`, tasks);
@@ -134,7 +134,7 @@ const tasksModule = {
             });
             
             window.CRM.EventBus.on('task:create-from-deal', async (data) => {
-                console.log('[tasks-module] Создание задачи из сделки:', data);
+// console.log('[tasks-module] Создание задачи из сделки:', data); // DEBUG removed
                 await openTaskModalFromDeal(data);
             });
             
@@ -148,7 +148,7 @@ const tasksModule = {
         // Проверяем, доступен ли Deals модуль
         const dealsAvailable = window.CRM?.Registry?.isModuleAvailable('deals');
         if (dealsAvailable) {
-            console.log('[tasks-module] Модуль Deals доступен, включаем интеграцию');
+// console.log('[tasks-module] Модуль Deals доступен, включаем интеграцию'); // DEBUG removed
             enhanceTasksWithDeals();
         }
         
@@ -157,13 +157,13 @@ const tasksModule = {
             const { initTasksPage } = await import('../../pages/tasks.js');
             if (typeof initTasksPage === 'function') {
                 await initTasksPage();
-                console.log('[tasks-module] Страница задач инициализирована');
+// console.log('[tasks-module] Страница задач инициализирована'); // DEBUG removed
             }
         } catch (error) {
             console.error('[tasks-module] Ошибка инициализации страницы:', error);
         }
         
-        console.log('[tasks-module] Модуль задач полностью загружен');
+// console.log('[tasks-module] Модуль задач полностью загружен'); // DEBUG removed
     },
     
     onUnload: async () => {
@@ -226,4 +226,4 @@ tasksModule.permissions = TASK_PERMISSIONS;
 // Делаем глобальным для доступа из других скриптов
 window.tasksModule = tasksModule;
 
-console.log('[tasks-module] Модуль готов к регистрации');
+// console.log('[tasks-module] Модуль готов к регистрации'); // DEBUG removed

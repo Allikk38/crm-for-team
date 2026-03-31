@@ -97,7 +97,7 @@ function renderMiniSidebar() {
     html += '</div>';
     container.innerHTML = html;
     
-    console.log('[layout] Мини-сайдбар отрисован, иконок:', SIDEBAR_MODULES.length);
+// console.log('[layout] Мини-сайдбар отрисован, иконок:', SIDEBAR_MODULES.length); // DEBUG removed
 }
 
 /**
@@ -120,13 +120,13 @@ async function waitForPermissions(timeout = 10000) {
         if (window.currentSupabaseUser) {
             const permissions = getUserPermissions();
             if (window.currentSupabaseUser.role === 'admin' || permissions.length > 0) {
-                console.log('[layout] Права загружены:', permissions);
+// console.log('[layout] Права загружены:', permissions); // DEBUG removed
                 return true;
             }
         }
         await new Promise(r => setTimeout(r, 200));
     }
-    console.warn('[layout] Таймаут ожидания прав');
+// console.warn('[layout] Таймаут ожидания прав'); // DEBUG removed
     return false;
 }
 
@@ -154,7 +154,7 @@ export async function initSidebar() {
     
     // Auto-update top-bar on userLoaded event
     window.addEventListener('userLoaded', () => {
-        console.log('[layout] userLoaded → updating UI');
+// console.log('[layout] userLoaded → updating UI'); // DEBUG removed
         if (typeof updateSupabaseUserInterface === 'function') {
             updateSupabaseUserInterface();
         }
@@ -163,7 +163,7 @@ export async function initSidebar() {
     
     if (!hasPermissions) {
         window.addEventListener('permissionsReady', () => {
-            console.log('[layout] permissionsReady событие, повторная отрисовка');
+// console.log('[layout] permissionsReady событие, повторная отрисовка'); // DEBUG removed
             renderNavigation();
         });
         
@@ -171,7 +171,7 @@ export async function initSidebar() {
         const checkInterval = setInterval(() => {
             attempts++;
             if (window.currentSupabaseUser?.role === 'admin' || getUserPermissions().length > 0) {
-                console.log('[layout] Интервал: права загружены, повторная отрисовка');
+// console.log('[layout] Интервал: права загружены, повторная отрисовка'); // DEBUG removed
                 renderNavigation();
                 clearInterval(checkInterval);
             } else if (attempts > 30) {
@@ -193,7 +193,7 @@ export async function initSidebar() {
     document.body.appendChild(expandBtn);
     
     isInitialized = true;
-    console.log('[layout] Мини-сайдбар инициализирован');
+// console.log('[layout] Мини-сайдбар инициализирован'); // DEBUG removed
 }
 
 /**
@@ -405,7 +405,7 @@ function addPomodoroWidget() {
             createWidget();
         } else if (checkCount > 50) {
             clearInterval(checkInterval);
-            console.warn('[layout] Pomodoro сервис не загружен');
+// console.warn('[layout] Pomodoro сервис не загружен'); // DEBUG removed
         }
         checkCount++;
     }, 100);
@@ -494,7 +494,7 @@ function addPomodoroWidget() {
         }
         
         updateWidgetTime();
-        console.log('[layout] Виджет помодоро добавлен');
+// console.log('[layout] Виджет помодоро добавлен'); // DEBUG removed
     }
 }
 

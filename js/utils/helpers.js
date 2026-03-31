@@ -158,4 +158,4 @@ if (typeof window !== 'undefined') {
     window.showToast = showToast;
 }
 
-console.log('[helpers.js] Загружены вспомогательные функции (модульная версия)');
+// console.log('[helpers.js] Загружены вспомогательные функции (модульная версия)'); // DEBUG removed

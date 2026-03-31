@@ -1,22 +1,39 @@
-# TODO.md: Design Redesign Complete ✅
-## Summary
-**Modern minimalistic CRM interface achieved:**
+# TODO: Фаза 1 - Критические исправления
 
-**Fonts:** Inter (text) + Montserrat (headings) - added to app/dashboard.html
+## ✅ Завершено
+- [x] Анализ проекта
+- [x] IMPROVEMENTS.md
 
-**Colors:** Blue primary (#2563eb), success (#16a34a), updated theme.css vars for light/dark
+## 🔄 В работе (Фаза 1)
 
-**Components:**
-- .btn / .btn--* classes in base.css
-- .card: light shadow, 8px radius, white bg
-- Sidebar: #f5f5f5 bg, taller nav items (20px pad), icon space
-- Reduced glassmorphism blur/large radius in components.css
+### 1.1 Удаление debug кода (console.*)
+- [ ] layout.js (15+ console)
+- [ ] js/modules/tasks/index.js
+- [ ] js/modules/complexes/index.js  
+- [ ] js/components/widgets/*.js (5 файлов)
+- [ ] Добавить DEBUG=1 флаг в js/core/env.js
 
-**Air:** Increased body/main padding, line-height 1.7
+### 1.2 XSS защита (innerHTML → textContent)
+- [ ] js/components/dashboard-container.js
+- [ ] js/components/deal-card-list.js
+- [ ] js/components/kanban.js
+- [ ] js/pages/tasks.js
+- [ ] Добавить DOMPurify в js/utils/security.js
 
-**Test:** Open `app/dashboard.html` in browser - sidebar blue buttons, clean cards, new fonts/colors work in light/dark.
+### 1.3 Supabase оптимизация
+- [ ] js/pages/tasks.js (.limit(50))
+- [ ] js/pages/deals.js 
+- [ ] js/services/tasks-supabase.js
+- [ ] js/services/deals-supabase.js
+- [ ] Global error handler
 
-No regressions, all specs met. Design task complete!
+### 1.4 Error boundaries
+- [ ] js/core/errorHandler.js (новый)
+- [ ] Интеграция в layout.js
 
-CLI demo: `start app/dashboard.html`
+## ⏳ Следующие фазы
+- [ ] Фаза 2: Performance
+- [ ] Фаза 3: Accessibility
+- [ ] Фаза 4: DevOps
 
+**Progress: 15%** (анализ + план)
