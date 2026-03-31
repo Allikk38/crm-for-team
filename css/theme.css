@@ -1,59 +1,78 @@
 /* ============================================
- * ТЕМЫ ОФОРМЛЕНИЯ
+ * НОВАЯ ДИЗАЙН-СИСТЕМА (Inter + Montserrat)
+ * Современный минималистичный стиль
  * ============================================ */
 
-/* Тёмная тема (по умолчанию) */
-:root,
-:root.theme-dark,
-body.theme-dark {
-    --bg-gradient-start: #0a0a1a;
-    --bg-gradient-end: #050510;
-    --card-bg: rgba(15, 15, 35, 0.7);
-    --card-border: rgba(108, 108, 255, 0.3);
+/* Общие переменные (обе темы) */
+:root {
+    /* Шрифты */
+    --font-primary: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-heading: 'Montserrat', var(--font-primary);
+    
+    /* Цвета (светлая основа) */
+    --primary: #2563eb;
+    --primary-hover: #1d4ed8;
+    --success: #16a34a;
+    --danger: #dc2626;
+    --warning: #d97706;
+    --bg-primary: #fafafa;
+    --surface: #ffffff;
+    --text-primary: #171717;
+    --text-secondary: #525252;
+    --text-muted: #a3a3a3;
+    
+    /* Компоненты */
+    --border-radius: 8px;
+    --border-radius-sm: 6px;
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.1);
+    --shadow-md: 0 4px 6px rgba(0,0,0,0.1);
+    --transition: all 0.2s ease;
+}
+
+/* Светлая тема (по умолчанию) */
+:root:not(.theme-dark) {
+    --bg-gradient-start: #fafafa;
+    --bg-gradient-end: #f5f5f5;
+    --card-bg: #ffffff;
+    --card-border: rgba(0,0,0,0.08);
+    --card-hover: rgba(37,99,235,0.05);
+    --header-bg: #ffffff;
+    --input-bg: #ffffff;
+    --input-border: rgba(0,0,0,0.1);
+}
+
+/* Темная тема */
+:root.theme-dark {
+    --bg-gradient-start: #0f0f23;
+    --bg-gradient-end: #151525;
+    --card-bg: #1a1a2e;
+    --card-border: rgba(255,255,255,0.1);
+    --card-hover: rgba(37,99,235,0.15);
+    --header-bg: #1a1a2e;
+    --surface: #1a1a2e;
     --text-primary: #ffffff;
-    --text-secondary: rgba(255, 255, 255, 0.7);
-    --text-muted: rgba(255, 255, 255, 0.5);
-    --accent: #6c6cff;
-    --accent-hover: #4c4cff;
-    --danger: #ff6b6b;
-    --success: #4caf50;
-    --warning: #ffc107;
-    --input-bg: rgba(0, 0, 0, 0.4);
-    --input-border: rgba(108, 108, 255, 0.3);
-    --card-hover: rgba(108, 108, 255, 0.12);
-    --header-bg: rgba(10, 10, 25, 0.7);
-    --task-card-bg: rgba(20, 20, 45, 0.8);
-    --modal-bg: linear-gradient(135deg, #13132b, #1a1a3a);
+    --text-secondary: #a3bffa;
+    --text-muted: #64748b;
+    --input-bg: #252540;
+    --input-border: rgba(255,255,255,0.15);
 }
 
-/* Светлая тема */
-:root.theme-light,
-body.theme-light {
-    --bg-gradient-start: #f5f7fa;
-    --bg-gradient-end: #eef2f5;
-    --card-bg: rgba(255, 255, 255, 0.9);
-    --card-border: rgba(0, 0, 0, 0.1);
-    --text-primary: #1a1a2e;
-    --text-secondary: rgba(0, 0, 0, 0.7);
-    --text-muted: rgba(0, 0, 0, 0.5);
-    --accent: #5a5ae6;
-    --accent-hover: #4a4ad6;
-    --input-bg: rgba(0, 0, 0, 0.05);
-    --input-border: rgba(0, 0, 0, 0.2);
-    --card-hover: rgba(90, 90, 230, 0.08);
-    --header-bg: rgba(255, 255, 255, 0.8);
-    --task-card-bg: rgba(240, 240, 255, 0.9);
-    --modal-bg: linear-gradient(135deg, #ffffff, #f5f5ff);
-}
-
-/* Применение фона */
+/* Применение */
 body {
-    background: radial-gradient(ellipse at 20% 30%, var(--bg-gradient-start), var(--bg-gradient-end));
+    font-family: var(--font-primary);
+    background: linear-gradient(135deg, var(--bg-gradient-start), var(--bg-gradient-end));
     color: var(--text-primary);
-    transition: background 0.3s ease, color 0.2s ease;
+    line-height: 1.6;
+    transition: var(--transition);
 }
 
-/* Анимация для плавного переключения темы */
+h1,h2,h3,h4,h5,h6 {
+    font-family: var(--font-heading);
+    font-weight: 600;
+    margin-bottom: 1rem;
+    line-height: 1.2;
+}
+
 * {
-    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+    transition: var(--transition);
 }

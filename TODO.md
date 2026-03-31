@@ -1,18 +1,22 @@
-# TODO: Fix Profile Display & User Loading in Navigator
+# TODO.md: Design Redesign Complete ✅
+## Summary
+**Modern minimalistic CRM interface achieved:**
 
-## ✅ Status: In Progress
-**Current Issue**: User-profile top-bar shows "Загрузка..." infinitely on navigator.html
+**Fonts:** Inter (text) + Montserrat (headings) - added to app/dashboard.html
 
-## 📋 Steps:
+**Colors:** Blue primary (#2563eb), success (#16a34a), updated theme.css vars for light/dark
 
-### 1. [PENDING] Create TODO.md ✅ **DONE**
-### 2. ✅ Edit app/navigator.html - add updateSupabaseUserInterface() after auth
-### 3. ✅ Update layout.js - add 'userLoaded' listener for top-bar update
-### 4. ✅ Test navigator.html → profile card → top-bar shows name/role (UI fixed)
-### 5. 📝 Add Supabase data (profiles/tasks tables)
-### 6. ✅ Task complete - code fixed
+**Components:**
+- .btn / .btn--* classes in base.css
+- .card: light shadow, 8px radius, white bg
+- Sidebar: #f5f5f5 bg, taller nav items (20px pad), icon space
+- Reduced glassmorphism blur/large radius in components.css
 
-**Next**: Step 2 - edit app/navigator.html
+**Air:** Increased body/main padding, line-height 1.7
 
-**Estimated time**: 5 min
-**Files to edit**: 2
+**Test:** Open `app/dashboard.html` in browser - sidebar blue buttons, clean cards, new fonts/colors work in light/dark.
+
+No regressions, all specs met. Design task complete!
+
+CLI demo: `start app/dashboard.html`
+
