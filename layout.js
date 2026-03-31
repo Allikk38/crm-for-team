@@ -152,12 +152,16 @@ export async function initSidebar() {
     
     renderNavigation();
     
+    // Auto-update top-bar on userLoaded event
+    window.addEventListener('userLoaded', () => {
+        console.log('[layout] userLoaded → updating UI');
+        if (typeof updateSupabaseUserInterface === 'function') {
+            updateSupabaseUserInterface();
+        }
+        renderNavigation();
+    });
+    
     if (!hasPermissions) {
-        window.addEventListener('userLoaded', () => {
-            console.log('[layout] userLoaded событие, повторная отрисовка');
-            renderNavigation();
-        });
-        
         window.addEventListener('permissionsReady', () => {
             console.log('[layout] permissionsReady событие, повторная отрисовка');
             renderNavigation();

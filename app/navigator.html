@@ -394,6 +394,9 @@
             const isAuth = await requireSupabaseAuth('../auth-supabase.html');
             if (!isAuth) return;
             
+// Update top-bar user info after auth
+            updateSupabaseUserInterface();
+            
             const { initNavigatorPage } = await import('../js/pages/navigator.js');
             initNavigatorPage();
         }
