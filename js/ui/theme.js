@@ -2,14 +2,23 @@
  * ============================================
  * ФАЙЛ: js/ui/theme.js
  * РОЛЬ: Управление темой оформления (светлая/тёмная)
+ * 
+ * ОСОБЕННОСТИ:
+ *   - Поддержка новой системы CSS-переменных из variables.css
+ *   - Сохранение темы в localStorage
+ *   - Определение системных настроек
+ *   - Единая точка управления темой
+ * 
  * ЗАВИСИМОСТИ:
- *   - Нет внешних зависимостей
- * ИСПОЛЬЗУЕТСЯ В:
- *   - Все страницы CRM
+ *   - CSS: variables.css, theme.css
+ * 
+ * ИСТОРИЯ:
+ *   - 31.03.2026: Обновлен под новую систему переменных
+ *   - 31.03.2026: Добавлена поддержка системных настроек
  * ============================================
  */
 
-// Константы тем
+// Конфигурация тем
 const THEMES = {
     dark: {
         name: 'Тёмная',
@@ -31,6 +40,7 @@ let currentTheme = 'dark';
  */
 function initTheme() {
     const savedTheme = localStorage.getItem('crm_theme');
+    
     if (savedTheme && THEMES[savedTheme]) {
         setTheme(savedTheme);
     } else {
@@ -38,6 +48,14 @@ function initTheme() {
         const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
         setTheme(prefersDark ? 'dark' : 'light');
     }
+    
+    // Слушаем изменения системной темы
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+        // Меняем тему только если пользователь не установил свою
+        if (!localStorage.getItem('crm_theme')) {
+            setTheme(e.matches ? 'dark' : 'light');
+        }
+    });
     
     console.log('[theme] Инициализирована тема:', currentTheme);
 }
@@ -47,14 +65,19 @@ function initTheme() {
  * @param {string} theme - название темы ('dark' или 'light')
  */
 function setTheme(theme) {
-    if (!THEMES[theme]) return;
+    if (!THEMES[theme]) {
+        console.warn('[theme] Неизвестная тема:', theme);
+        return;
+    }
     
     currentTheme = theme;
     
-    // Применяем классы к html и body для полной совместимости
-    document.documentElement.classList.remove('theme-dark', 'theme-light');
-    document.documentElement.classList.add(THEMES[theme].class);
+    // Применяем класс к root элементу
+    const root = document.documentElement;
+    root.classList.remove('theme-dark', 'theme-light');
+    root.classList.add(THEMES[theme].class);
     
+    // Для обратной совместимости добавляем класс и на body
     document.body.classList.remove('theme-dark', 'theme-light');
     document.body.classList.add(THEMES[theme].class);
     
@@ -62,15 +85,26 @@ function setTheme(theme) {
     localStorage.setItem('crm_theme', theme);
     
     // Обновляем текст кнопки в сайдбаре (если есть)
-    const themeBtn = document.querySelector('.theme-btn');
-    if (themeBtn) {
-        const isDark = theme === 'dark';
-        themeBtn.innerHTML = isDark 
-            ? '<i class="fas fa-sun"></i> <span>Светлая тема</span>' 
-            : '<i class="fas fa-moon"></i> <span>Тёмная тема</span>';
-    }
+    updateThemeButton();
+    
+    // Диспатчим событие для других компонентов
+    window.dispatchEvent(new CustomEvent('themeChanged', { detail: { theme } }));
     
     console.log('[theme] Тема изменена на:', theme);
+}
+
+/**
+ * Обновление кнопки переключения темы в сайдбаре
+ */
+function updateThemeButton() {
+    const themeBtn = document.querySelector('.theme-btn');
+    if (!themeBtn) return;
+    
+    const isDark = currentTheme === 'dark';
+    const icon = isDark ? 'fa-sun' : 'fa-moon';
+    const text = isDark ? 'Светлая тема' : 'Тёмная тема';
+    
+    themeBtn.innerHTML = `<i class="fas ${icon}"></i> <span>${text}</span>`;
 }
 
 /**
@@ -89,6 +123,14 @@ function getCurrentTheme() {
     return currentTheme;
 }
 
+/**
+ * Проверить, активна ли темная тема
+ * @returns {boolean}
+ */
+function isDarkTheme() {
+    return currentTheme === 'dark';
+}
+
 // ============================================
 // ЭКСПОРТ В ГЛОБАЛЬНЫЙ ОБЪЕКТ
 // ============================================
@@ -102,7 +144,8 @@ window.CRM.ui.theme = {
     initTheme,
     setTheme,
     toggleTheme,
-    getCurrentTheme
+    getCurrentTheme,
+    isDarkTheme
 };
 
 // Для обратной совместимости со старым кодом
@@ -110,7 +153,15 @@ window.theme = {
     initTheme,
     setTheme,
     toggleTheme,
-    getCurrentTheme
+    getCurrentTheme,
+    isDarkTheme
 };
+
+// Автоматическая инициализация при загрузке DOM
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initTheme);
+} else {
+    initTheme();
+}
 
 console.log('[js/ui/theme.js] Загружен. Доступно: window.theme, window.CRM.ui.theme');

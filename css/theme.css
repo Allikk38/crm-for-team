@@ -1,78 +1,149 @@
 /* ============================================
- * НОВАЯ ДИЗАЙН-СИСТЕМА (Inter + Montserrat)
- * Современный минималистичный стиль
+ * ФАЙЛ: css/theme.css
+ * РОЛЬ: Базовые стили и импорт переменных
+ * 
+ * ОСОБЕННОСТИ:
+ *   - Подключает variables.css
+ *   - Определяет базовые стили для body
+ *   - Содержит только общие стили, не специфичные для компонентов
+ * 
+ * ЗАВИСИМОСТИ:
+ *   - variables.css (переменные тем)
+ * 
+ * ИСТОРИЯ:
+ *   - 31.03.2026: Рефакторинг, вынесены переменные в variables.css
  * ============================================ */
 
-/* Общие переменные (обе темы) */
-:root {
-    /* Шрифты */
-    --font-primary: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    --font-heading: 'Montserrat', var(--font-primary);
-    
-    /* Цвета (светлая основа) */
-    --primary: #2563eb;
-    --primary-hover: #1d4ed8;
-    --success: #16a34a;
-    --danger: #dc2626;
-    --warning: #d97706;
-    --bg-primary: #fafafa;
-    --surface: #ffffff;
-    --text-primary: #171717;
-    --text-secondary: #525252;
-    --text-muted: #a3a3a3;
-    
-    /* Компоненты */
-    --border-radius: 8px;
-    --border-radius-sm: 6px;
-    --shadow-sm: 0 1px 3px rgba(0,0,0,0.1);
-    --shadow-md: 0 4px 6px rgba(0,0,0,0.1);
-    --transition: all 0.2s ease;
+/* Импорт переменных */
+@import url('variables.css');
+
+/* ========== БАЗОВЫЕ СТИЛИ ========== */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
 }
 
-/* Светлая тема (по умолчанию) */
-:root:not(.theme-dark) {
-    --bg-gradient-start: #fafafa;
-    --bg-gradient-end: #f5f5f5;
-    --card-bg: #ffffff;
-    --card-border: rgba(0,0,0,0.08);
-    --card-hover: rgba(37,99,235,0.05);
-    --header-bg: #ffffff;
-    --input-bg: #ffffff;
-    --input-border: rgba(0,0,0,0.1);
+*::before,
+*::after {
+    box-sizing: border-box;
 }
 
-/* Темная тема */
-:root.theme-dark {
-    --bg-gradient-start: #0f0f23;
-    --bg-gradient-end: #151525;
-    --card-bg: #1a1a2e;
-    --card-border: rgba(255,255,255,0.1);
-    --card-hover: rgba(37,99,235,0.15);
-    --header-bg: #1a1a2e;
-    --surface: #1a1a2e;
-    --text-primary: #ffffff;
-    --text-secondary: #a3bffa;
-    --text-muted: #64748b;
-    --input-bg: #252540;
-    --input-border: rgba(255,255,255,0.15);
+html {
+    font-size: 16px;
+    scroll-behavior: smooth;
 }
 
-/* Применение */
 body {
     font-family: var(--font-primary);
     background: linear-gradient(135deg, var(--bg-gradient-start), var(--bg-gradient-end));
     color: var(--text-primary);
     line-height: 1.6;
-    transition: var(--transition);
+    min-height: 100vh;
+    transition: background var(--transition), color var(--transition);
 }
 
-h1,h2,h3,h4,h5,h6 {
+/* ========== ТИПОГРАФИКА ========== */
+h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-heading);
     font-weight: 600;
-    margin-bottom: 1rem;
     line-height: 1.2;
+    margin-bottom: var(--spacing-md);
+    color: var(--text-primary);
 }
 
-* {
-    transition: var(--transition);
+h1 { font-size: var(--text-4xl); }
+h2 { font-size: var(--text-3xl); }
+h3 { font-size: var(--text-2xl); }
+h4 { font-size: var(--text-xl); }
+h5 { font-size: var(--text-lg); }
+h6 { font-size: var(--text-base); }
+
+p {
+    margin-bottom: var(--spacing-md);
+    color: var(--text-secondary);
+}
+
+a {
+    color: var(--primary);
+    text-decoration: none;
+    transition: color var(--transition-fast);
+}
+
+a:hover {
+    color: var(--primary-hover);
+}
+
+/* ========== УТИЛИТЫ ========== */
+.container {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 0 var(--spacing-lg);
+    width: 100%;
+}
+
+/* ========== СКРОЛЛБАР ========== */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg-secondary);
+    border-radius: var(--border-radius-full);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--primary-light);
+    border-radius: var(--border-radius-full);
+    transition: background var(--transition-fast);
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--primary);
+}
+
+/* ========== ВЫДЕЛЕНИЕ ТЕКСТА ========== */
+::selection {
+    background: var(--primary-light);
+    color: var(--primary);
+}
+
+/* ========== АНИМИРОВАННАЯ СЕТКА ФОНА ========== */
+body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: 
+        linear-gradient(var(--primary-light) 1px, transparent 1px),
+        linear-gradient(90deg, var(--primary-light) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.3;
+}
+
+/* ========== ОСНОВНОЙ КОНТЕНТ ========== */
+main, section, .main-content {
+    position: relative;
+    z-index: 1;
+}
+
+/* ========== АНИМАЦИИ ========== */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.fade-in {
+    animation: fadeIn var(--transition-slow) ease-out;
 }

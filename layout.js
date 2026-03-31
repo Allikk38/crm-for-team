@@ -190,6 +190,13 @@ export async function initSidebar() {
     expandBtn.className = 'sidebar-expand-btn';
     expandBtn.innerHTML = '<i class="fas fa-chevron-right"></i>';
     expandBtn.onclick = () => toggleSidebar();
+    expandBtn.style.cssText = `
+      position: fixed; left: 72px; top: 50%; transform: translateY(-50%);
+      width: 32px; height: 32px; background: var(--accent); color: white;
+      border: none; border-radius: 0 16px 16px 0; cursor: pointer; z-index: 1001;
+      display: none; align-items: center; justify-content: center;
+      box-shadow: 2px 0 8px rgba(0,0,0,0.2); transition: all 0.2s;
+    `;
     document.body.appendChild(expandBtn);
     
     isInitialized = true;
@@ -206,12 +213,12 @@ export function toggleSidebar() {
     sidebarCollapsed = !sidebarCollapsed;
     
     if (sidebarCollapsed) {
-        sidebar.classList.remove('full');
-        sidebar.classList.add('mini');
+        sidebar.classList.add('collapsed');
+        sidebar.classList.remove('expanded');
         localStorage.setItem('sidebar_collapsed', 'true');
     } else {
-        sidebar.classList.remove('mini');
-        sidebar.classList.add('full');
+        sidebar.classList.remove('collapsed');
+        sidebar.classList.add('expanded');
         localStorage.setItem('sidebar_collapsed', 'false');
     }
 }
@@ -498,241 +505,7 @@ function addPomodoroWidget() {
     }
 }
 
-// Стили для мини-сайдбара
-    const navStyle = document.createElement('style');
-    navStyle.textContent = `
-        /* Sidebar states: full > mini > hidden (mobile) */
-        .sidebar {
-            width: 260px;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .sidebar.full {
-            width: 260px;
-        }
-        
-        .sidebar.mini {
-            width: 72px;
-        }
-        
-        /* Full mode */
-        .sidebar.full .sidebar-logo span {
-            display: inline;
-        }
-        
-        .sidebar.full .mini-nav-label {
-            display: block;
-        }
-        
-        .sidebar.full .sidebar-footer button span {
-            display: inline;
-        }
-        
-        /* Mini mode - icons only */
-        .sidebar.mini .sidebar-logo span,
-        .sidebar.mini .mini-nav-label,
-        .sidebar.mini .sidebar-footer button span {
-            display: none;
-        }
-        
-        .sidebar-logo i {
-            font-size: 1.5rem;
-            margin-right: 8px;
-        }
-        
-        .sidebar-logo {
-            justify-content: flex-start;
-            padding: 20px 20px;
-        }
-        
-        .sidebar.mini .sidebar-logo {
-            justify-content: center;
-            padding: 20px 12px;
-        }
-        
-        .sidebar.mini .sidebar-logo i {
-            margin: 0;
-        }
-        
-        .mini-sidebar-nav {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 8px;
-            padding: 16px 12px;
-            flex: 1;
-        }
-        
-        .sidebar.full .mini-sidebar-nav {
-            align-items: stretch;
-            gap: 4px;
-            padding: 16px 20px;
-        }
-        
-        .mini-nav-item {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px 16px;
-            border-radius: 12px;
-            color: var(--text-muted);
-            text-decoration: none;
-            transition: all 0.2s ease;
-            font-weight: 500;
-        }
-        
-        .sidebar.mini .mini-nav-item {
-            flex-direction: column;
-            align-items: center;
-            gap: 4px;
-            padding: 12px;
-            width: 48px;
-        }
-        
-        .mini-nav-item i {
-            font-size: 1.2rem;
-            flex-shrink: 0;
-            width: 20px;
-            text-align: center;
-        }
-        
-        .sidebar.mini .mini-nav-item i {
-            font-size: 1.25rem;
-        }
-        
-        .mini-nav-item:hover {
-            background: var(--hover-bg);
-            color: var(--accent);
-            transform: translateX(4px);
-        }
-        
-        .sidebar.mini .mini-nav-item:hover {
-            transform: translateY(-1px);
-        }
-        
-        .mini-nav-item.active {
-            background: var(--accent);
-            color: white;
-        }
-        
-        /* Footer */
-        .sidebar-footer {
-            padding: 16px 20px 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-        
-        .sidebar.mini .sidebar-footer {
-            padding: 16px 12px 20px;
-        }
-        
-        .sidebar-footer button {
-            padding: 12px 16px;
-            border-radius: 12px;
-            border: none;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-weight: 500;
-            transition: all 0.2s;
-        }
-        
-        .sidebar-footer button:hover {
-            transform: translateY(-1px);
-        }
-        
-        .sidebar.mini .sidebar-footer button {
-            justify-content: center;
-            padding: 12px;
-        }
-        
-        /* Main content */
-        .main-content {
-            margin-left: 260px;
-            transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        
-        .sidebar.mini ~ .main-content {
-            margin-left: 72px;
-        }
-        
-        /* Desktop expand button when mini */
-        .sidebar-expand-btn {
-            position: fixed;
-            left: 72px;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 32px;
-            height: 32px;
-            background: var(--accent);
-            color: white;
-            border: none;
-            border-radius: 0 16px 16px 0;
-            cursor: pointer;
-            z-index: 1001;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 2px 0 8px rgba(0,0,0,0.2);
-            transition: all 0.2s;
-        }
-        
-        .sidebar.mini ~ .sidebar-expand-btn {
-            display: flex;
-        }
-        
-        .sidebar-expand-btn:hover {
-            background: var(--accent-hover);
-        }
-        
-        /* Mobile */
-        @media (max-width: 768px) {
-            .sidebar {
-                position: fixed;
-                left: 0;
-                top: 0;
-                bottom: 0;
-                z-index: 1000;
-                transform: translateX(-100%);
-                transition: transform 0.3s ease;
-                width: 280px !important;
-            }
-            
-            .sidebar.mobile-open {
-                transform: translateX(0);
-            }
-            
-            .main-content {
-                margin-left: 0 !important;
-            }
-            
-            .sidebar-expand-btn {
-                display: none !important;
-            }
-            
-            .mobile-menu-toggle {
-                display: flex;
-                position: fixed;
-                left: 16px;
-                bottom: 20px;
-                width: 56px;
-                height: 56px;
-                background: var(--accent);
-                border-radius: 50%;
-                align-items: center;
-                justify-content: center;
-                cursor: pointer;
-                z-index: 1001;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            }
-        }
-    `;
-    
-    document.head.appendChild(navStyle);
+// Inline sidebar styles moved to components.css
 
 // Стили для уведомлений
 const notificationStyle = document.createElement('style');
