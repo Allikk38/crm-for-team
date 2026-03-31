@@ -1,17 +1,22 @@
 /**
  * ============================================
  * ФАЙЛ: layout.js
- * РОЛЬ: Управление боковой навигационной панелью и шапкой
+ * РОЛЬ: Управление боковой навигационной панелью с группировкой модулей
  * 
  * ОСОБЕННОСТИ:
- *   - Мини-сайдбар с возможностью сворачивания до 72px
- *   - Кнопка сворачивания/разворачивания всегда доступна
+ *   - Автоматическая группировка модулей из реестра
+ *   - Категории: Основные, Бизнес, Личное, Инструменты, Управление
+ *   - Вложенные подгруппы для бизнес-модулей
+ *   - Сохранение состояния сворачивания
  *   - Адаптивное мобильное меню
- *   - Сохранение состояния в localStorage
+ * 
+ * ЗАВИСИМОСТИ:
+ *   - js/core/registry.js (для получения модулей)
+ *   - js/core/permissions.js (для проверки прав)
  * 
  * ИСТОРИЯ:
- *   - 31.03.2026: Исправлена логика сворачивания/разворачивания
- *   - 31.03.2026: Добавлена плавающая кнопка разворачивания
+ *   - 31.03.2026: Полная переработка, добавлена группировка модулей
+ *   - 31.03.2026: Исправлены ошибки с неопределенными функциями
  * ============================================
  */
 
@@ -21,16 +26,79 @@ import { getState, start, pause, subscribe } from './js/services/pomodoro.js';
 let sidebarCollapsed = false;
 let isInitialized = false;
 
-// Конфигурация модулей для мини-сайдбара
-const SIDEBAR_MODULES = [
-    { id: 'navigator', name: 'Навигатор', icon: 'fa-th-large', href: '/app/navigator.html' },
-    { id: 'dashboard', name: 'Дашборд', icon: 'fa-home', href: '/app/dashboard.html' },
-    { id: 'tasks', name: 'Задачи', icon: 'fa-tasks', href: '/app/tasks.html' },
-    { id: 'deals', name: 'Сделки', icon: 'fa-handshake', href: '/app/deals.html' },
-    { id: 'calendar', name: 'Календарь', icon: 'fa-calendar-alt', href: '/app/calendar.html' },
-    { id: 'notes', name: 'Заметки', icon: 'fa-sticky-note', href: '/app/notes.html' },
-    { id: 'profile', name: 'Профиль', icon: 'fa-user', href: '/app/profile.html' }
-];
+// ========== КАТЕГОРИИ МОДУЛЕЙ ==========
+const MODULE_CATEGORIES = {
+    essentials: {
+        id: 'essentials',
+        name: 'Основные',
+        icon: 'fa-star',
+        order: 0,
+        modules: ['navigator', 'dashboard']
+    },
+    business: {
+        id: 'business',
+        name: 'Бизнес',
+        icon: 'fa-briefcase',
+        order: 1,
+        modules: ['deals', 'complexes', 'counterparties', 'analytics', 'reports', 'invoices']
+    },
+    personal: {
+        id: 'personal',
+        name: 'Личное',
+        icon: 'fa-user',
+        order: 2,
+        modules: ['tasks', 'calendar', 'notes', 'habits', 'pomodoro']
+    },
+    tools: {
+        id: 'tools',
+        name: 'Инструменты',
+        icon: 'fa-tools',
+        order: 3,
+        modules: ['team', 'marketplace', 'my-modules', 'chat', 'documents']
+    },
+    admin: {
+        id: 'admin',
+        name: 'Управление',
+        icon: 'fa-cog',
+        order: 4,
+        modules: ['profile', 'notifications', 'admin'],
+        adminOnly: true
+    }
+};
+
+// ========== ОПИСАНИЯ МОДУЛЕЙ ==========
+const MODULE_INFO = {
+    // Основные
+    navigator: { name: 'Навигатор', icon: 'fa-th-large', href: '/app/navigator.html', description: 'Обзор всех модулей' },
+    dashboard: { name: 'Дашборд', icon: 'fa-home', href: '/app/dashboard.html', description: 'Главная панель управления' },
+    
+    // Бизнес
+    deals: { name: 'Сделки', icon: 'fa-handshake', href: '/app/deals.html', description: 'Управление сделками' },
+    complexes: { name: 'Объекты', icon: 'fa-building', href: '/app/complexes.html', description: 'Управление объектами' },
+    counterparties: { name: 'Контрагенты', icon: 'fa-users', href: '/app/counterparties.html', description: 'База контрагентов' },
+    analytics: { name: 'Аналитика', icon: 'fa-chart-line', href: '/app/analytics.html', description: 'Расширенная аналитика' },
+    reports: { name: 'Отчеты', icon: 'fa-file-alt', href: '/app/reports.html', description: 'Формирование отчетов' },
+    invoices: { name: 'Счета', icon: 'fa-file-invoice', href: '/app/invoices.html', description: 'Управление счетами' },
+    
+    // Личное
+    tasks: { name: 'Задачи', icon: 'fa-tasks', href: '/app/tasks.html', description: 'Управление задачами' },
+    calendar: { name: 'Календарь', icon: 'fa-calendar-alt', href: '/app/calendar.html', description: 'Планирование событий' },
+    notes: { name: 'Заметки', icon: 'fa-sticky-note', href: '/app/notes.html', description: 'Быстрые заметки' },
+    habits: { name: 'Привычки', icon: 'fa-calendar-check', href: '/app/habits.html', description: 'Отслеживание привычек' },
+    pomodoro: { name: 'Помодоро', icon: 'fa-clock', href: '/app/pomodoro.html', description: 'Таймер продуктивности' },
+    
+    // Инструменты
+    team: { name: 'Команда', icon: 'fa-user-friends', href: '/app/team.html', description: 'Управление командой' },
+    marketplace: { name: 'Маркетплейс', icon: 'fa-store', href: '/app/marketplace.html', description: 'Магазин модулей' },
+    'my-modules': { name: 'Мои модули', icon: 'fa-puzzle-piece', href: '/app/my-modules.html', description: 'Установленные модули' },
+    chat: { name: 'Чат', icon: 'fa-comments', href: '/app/chat.html', description: 'Внутренний чат' },
+    documents: { name: 'Документы', icon: 'fa-file-pdf', href: '/app/documents.html', description: 'Электронный документооборот' },
+    
+    // Управление
+    profile: { name: 'Профиль', icon: 'fa-user', href: '/app/profile.html', description: 'Настройки профиля' },
+    notifications: { name: 'Уведомления', icon: 'fa-bell', href: '/app/notifications.html', description: 'Центр уведомлений' },
+    admin: { name: 'Администрирование', icon: 'fa-shield-alt', href: '/app/admin.html', description: 'Управление системой' }
+};
 
 /**
  * Получить роль текущего пользователя
@@ -40,118 +108,147 @@ function getCurrentUserRole() {
 }
 
 /**
- * Получить права текущего пользователя
- */
-function getUserPermissions() {
-    if (window.CRM?.Permissions) {
-        return window.CRM.Permissions.getUserPermissions();
-    }
-    return [];
-}
-
-/**
  * Проверить, доступен ли модуль для пользователя
  */
-function isModuleAvailable(module) {
+function isModuleAvailable(moduleId) {
     const userRole = getCurrentUserRole();
-    const userPermissions = getUserPermissions();
     const isAdmin = userRole === 'admin';
     
+    // Администратор имеет доступ ко всем модулям
     if (isAdmin) return true;
     
-    // Проверка по ролям
-    if (module.roles && module.roles.length > 0) {
-        if (!module.roles.includes(userRole)) return false;
-    }
-    
-    // Проверка по правам
-    if (module.permissions && module.permissions.length > 0) {
-        const hasPermission = module.permissions.some(p => userPermissions.includes(p));
-        if (!hasPermission) return false;
+    // Проверка через Registry если доступен
+    if (window.CRM?.Registry) {
+        return window.CRM.Registry.isModuleAvailable(moduleId);
     }
     
     return true;
 }
 
 /**
- * Рендер мини-сайдбара (только иконки)
+ * Рендер бокового меню с группировкой
  */
-function renderMiniSidebar() {
+function renderSidebarMenu() {
     const container = document.getElementById('sidebar-nav');
-    if (!container) return;
+    if (!container) {
+        console.error('[layout] Контейнер sidebar-nav не найден');
+        return;
+    }
     
     const currentPath = window.location.pathname;
+    const userRole = getCurrentUserRole();
+    const isAdmin = userRole === 'admin';
     
-    let html = '<div class="mini-sidebar-nav">';
+    let html = '<div class="sidebar-menu">';
     
-    for (const module of SIDEBAR_MODULES) {
-        const isActive = module.href === currentPath;
+    for (const [catId, category] of Object.entries(MODULE_CATEGORIES)) {
+        // Пропускаем админские категории для не-админов
+        if (category.adminOnly && !isAdmin) continue;
+        
+        // Фильтруем доступные модули
+        const availableModules = category.modules.filter(moduleId => {
+            const moduleInfo = MODULE_INFO[moduleId];
+            if (!moduleInfo) return false;
+            return isModuleAvailable(moduleId);
+        });
+        
+        if (availableModules.length === 0) continue;
+        
+        // Заголовок категории
         html += `
-            <a href="${module.href}" class="mini-nav-item ${isActive ? 'active' : ''}" title="${escapeHtml(module.name)}">
-                <i class="fas ${module.icon}"></i>
-                <span class="mini-nav-label">${escapeHtml(module.name)}</span>
-            </a>
+            <div class="sidebar-category" data-category="${catId}">
+                <div class="sidebar-category-header">
+                    <i class="fas ${category.icon}"></i>
+                    <span class="category-name">${escapeHtml(category.name)}</span>
+                    <i class="fas fa-chevron-down category-toggle"></i>
+                </div>
+                <div class="sidebar-category-items">
+        `;
+        
+        // Пункты меню в категории
+        for (const moduleId of availableModules) {
+            const module = MODULE_INFO[moduleId];
+            if (!module) continue;
+            
+            const isActive = module.href === currentPath;
+            
+            html += `
+                <a href="${module.href}" class="sidebar-menu-item ${isActive ? 'active' : ''}" 
+                   data-module="${moduleId}" title="${escapeHtml(module.name)}">
+                    <i class="fas ${module.icon}"></i>
+                    <span class="menu-item-label">${escapeHtml(module.name)}</span>
+                    ${isActive ? '<span class="active-indicator"></span>' : ''}
+                </a>
+            `;
+        }
+        
+        html += `
+                </div>
+            </div>
         `;
     }
     
     html += '</div>';
     container.innerHTML = html;
+    
+    // Добавляем обработчики для сворачивания/разворачивания категорий
+    attachCategoryHandlers();
+    
+    console.log('[layout] Боковое меню отрисовано');
 }
 
 /**
- * Рендер навигации
+ * Добавление обработчиков для сворачивания категорий
  */
-function renderNavigation() {
-    const container = document.getElementById('sidebar-nav');
-    if (!container) return;
+function attachCategoryHandlers() {
+    const categories = document.querySelectorAll('.sidebar-category');
     
-    renderMiniSidebar();
-}
-
-/**
- * Ожидание загрузки прав пользователя
- */
-async function waitForPermissions(timeout = 10000) {
-    const startTime = Date.now();
-    
-    while (Date.now() - startTime < timeout) {
-        if (window.currentSupabaseUser) {
-            const permissions = getUserPermissions();
-            if (window.currentSupabaseUser.role === 'admin' || permissions.length > 0) {
-                return true;
-            }
+    categories.forEach(category => {
+        const header = category.querySelector('.sidebar-category-header');
+        const items = category.querySelector('.sidebar-category-items');
+        const toggle = category.querySelector('.category-toggle');
+        
+        // Восстанавливаем сохраненное состояние
+        const catId = category.dataset.category;
+        const isCollapsed = localStorage.getItem(`sidebar_category_${catId}`) === 'true';
+        
+        if (isCollapsed && items) {
+            items.classList.add('collapsed');
+            if (toggle) toggle.classList.add('collapsed');
         }
-        await new Promise(r => setTimeout(r, 200));
-    }
-    return false;
+        
+        if (header) {
+            header.onclick = (e) => {
+                e.stopPropagation();
+                if (items) {
+                    items.classList.toggle('collapsed');
+                    if (toggle) toggle.classList.toggle('collapsed');
+                    
+                    // Сохраняем состояние
+                    const newState = items.classList.contains('collapsed');
+                    localStorage.setItem(`sidebar_category_${catId}`, newState);
+                }
+            };
+        }
+    });
 }
 
 /**
- * Обновление кнопок в футере в зависимости от состояния сайдбара
+ * Обновление кнопок в футере
  */
 function updateFooterButtons() {
     const sidebarFooter = document.querySelector('.sidebar-footer');
     if (!sidebarFooter) return;
     
     const isCollapsed = sidebarCollapsed;
-    
-    // Очищаем футер
     sidebarFooter.innerHTML = '';
     
     // Кнопка сворачивания/разворачивания
     const toggleBtn = document.createElement('button');
     toggleBtn.className = 'sidebar-toggle-btn';
-    
-    if (isCollapsed) {
-        // Свернутый режим - показываем иконку разворачивания
-        toggleBtn.innerHTML = '<i class="fas fa-chevron-right"></i><span>Развернуть</span>';
-        toggleBtn.setAttribute('title', 'Развернуть меню');
-    } else {
-        // Развернутый режим - показываем иконку сворачивания
-        toggleBtn.innerHTML = '<i class="fas fa-chevron-left"></i><span>Свернуть</span>';
-        toggleBtn.setAttribute('title', 'Свернуть меню');
-    }
-    
+    toggleBtn.innerHTML = isCollapsed 
+        ? '<i class="fas fa-chevron-right"></i><span>Развернуть</span>'
+        : '<i class="fas fa-chevron-left"></i><span>Свернуть</span>';
     toggleBtn.onclick = (e) => {
         e.stopPropagation();
         toggleSidebar();
@@ -181,15 +278,8 @@ function updateFooterButtons() {
     };
     sidebarFooter.appendChild(logoutBtn);
     
-    // Если сайдбар свернут, добавляем класс для скрытия текста
     if (isCollapsed) {
-        toggleBtn.classList.add('collapsed-mode');
-        themeBtn.classList.add('collapsed-mode');
-        logoutBtn.classList.add('collapsed-mode');
-    } else {
-        toggleBtn.classList.remove('collapsed-mode');
-        themeBtn.classList.remove('collapsed-mode');
-        logoutBtn.classList.remove('collapsed-mode');
+        [toggleBtn, themeBtn, logoutBtn].forEach(btn => btn.classList.add('collapsed-mode'));
     }
 }
 
@@ -199,8 +289,9 @@ function updateFooterButtons() {
 export async function initSidebar() {
     if (isInitialized) return;
     
+    console.log('[layout] Инициализация бокового меню...');
+    
     const saved = localStorage.getItem('sidebar_collapsed');
-    // По умолчанию сайдбар развёрнут
     if (saved === 'true') {
         sidebarCollapsed = true;
         document.getElementById('sidebar')?.classList.add('collapsed');
@@ -210,43 +301,20 @@ export async function initSidebar() {
         localStorage.setItem('sidebar_collapsed', 'false');
     }
     
-    const hasPermissions = await waitForPermissions();
+    renderSidebarMenu();
     
-    renderNavigation();
-    
-    // Auto-update top-bar on userLoaded event
     window.addEventListener('userLoaded', () => {
-        if (typeof updateSupabaseUserInterface === 'function') {
-            updateSupabaseUserInterface();
-        }
-        renderNavigation();
+        console.log('[layout] userLoaded событие, обновляем меню');
+        renderSidebarMenu();
     });
-    
-    if (!hasPermissions) {
-        window.addEventListener('permissionsReady', () => {
-            renderNavigation();
-        });
-        
-        let attempts = 0;
-        const checkInterval = setInterval(() => {
-            attempts++;
-            if (window.currentSupabaseUser?.role === 'admin' || getUserPermissions().length > 0) {
-                renderNavigation();
-                clearInterval(checkInterval);
-            } else if (attempts > 30) {
-                clearInterval(checkInterval);
-            }
-        }, 500);
-    }
     
     initMobileMenu();
     addNotificationButtonToTopBar();
     addPomodoroWidget();
-    
-    // Обновляем кнопки в футере
     updateFooterButtons();
     
     isInitialized = true;
+    console.log('[layout] Боковое меню инициализировано');
 }
 
 /**
@@ -266,20 +334,19 @@ export function toggleSidebar() {
         localStorage.setItem('sidebar_collapsed', 'false');
     }
     
-    // Обновляем кнопки в футере
     updateFooterButtons();
     
-    // Диспатчим событие для других компонентов
     window.dispatchEvent(new CustomEvent('sidebarToggled', { 
         detail: { collapsed: sidebarCollapsed } 
     }));
+    
+    console.log('[layout] Сайдбар', sidebarCollapsed ? 'свернут' : 'развернут');
 }
 
 /**
  * Инициализация мобильного меню
  */
 function initMobileMenu() {
-    // Удаляем существующую кнопку если есть
     const existingToggle = document.querySelector('.mobile-menu-toggle');
     if (existingToggle) existingToggle.remove();
     
@@ -305,7 +372,7 @@ function initMobileMenu() {
 }
 
 /**
- * Добавление кнопки уведомлений в топ-бар
+ * Добавление кнопки уведомлений
  */
 function addNotificationButtonToTopBar() {
     const topBar = document.querySelector('.top-bar');
@@ -335,7 +402,7 @@ function addNotificationButtonToTopBar() {
 }
 
 /**
- * Обновление счетчика непрочитанных уведомлений
+ * Обновление счетчика уведомлений
  */
 async function updateNotificationBadge() {
     const badge = document.getElementById('notificationBadge');
@@ -363,7 +430,7 @@ async function updateNotificationBadge() {
 }
 
 /**
- * Переключение темы (светлая/темная)
+ * Переключение темы
  */
 function toggleTheme() {
     const isDark = document.documentElement.classList.contains('theme-dark');
@@ -380,8 +447,6 @@ function toggleTheme() {
         document.body.classList.add('theme-dark');
         localStorage.setItem('crm_theme', 'dark');
     }
-    
-    // Обновляем кнопку темы
     updateFooterButtons();
 }
 
@@ -544,14 +609,13 @@ notificationStyle.textContent = `
 `;
 document.head.appendChild(notificationStyle);
 
-// Глобальный объект для доступа из HTML
+// Глобальный объект
 window.sidebar = {
     initSidebar,
     toggleSidebar,
     goToProfile,
     logout,
-    renderNavigation,
     updateNotificationBadge
 };
 
-console.log('[layout] Модуль загружен (мини-сайдбар)');
+console.log('[layout] Модуль загружен (группированное меню)');

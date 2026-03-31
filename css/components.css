@@ -1063,3 +1063,199 @@ tr:hover {
     position: relative;
     z-index: 1001;
 }
+/* ============================================
+ * СТИЛИ ДЛЯ ГРУППИРОВАННОГО БОКОВОГО МЕНЮ
+ * ============================================ */
+
+/* Контейнер меню */
+.sidebar-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+}
+
+/* Категория меню */
+.sidebar-category {
+    margin-bottom: 4px;
+}
+
+.sidebar-category-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: var(--border-radius);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.sidebar-category-header:hover {
+    background: var(--sidebar-item-hover);
+    color: var(--primary);
+}
+
+.sidebar-category-header i:first-child {
+    width: 20px;
+    font-size: 0.9rem;
+}
+
+.category-name {
+    flex: 1;
+}
+
+.category-toggle {
+    font-size: 0.7rem;
+    transition: transform var(--transition-fast);
+}
+
+.category-toggle.collapsed {
+    transform: rotate(-90deg);
+}
+
+/* Пункты меню внутри категории */
+.sidebar-category-items {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-left: 32px;
+    overflow: hidden;
+    transition: max-height var(--transition-slow);
+}
+
+.sidebar-category-items.collapsed {
+    max-height: 0;
+}
+
+.sidebar-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    border-radius: var(--border-radius);
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: all var(--transition-fast);
+    font-size: 0.85rem;
+    position: relative;
+}
+
+.sidebar-menu-item i {
+    width: 20px;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    transition: color var(--transition-fast);
+}
+
+.sidebar-menu-item span {
+    flex: 1;
+}
+
+.sidebar-menu-item:hover {
+    background: var(--sidebar-item-hover);
+    color: var(--primary);
+}
+
+.sidebar-menu-item:hover i {
+    color: var(--primary);
+}
+
+.sidebar-menu-item.active {
+    background: var(--primary-light);
+    color: var(--primary);
+}
+
+.sidebar-menu-item.active i {
+    color: var(--primary);
+}
+
+.active-indicator {
+    position: absolute;
+    right: 8px;
+    width: 4px;
+    height: 4px;
+    background: var(--primary);
+    border-radius: 50%;
+}
+
+/* Свернутый режим */
+.sidebar.collapsed .sidebar-category-header span.category-name,
+.sidebar.collapsed .sidebar-category-header i.category-toggle,
+.sidebar.collapsed .sidebar-category-items {
+    display: none;
+}
+
+.sidebar.collapsed .sidebar-category-header {
+    justify-content: center;
+    padding: 10px;
+}
+
+.sidebar.collapsed .sidebar-category-header i:first-child {
+    margin: 0;
+}
+
+.sidebar.collapsed .sidebar-menu-item span {
+    display: none;
+}
+
+.sidebar.collapsed .sidebar-menu-item {
+    justify-content: center;
+    padding: 10px;
+}
+
+.sidebar.collapsed .sidebar-menu-item i {
+    margin: 0;
+}
+
+.sidebar.collapsed .sidebar-menu-item.active .active-indicator {
+    display: none;
+}
+/* ============================================
+ * СТИЛИ ДЛЯ КНОПКИ ВЫХОДА В САЙДБАРЕ
+ * ============================================ */
+
+.sidebar-footer .logout-btn {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 10px 16px;
+    background: rgba(255, 107, 107, 0.15);
+    border: none;
+    border-radius: var(--border-radius);
+    color: #ff6b6b;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.sidebar-footer .logout-btn:hover {
+    background: rgba(255, 107, 107, 0.3);
+    color: #ff8787;
+    transform: translateY(-1px);
+}
+
+.sidebar-footer .logout-btn i {
+    width: 20px;
+    font-size: 1rem;
+}
+
+/* Свернутый режим */
+.sidebar.collapsed .sidebar-footer .logout-btn {
+    justify-content: center;
+    padding: 10px;
+}
+
+.sidebar.collapsed .sidebar-footer .logout-btn span {
+    display: none;
+}
+
+.sidebar.collapsed .sidebar-footer .logout-btn i {
+    margin: 0;
+}
