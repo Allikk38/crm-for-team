@@ -4,44 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
-    <!-- 
-    ============================================
-    ФАЙЛ: app/notes.html
-    РОЛЬ: Заметки с категориями, закреплением и поиском
-    
-    ОСОБЕННОСТИ:
-      - Категории (работа, личное, идеи, задачи)
-      - Закрепленные заметки
-      - Поиск по заголовку и тексту
-      - Markdown-форматирование
-      - Сохранение в Supabase
-    
-    ИСТОРИЯ:
-      - 30.03.2026: Создание страницы
-      - 31.03.2026: Переход на Supabase, добавлены категории и закрепление
-    ============================================
-    -->
-    
-    <script>
-        (function() {
-            try {
-                const savedTheme = localStorage.getItem('crm_theme');
-                if (savedTheme === 'light') {
-                    document.documentElement.classList.add('theme-light');
-                    document.body.classList.add('theme-light');
-                } else if (savedTheme === 'dark') {
-                    document.documentElement.classList.add('theme-dark');
-                    document.body.classList.add('theme-dark');
-                }
-            } catch(e) {}
-        })();
-    </script>
-    
     <title>Заметки - CRM</title>
     
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css">
     <link rel="stylesheet" href="../css/base.css">
     <link rel="stylesheet" href="../css/theme.css">
     <link rel="stylesheet" href="../css/components.css">
@@ -49,6 +15,7 @@
     <link rel="stylesheet" href="../css/animations.css">
     
     <style>
+        /* Стили остаются без изменений */
         .notes-container {
             max-width: 1400px;
             margin: 0 auto;
@@ -110,6 +77,12 @@
             align-items: center;
             gap: 8px;
             font-weight: 500;
+            transition: all 0.2s;
+        }
+        
+        .add-note-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
         }
         
         .categories-bar {
@@ -159,6 +132,7 @@
         .note-card:hover {
             transform: translateY(-4px);
             border-color: var(--accent);
+            box-shadow: var(--shadow-md);
         }
         
         .note-card.pinned {
@@ -177,6 +151,7 @@
             font-size: 1.1rem;
             flex: 1;
             word-break: break-word;
+            color: var(--text-primary);
         }
         
         .note-actions {
@@ -189,13 +164,17 @@
             border: none;
             color: var(--text-muted);
             cursor: pointer;
-            padding: 4px;
-            border-radius: 6px;
+            padding: 6px;
+            border-radius: 8px;
             transition: all 0.2s;
         }
         
         .note-action-btn:hover {
             background: var(--hover-bg);
+            color: var(--accent);
+        }
+        
+        .note-action-btn.pinned-active {
             color: var(--accent);
         }
         
@@ -210,7 +189,7 @@
         }
         
         .note-content {
-            color: var(--text-muted);
+            color: var(--text-secondary);
             font-size: 0.85rem;
             line-height: 1.4;
             margin-bottom: 16px;
@@ -222,8 +201,7 @@
         
         .note-footer {
             display: flex;
-            justify-content: space-between;
-            align-items: center;
+            justify-content: flex-end;
             font-size: 0.7rem;
             color: var(--text-muted);
             padding-top: 12px;
@@ -236,14 +214,20 @@
             color: var(--text-muted);
         }
         
-        /* Модальное окно */
+        .empty-state i {
+            font-size: 3rem;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+        
         .note-modal-content {
             max-width: 800px;
             width: 90%;
         }
         
         .note-modal-content input,
-        .note-modal-content select {
+        .note-modal-content select,
+        .note-modal-content textarea {
             width: 100%;
             margin-bottom: 16px;
             padding: 12px;
@@ -251,21 +235,38 @@
             border: 1px solid var(--card-border);
             border-radius: 12px;
             color: var(--text-primary);
+            font-size: 0.9rem;
+            font-family: inherit;
         }
         
-        .editor-toolbar {
-            background: var(--input-bg);
-            border-radius: 12px 12px 0 0;
-        }
-        
-        .EasyMDEContainer .CodeMirror {
-            background: var(--input-bg);
-            color: var(--text-primary);
-            border-radius: 0 0 12px 12px;
+        .note-modal-content textarea {
+            resize: vertical;
+            min-height: 200px;
         }
         
         .modal-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
             margin-top: 20px;
+        }
+        
+        .modal-buttons button {
+            padding: 8px 20px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        
+        .modal-buttons button:first-child {
+            background: var(--hover-bg);
+            color: var(--text-primary);
+        }
+        
+        .modal-buttons button.primary {
+            background: var(--accent);
+            color: white;
         }
         
         @media (max-width: 768px) {
@@ -279,6 +280,36 @@
             .search-box {
                 width: 100%;
             }
+        }
+        /* Исправление для модального окна */
+        .modal {
+            display: none !important;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal.active {
+            display: flex !important;
+        }
+
+        .modal-content {
+            background: var(--card-bg);
+            border-radius: var(--border-radius-lg);
+            padding: var(--spacing-xl);
+            max-width: 90%;
+            width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+            position: relative;
+            z-index: 1001;
         }
     </style>
 </head>
@@ -295,7 +326,7 @@
                     <i class="fas fa-chevron-left"></i>
                     <span>Свернуть</span>
                 </button>
-                <button class="logout-btn" onclick="window.sidebar?.logout()" style="margin-top: 12px; width: 100%; padding: 10px; background: rgba(255, 107, 107, 0.2); border: none; border-radius: 12px; color: #ff6b6b; cursor: pointer;">
+                <button class="logout-btn" onclick="window.sidebar?.logout()">
                     <i class="fas fa-sign-out-alt"></i> Выйти
                 </button>
             </div>
@@ -338,7 +369,7 @@
                 
                 <div id="notesGrid" class="notes-grid">
                     <div class="empty-state">
-                        <i class="fas fa-spinner fa-pulse"></i>
+                        <i class="fas fa-spinner fa-pulse fa-2x"></i>
                         <p>Загрузка заметок...</p>
                     </div>
                 </div>
@@ -360,356 +391,39 @@
             </select>
             <div id="editor"></div>
             <div class="modal-buttons">
-                <button onclick="closeNoteModal()">Отмена</button>
+                <button id="cancelNoteBtn">Отмена</button>
                 <button class="primary" id="saveNoteBtn">Сохранить</button>
             </div>
         </div>
     </div>
     
-    <script src="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js"></script>
+    <!-- Универсальный загрузчик модулей -->
+    <script type="module" src="../js/core/moduleLoader.js"></script>
     
+    <!-- Инициализация страницы заметок (только один раз) -->
     <script type="module">
-        import { getCurrentSupabaseUser, requireSupabaseAuth, updateSupabaseUserInterface } from '../js/core/supabase-session.js';
-        import { supabase } from '../js/core/supabase.js';
-        
-        let currentUser = null;
-        let notes = [];
-        let currentCategory = 'all';
-        let searchQuery = '';
-        let editor = null;
-        
-        // Категории
-        const CATEGORIES = {
-            work: { name: 'Работа' },
-            personal: { name: 'Личное' },
-            ideas: { name: 'Идеи' },
-            tasks: { name: 'Задачи' }
-        };
-        
-        // ========== ЗАГРУЗКА ДАННЫХ ==========
-        
-        async function loadNotes() {
-            const { data, error } = await supabase
-                .from('notes')
-                .select('*')
-                .eq('user_id', currentUser.id)
-                .order('is_pinned', { ascending: false })
-                .order('updated_at', { ascending: false });
-            
-            if (!error && data) {
-                notes = data;
-                renderNotes();
-            }
-        }
-        
-        async function saveNote() {
-            const id = document.getElementById('noteId').value;
-            const title = document.getElementById('noteTitle').value.trim();
-            const content = editor ? editor.value() : '';
-            const category = document.getElementById('noteCategory').value;
-            
-            if (!title) {
-                showToast('Введите заголовок', 'error');
-                return;
-            }
-            
-            const noteData = {
-                title,
-                content,
-                category,
-                updated_at: new Date().toISOString()
-            };
-            
-            let error;
-            if (id) {
-                const { error: updateError } = await supabase
-                    .from('notes')
-                    .update(noteData)
-                    .eq('id', id);
-                error = updateError;
-            } else {
-                const { error: insertError } = await supabase
-                    .from('notes')
-                    .insert({
-                        ...noteData,
-                        user_id: currentUser.id
-                    });
-                error = insertError;
-            }
-            
-            if (!error) {
-                closeNoteModal();
-                await loadNotes();
-                showToast(id ? 'Заметка обновлена' : 'Заметка создана', 'success');
-            } else {
-                showToast('Ошибка сохранения', 'error');
-            }
-        }
-        
-        async function deleteNote(id) {
-            if (confirm('Удалить заметку?')) {
-                const { error } = await supabase
-                    .from('notes')
-                    .delete()
-                    .eq('id', id);
-                
-                if (!error) {
-                    await loadNotes();
-                    showToast('Заметка удалена', 'success');
-                }
-            }
-        }
-        
-        async function togglePin(id, currentPinned) {
-            const { error } = await supabase
-                .from('notes')
-                .update({ is_pinned: !currentPinned })
-                .eq('id', id);
-            
-            if (!error) {
-                await loadNotes();
-                showToast(currentPinned ? 'Заметка откреплена' : 'Заметка закреплена', 'success');
-            }
-        }
-        
-        // ========== ФИЛЬТРАЦИЯ ==========
-        
-        function getFilteredNotes() {
-            let filtered = [...notes];
-            
-            if (currentCategory !== 'all') {
-                filtered = filtered.filter(n => n.category === currentCategory);
-            }
-            
-            if (searchQuery) {
-                const query = searchQuery.toLowerCase();
-                filtered = filtered.filter(n => 
-                    n.title.toLowerCase().includes(query) ||
-                    (n.content && n.content.toLowerCase().includes(query))
-                );
-            }
-            
-            // Закрепленные вверху
-            filtered.sort((a, b) => {
-                if (a.is_pinned && !b.is_pinned) return -1;
-                if (!a.is_pinned && b.is_pinned) return 1;
-                return new Date(b.updated_at) - new Date(a.updated_at);
-            });
-            
-            return filtered;
-        }
-        
-        // ========== РЕНДЕРИНГ ==========
-        
-        function renderNotes() {
-            const container = document.getElementById('notesGrid');
-            if (!container) return;
-            
-            const filtered = getFilteredNotes();
-            
-            if (filtered.length === 0) {
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <i class="fas fa-sticky-note"></i>
-                        <p>Нет заметок</p>
-                        <button class="add-note-btn" style="margin-top: 16px;" onclick="document.getElementById('addNoteBtn').click()">
-                            Создать заметку
-                        </button>
-                    </div>
-                `;
-                return;
-            }
-            
-            container.innerHTML = filtered.map(note => {
-                const category = CATEGORIES[note.category] || { name: note.category };
-                const preview = note.content ? note.content.substring(0, 100).replace(/\n/g, ' ') : '';
-                
-                return `
-                    <div class="note-card ${note.is_pinned ? 'pinned' : ''}" data-note-id="${note.id}">
-                        <div class="note-header">
-                            <div class="note-title">${escapeHtml(note.title || 'Без названия')}</div>
-                            <div class="note-actions">
-                                <button class="note-action-btn pin-note" data-id="${note.id}" data-pinned="${note.is_pinned}" title="${note.is_pinned ? 'Открепить' : 'Закрепить'}">
-                                    <i class="fas ${note.is_pinned ? 'fa-thumbtack' : 'fa-thumbtack'}"></i>
-                                </button>
-                                <button class="note-action-btn delete-note" data-id="${note.id}" title="Удалить">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </div>
-                        </div>
-                        <div class="note-category">
-                            ${category.name}
-                        </div>
-                        <div class="note-content">
-                            ${escapeHtml(preview) || '<em>Нет содержимого</em>'}
-                        </div>
-                        <div class="note-footer">
-                            <span><i class="far fa-clock"></i> ${formatDate(note.updated_at)}</span>
-                            <span><i class="far fa-edit"></i> Редактировать</span>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-            
-            // Добавляем обработчики
-            document.querySelectorAll('.note-card').forEach(card => {
-                card.addEventListener('click', (e) => {
-                    if (!e.target.closest('.note-action-btn')) {
-                        const noteId = card.dataset.noteId;
-                        openNoteModal(noteId);
-                    }
-                });
-            });
-            
-            document.querySelectorAll('.pin-note').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const id = btn.dataset.id;
-                    const pinned = btn.dataset.pinned === 'true';
-                    togglePin(id, pinned);
-                });
-            });
-            
-            document.querySelectorAll('.delete-note').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const id = btn.dataset.id;
-                    deleteNote(id);
-                });
-            });
-        }
-        
-        // ========== МОДАЛЬНОЕ ОКНО ==========
-        
-        async function openNoteModal(noteId = null) {
-            const modal = document.getElementById('noteModal');
-            const titleEl = document.getElementById('modalTitle');
-            const idField = document.getElementById('noteId');
-            const titleField = document.getElementById('noteTitle');
-            const categoryField = document.getElementById('noteCategory');
-            
-            if (noteId) {
-                const note = notes.find(n => n.id === noteId);
-                if (note) {
-                    titleEl.textContent = 'Редактировать заметку';
-                    idField.value = note.id;
-                    titleField.value = note.title;
-                    categoryField.value = note.category;
-                    if (editor) {
-                        editor.value(note.content || '');
-                    }
-                }
-            } else {
-                titleEl.textContent = 'Новая заметка';
-                idField.value = '';
-                titleField.value = '';
-                categoryField.value = 'work';
-                if (editor) {
-                    editor.value('');
-                }
-            }
-            
-            modal.classList.add('active');
-            if (editor) {
-                editor.codemirror.refresh();
-            }
-        }
-        
-        function closeNoteModal() {
-            document.getElementById('noteModal').classList.remove('active');
-        }
-        
-        // ========== ВСПОМОГАТЕЛЬНЫЕ ==========
-        
-        function escapeHtml(text) {
-            if (!text) return '';
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-        
-        function formatDate(dateStr) {
-            if (!dateStr) return '';
-            const date = new Date(dateStr);
-            const now = new Date();
-            const diff = now - date;
-            
-            if (diff < 24 * 60 * 60 * 1000) {
-                return date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-            }
-            return date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
-        }
-        
-        function showToast(message, type = 'info') {
-            const toast = document.createElement('div');
-            toast.className = `toast toast-${type}`;
-            toast.innerHTML = `<span>${escapeHtml(message)}</span>`;
-            document.body.appendChild(toast);
-            setTimeout(() => toast.remove(), 3000);
-        }
-        
-        // ========== ИНИЦИАЛИЗАЦИЯ ==========
-        
-        async function init() {
-            const isAuth = await requireSupabaseAuth('../auth-supabase.html');
-            if (!isAuth) return;
-            
-            currentUser = getCurrentSupabaseUser();
-            updateSupabaseUserInterface();
-            
-            // Инициализируем EasyMDE (глобальная переменная)
-            editor = new EasyMDE({
-                element: document.getElementById('editor'),
-                spellChecker: false,
-                toolbar: ['bold', 'italic', 'heading', '|', 'quote', 'unordered-list', 'ordered-list', '|', 'link', '|', 'preview'],
-                placeholder: 'Напишите что-нибудь...',
-                renderingConfig: {
-                    singleLineBreaks: false,
-                    codeSyntaxHighlighting: false,
-                },
-                previewRender: function(plainText) {
-                    return plainText;
-                }
-            });
-            
-            await loadNotes();
-            
-            // Поиск
-            const searchInput = document.getElementById('searchInput');
-            searchInput.addEventListener('input', (e) => {
-                searchQuery = e.target.value;
-                renderNotes();
-            });
-            
-            // Категории
-            document.querySelectorAll('.category-chip').forEach(chip => {
-                chip.addEventListener('click', () => {
-                    document.querySelectorAll('.category-chip').forEach(c => c.classList.remove('active'));
-                    chip.classList.add('active');
-                    currentCategory = chip.dataset.category;
-                    renderNotes();
-                });
-            });
-            
-            // Кнопка добавления
-            document.getElementById('addNoteBtn').addEventListener('click', () => openNoteModal());
-            
-            // Кнопка сохранения
-            document.getElementById('saveNoteBtn').addEventListener('click', saveNote);
-            
-            window.closeNoteModal = closeNoteModal;
-            
-            console.log('[notes] Страница загружена');
-        }
-        
-        init();
-    </script>
-    
-    <!-- Инициализация бокового меню -->
-    <script type="module">
+        import { initNotesPage } from '../js/pages/notes.js';
         import * as sidebar from '../layout.js';
+        
         window.sidebar = sidebar;
-        sidebar.initSidebar();
+        
+        // Единая точка инициализации
+        async function initializeApp() {
+            try {
+                await sidebar.initSidebar();
+                await initNotesPage();
+                console.log('[app] Приложение инициализировано');
+            } catch (error) {
+                console.error('[app] Ошибка инициализации:', error);
+            }
+        }
+        
+        // Запускаем инициализацию после загрузки DOM
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initializeApp);
+        } else {
+            initializeApp();
+        }
     </script>
 </body>
 </html>

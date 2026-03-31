@@ -463,3 +463,95 @@
         font-size: 16px !important;
     }
 }
+/* ============================================
+ * МОБИЛЬНАЯ АДАПТАЦИЯ САЙДБАРА
+ * ============================================ */
+
+@media (max-width: 768px) {
+    /* На мобильных сайдбар скрыт за пределами экрана */
+    .sidebar {
+        transform: translateX(-100%);
+        transition: transform var(--transition-slow);
+        position: fixed;
+        z-index: 1000;
+        width: 280px !important;
+    }
+    
+    .sidebar.mobile-open {
+        transform: translateX(0);
+    }
+    
+    /* На мобильных сворачивание неактуально - всегда полная ширина при открытии */
+    .sidebar.collapsed {
+        width: 280px !important;
+    }
+    
+    .sidebar.collapsed .sidebar-logo span,
+    .sidebar.collapsed .mini-nav-label,
+    .sidebar.collapsed .sidebar-footer button span {
+        opacity: 1;
+        visibility: visible;
+        display: inline-block;
+    }
+    
+    .sidebar.collapsed .sidebar-logo {
+        justify-content: flex-start;
+    }
+    
+    .sidebar.collapsed .mini-nav-item {
+        justify-content: flex-start;
+        gap: var(--spacing-md);
+    }
+    
+    .sidebar.collapsed .mini-nav-item .mini-nav-label {
+        display: inline;
+    }
+    
+    .sidebar.collapsed .sidebar-footer button {
+        justify-content: flex-start;
+    }
+    
+    .sidebar.collapsed .sidebar-footer button span {
+        display: inline;
+    }
+    
+    .sidebar.collapsed .sidebar-footer button.collapsed-mode span {
+        display: inline;
+    }
+    
+    .main-content {
+        margin-left: 0 !important;
+        padding: var(--spacing-md);
+    }
+    
+    /* Кнопка бургер-меню */
+    .mobile-menu-toggle {
+        display: flex;
+        position: fixed;
+        bottom: var(--spacing-lg);
+        right: var(--spacing-lg);
+        width: 50px;
+        height: 50px;
+        background: var(--primary);
+        border-radius: var(--border-radius-full);
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        z-index: 1001;
+        box-shadow: var(--shadow-lg);
+        color: white;
+        font-size: 1.2rem;
+        border: none;
+    }
+    
+    .mobile-menu-toggle:hover {
+        background: var(--primary-hover);
+        transform: scale(1.05);
+    }
+}
+
+@media (min-width: 769px) {
+    .mobile-menu-toggle {
+        display: none;
+    }
+}

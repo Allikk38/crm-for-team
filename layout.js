@@ -4,14 +4,14 @@
  * РОЛЬ: Управление боковой навигационной панелью и шапкой
  * 
  * ОСОБЕННОСТИ:
- *   - Мини-сайдбар с иконками (единый для всего приложения)
- *   - Кнопки темы и выхода всегда внизу сайдбара
- *   - Виджет помодоро в правом нижнем углу
+ *   - Мини-сайдбар с возможностью сворачивания до 72px
+ *   - Кнопка сворачивания/разворачивания всегда доступна
  *   - Адаптивное мобильное меню
+ *   - Сохранение состояния в localStorage
  * 
  * ИСТОРИЯ:
- *   - 31.03.2026: Исправлен мини-сайдбар, добавлены кнопки темы и выхода
- *   - 31.03.2026: Убраны дублирующиеся стили
+ *   - 31.03.2026: Исправлена логика сворачивания/разворачивания
+ *   - 31.03.2026: Добавлена плавающая кнопка разворачивания
  * ============================================
  */
 
@@ -96,8 +96,6 @@ function renderMiniSidebar() {
     
     html += '</div>';
     container.innerHTML = html;
-    
-// console.log('[layout] Мини-сайдбар отрисован, иконок:', SIDEBAR_MODULES.length); // DEBUG removed
 }
 
 /**
@@ -120,14 +118,79 @@ async function waitForPermissions(timeout = 10000) {
         if (window.currentSupabaseUser) {
             const permissions = getUserPermissions();
             if (window.currentSupabaseUser.role === 'admin' || permissions.length > 0) {
-// console.log('[layout] Права загружены:', permissions); // DEBUG removed
                 return true;
             }
         }
         await new Promise(r => setTimeout(r, 200));
     }
-// console.warn('[layout] Таймаут ожидания прав'); // DEBUG removed
     return false;
+}
+
+/**
+ * Обновление кнопок в футере в зависимости от состояния сайдбара
+ */
+function updateFooterButtons() {
+    const sidebarFooter = document.querySelector('.sidebar-footer');
+    if (!sidebarFooter) return;
+    
+    const isCollapsed = sidebarCollapsed;
+    
+    // Очищаем футер
+    sidebarFooter.innerHTML = '';
+    
+    // Кнопка сворачивания/разворачивания
+    const toggleBtn = document.createElement('button');
+    toggleBtn.className = 'sidebar-toggle-btn';
+    
+    if (isCollapsed) {
+        // Свернутый режим - показываем иконку разворачивания
+        toggleBtn.innerHTML = '<i class="fas fa-chevron-right"></i><span>Развернуть</span>';
+        toggleBtn.setAttribute('title', 'Развернуть меню');
+    } else {
+        // Развернутый режим - показываем иконку сворачивания
+        toggleBtn.innerHTML = '<i class="fas fa-chevron-left"></i><span>Свернуть</span>';
+        toggleBtn.setAttribute('title', 'Свернуть меню');
+    }
+    
+    toggleBtn.onclick = (e) => {
+        e.stopPropagation();
+        toggleSidebar();
+    };
+    sidebarFooter.appendChild(toggleBtn);
+    
+    // Кнопка темы
+    const themeBtn = document.createElement('button');
+    themeBtn.className = 'theme-btn';
+    const currentTheme = localStorage.getItem('crm_theme') || 'dark';
+    themeBtn.innerHTML = currentTheme === 'dark' 
+        ? '<i class="fas fa-sun"></i><span>Светлая</span>' 
+        : '<i class="fas fa-moon"></i><span>Тёмная</span>';
+    themeBtn.onclick = (e) => {
+        e.stopPropagation();
+        toggleTheme();
+    };
+    sidebarFooter.appendChild(themeBtn);
+    
+    // Кнопка выхода
+    const logoutBtn = document.createElement('button');
+    logoutBtn.className = 'logout-btn';
+    logoutBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i><span>Выйти</span>';
+    logoutBtn.onclick = (e) => {
+        e.stopPropagation();
+        logout();
+    };
+    sidebarFooter.appendChild(logoutBtn);
+    
+    // Если сайдбар свернут, добавляем класс для скрытия текста
+    if (isCollapsed) {
+        toggleBtn.classList.add('collapsed-mode');
+        themeBtn.classList.add('collapsed-mode');
+        logoutBtn.classList.add('collapsed-mode');
+    } else {
+        toggleBtn.classList.remove('collapsed-mode');
+        themeBtn.classList.remove('collapsed-mode');
+        logoutBtn.classList.remove('collapsed-mode');
+    }
 }
 
 /**
@@ -137,12 +200,11 @@ export async function initSidebar() {
     if (isInitialized) return;
     
     const saved = localStorage.getItem('sidebar_collapsed');
-    // По умолчанию сайдбар развёрнут, если в localStorage нет значения или оно не 'true'
+    // По умолчанию сайдбар развёрнут
     if (saved === 'true') {
         sidebarCollapsed = true;
         document.getElementById('sidebar')?.classList.add('collapsed');
     } else {
-        // Явно убираем класс collapsed при загрузке
         sidebarCollapsed = false;
         document.getElementById('sidebar')?.classList.remove('collapsed');
         localStorage.setItem('sidebar_collapsed', 'false');
@@ -154,7 +216,6 @@ export async function initSidebar() {
     
     // Auto-update top-bar on userLoaded event
     window.addEventListener('userLoaded', () => {
-// console.log('[layout] userLoaded → updating UI'); // DEBUG removed
         if (typeof updateSupabaseUserInterface === 'function') {
             updateSupabaseUserInterface();
         }
@@ -163,7 +224,6 @@ export async function initSidebar() {
     
     if (!hasPermissions) {
         window.addEventListener('permissionsReady', () => {
-// console.log('[layout] permissionsReady событие, повторная отрисовка'); // DEBUG removed
             renderNavigation();
         });
         
@@ -171,7 +231,6 @@ export async function initSidebar() {
         const checkInterval = setInterval(() => {
             attempts++;
             if (window.currentSupabaseUser?.role === 'admin' || getUserPermissions().length > 0) {
-// console.log('[layout] Интервал: права загружены, повторная отрисовка'); // DEBUG removed
                 renderNavigation();
                 clearInterval(checkInterval);
             } else if (attempts > 30) {
@@ -181,26 +240,13 @@ export async function initSidebar() {
     }
     
     initMobileMenu();
-    addSidebarButtons();
     addNotificationButtonToTopBar();
     addPomodoroWidget();
     
-    // Add desktop expand button
-    const expandBtn = document.createElement('button');
-    expandBtn.className = 'sidebar-expand-btn';
-    expandBtn.innerHTML = '<i class="fas fa-chevron-right"></i>';
-    expandBtn.onclick = () => toggleSidebar();
-    expandBtn.style.cssText = `
-      position: fixed; left: 72px; top: 50%; transform: translateY(-50%);
-      width: 32px; height: 32px; background: var(--accent); color: white;
-      border: none; border-radius: 0 16px 16px 0; cursor: pointer; z-index: 1001;
-      display: none; align-items: center; justify-content: center;
-      box-shadow: 2px 0 8px rgba(0,0,0,0.2); transition: all 0.2s;
-    `;
-    document.body.appendChild(expandBtn);
+    // Обновляем кнопки в футере
+    updateFooterButtons();
     
     isInitialized = true;
-// console.log('[layout] Мини-сайдбар инициализирован'); // DEBUG removed
 }
 
 /**
@@ -214,24 +260,36 @@ export function toggleSidebar() {
     
     if (sidebarCollapsed) {
         sidebar.classList.add('collapsed');
-        sidebar.classList.remove('expanded');
         localStorage.setItem('sidebar_collapsed', 'true');
     } else {
         sidebar.classList.remove('collapsed');
-        sidebar.classList.add('expanded');
         localStorage.setItem('sidebar_collapsed', 'false');
     }
+    
+    // Обновляем кнопки в футере
+    updateFooterButtons();
+    
+    // Диспатчим событие для других компонентов
+    window.dispatchEvent(new CustomEvent('sidebarToggled', { 
+        detail: { collapsed: sidebarCollapsed } 
+    }));
 }
 
 /**
  * Инициализация мобильного меню
  */
 function initMobileMenu() {
+    // Удаляем существующую кнопку если есть
+    const existingToggle = document.querySelector('.mobile-menu-toggle');
+    if (existingToggle) existingToggle.remove();
+    
     const toggleBtn = document.createElement('div');
     toggleBtn.className = 'mobile-menu-toggle';
     toggleBtn.innerHTML = '<i class="fas fa-bars"></i>';
-    toggleBtn.onclick = () => {
-        document.getElementById('sidebar')?.classList.toggle('mobile-open');
+    toggleBtn.onclick = (e) => {
+        e.stopPropagation();
+        const sidebar = document.getElementById('sidebar');
+        sidebar?.classList.toggle('mobile-open');
     };
     document.body.appendChild(toggleBtn);
     
@@ -244,54 +302,6 @@ function initMobileMenu() {
             }
         }
     });
-}
-
-/**
- * Добавление кнопок в футер сайдбара (тема, выход)
- */
-function addSidebarButtons() {
-    const sidebarFooter = document.querySelector('.sidebar-footer');
-    if (!sidebarFooter) return;
-    
-    // Очищаем футер, оставляя только collapse-btn
-    const existingBtns = sidebarFooter.querySelectorAll('button');
-    existingBtns.forEach(btn => btn.remove());
-    
-    // Кнопка сворачивания
-    const collapseBtn = document.createElement('button');
-    collapseBtn.className = 'collapse-btn';
-    collapseBtn.innerHTML = '<i class="fas fa-chevron-left"></i><span>Свернуть</span>';
-    collapseBtn.style.cssText = 'width: 100%; padding: 10px; margin-bottom: 8px; background: var(--hover-bg); border: none; border-radius: 12px; color: var(--text-primary); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;';
-    collapseBtn.onclick = (e) => {
-        e.stopPropagation();
-        toggleSidebar();
-    };
-    sidebarFooter.appendChild(collapseBtn);
-    
-    // Кнопка темы
-    const themeBtn = document.createElement('button');
-    themeBtn.className = 'theme-btn';
-    const currentTheme = localStorage.getItem('crm_theme') || 'dark';
-    themeBtn.innerHTML = currentTheme === 'dark' 
-        ? '<i class="fas fa-sun"></i><span>Светлая</span>' 
-        : '<i class="fas fa-moon"></i><span>Тёмная</span>';
-    themeBtn.style.cssText = 'width: 100%; padding: 10px; margin-bottom: 8px; background: var(--hover-bg); border: none; border-radius: 12px; color: var(--text-primary); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;';
-    themeBtn.onclick = (e) => {
-        e.stopPropagation();
-        toggleTheme();
-    };
-    sidebarFooter.appendChild(themeBtn);
-    
-    // Кнопка выхода
-    const logoutBtn = document.createElement('button');
-    logoutBtn.className = 'logout-btn';
-    logoutBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i><span>Выйти</span>';
-    logoutBtn.style.cssText = 'width: 100%; padding: 10px; background: rgba(255, 107, 107, 0.2); border: none; border-radius: 12px; color: #ff6b6b; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;';
-    logoutBtn.onclick = (e) => {
-        e.stopPropagation();
-        logout();
-    };
-    sidebarFooter.appendChild(logoutBtn);
 }
 
 /**
@@ -371,13 +381,8 @@ function toggleTheme() {
         localStorage.setItem('crm_theme', 'dark');
     }
     
-    const themeBtn = document.querySelector('.theme-btn');
-    if (themeBtn) {
-        const isDarkNow = document.documentElement.classList.contains('theme-dark');
-        themeBtn.innerHTML = isDarkNow 
-            ? '<i class="fas fa-sun"></i><span>Светлая</span>' 
-            : '<i class="fas fa-moon"></i><span>Тёмная</span>';
-    }
+    // Обновляем кнопку темы
+    updateFooterButtons();
 }
 
 /**
@@ -412,7 +417,6 @@ function addPomodoroWidget() {
             createWidget();
         } else if (checkCount > 50) {
             clearInterval(checkInterval);
-// console.warn('[layout] Pomodoro сервис не загружен'); // DEBUG removed
         }
         checkCount++;
     }, 100);
@@ -501,11 +505,8 @@ function addPomodoroWidget() {
         }
         
         updateWidgetTime();
-// console.log('[layout] Виджет помодоро добавлен'); // DEBUG removed
     }
 }
-
-// Inline sidebar styles moved to components.css
 
 // Стили для уведомлений
 const notificationStyle = document.createElement('style');

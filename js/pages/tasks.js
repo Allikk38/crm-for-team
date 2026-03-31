@@ -582,27 +582,41 @@ function renderKanbanBoard() {
     const filteredTasks = getFilteredTasks();
     
     for (const task of filteredTasks) {
-        // Используем импортированную функцию createTaskCard
+        // Используем обновленную функцию createTaskCard с кнопками
         const card = createTaskCard(task, {
-            showDelete: true
+            showDelete: true,
+            showEdit: true
         });
         
+        // Обработчик клика на карточку (открыть детали)
         card.addEventListener('click', (e) => {
-            if (!e.target.classList.contains('delete-task') && 
-                !e.target.closest('.delete-task')) {
+            // Не открываем модалку если кликнули на кнопку
+            if (!e.target.closest('.task-btn')) {
                 openModal(task.id);
             }
         });
         
-        const deleteBtn = card.querySelector('.delete-task');
-        if (deleteBtn) {
-            const taskId = task.id;
-            deleteBtn.onclick = (e) => {
+        // Обработчик кнопки редактирования
+        const editBtn = card.querySelector('.task-edit-btn');
+        if (editBtn) {
+            editBtn.onclick = (e) => {
                 e.stopPropagation();
-                window.deleteTask(taskId);
+                openModal(task.id);
             };
         }
         
+        // Обработчик кнопки удаления
+        const deleteBtn = card.querySelector('.task-delete-btn');
+        if (deleteBtn) {
+            deleteBtn.onclick = (e) => {
+                e.stopPropagation();
+                if (confirm('Вы уверены, что хотите удалить эту задачу?')) {
+                    window.deleteTask(task.id);
+                }
+            };
+        }
+        
+        // Добавляем в нужную колонку
         if (task.status === 'pending') {
             todoContainer.appendChild(card);
             todoCount++;

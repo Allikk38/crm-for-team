@@ -25,6 +25,11 @@ console.log('[kanban.js] Загрузка компонента...');
  * @param {Object} task - Данные задачи
  * @param {Object} options - Опции { showDelete, onDelete }
  */
+/**
+ * Создание карточки для задачи
+ * @param {Object} task - Данные задачи
+ * @param {Object} options - Опции { showDelete, showEdit, onEdit, onDelete }
+ */
 export function createTaskCard(task, options = {}) {
     const card = document.createElement('div');
     card.className = 'task-card';
@@ -44,35 +49,99 @@ export function createTaskCard(task, options = {}) {
         card.classList.remove('dragging');
     };
     
+    // Цветовая индикация приоритета
     const priorityColors = {
         high: '#ff6b6b',
         medium: '#ffc107',
         low: '#4caf50'
     };
     card.style.borderLeftColor = priorityColors[task.priority] || '#ffc107';
+    card.style.borderLeftWidth = '4px';
+    card.style.borderLeftStyle = 'solid';
     
-    const privateBadge = task.is_private ? '<span class="private-badge"><i class="fas fa-lock"></i> Приватная</span>' : '';
-    const dueDate = task.due_date ? formatDate(task.due_date, 'DD.MM.YYYY') : 'без срока';
+    // Иконка приватности
+    const privateBadge = task.is_private 
+        ? '<span class="task-private-badge" title="Приватная задача"><i class="fas fa-lock"></i></span>' 
+        : '';
     
+    // Иконка статуса
+    const statusIcons = {
+        pending: '<i class="fas fa-circle" style="color: #ffc107; font-size: 0.7rem;"></i>',
+        in_progress: '<i class="fas fa-spinner fa-pulse" style="color: #2196f3; font-size: 0.7rem;"></i>',
+        completed: '<i class="fas fa-check-circle" style="color: #4caf50; font-size: 0.7rem;"></i>'
+    };
+    const statusIcon = statusIcons[task.status] || statusIcons.pending;
+    
+    // Текст приоритета
     const priorityTexts = { high: 'Высокий', medium: 'Средний', low: 'Низкий' };
     const priorityText = priorityTexts[task.priority] || 'Средний';
     
-    let deleteButtonHtml = '';
-    if (options.showDelete !== false) {
-        deleteButtonHtml = `<button class="delete-task" data-id="${task.id}"><i class="fas fa-trash"></i></button>`;
+    // Форматирование даты
+    const dueDate = task.due_date ? formatDate(task.due_date, 'DD.MM.YYYY') : 'без срока';
+    
+    // Определяем просрочена ли задача
+    const isOverdue = task.due_date && task.status !== 'completed' && new Date(task.due_date) < new Date();
+    const dueDateClass = isOverdue ? 'task-due-date overdue' : 'task-due-date';
+    const dueDateIcon = isOverdue ? '<i class="fas fa-exclamation-triangle"></i>' : '<i class="fas fa-calendar"></i>';
+    
+    // Кнопки действий
+    let actionsHtml = '<div class="task-actions">';
+    
+    // Кнопка редактирования
+    if (options.showEdit !== false) {
+        actionsHtml += `
+            <button class="task-btn task-edit-btn" data-id="${task.id}" title="Редактировать">
+                <i class="fas fa-pencil-alt"></i>
+            </button>
+        `;
     }
     
+    // Кнопка удаления
+    if (options.showDelete !== false) {
+        actionsHtml += `
+            <button class="task-btn task-delete-btn" data-id="${task.id}" title="Удалить">
+                <i class="fas fa-trash-alt"></i>
+            </button>
+        `;
+    }
+    
+    actionsHtml += '</div>';
+    
+    // Полная структура карточки
     card.innerHTML = `
-        <div class="task-title">${escapeHtml(task.title)}${privateBadge}</div>
-        <div class="task-description">${escapeHtml(task.description || '')}</div>
-        <div class="task-meta">
-            <span class="task-priority priority-${task.priority}">${priorityText}</span>
-            <span class="task-assignee"><i class="fas fa-user"></i> ${escapeHtml(task.assigned_to || 'Не назначен')}</span>
+        <div class="task-header">
+            <div class="task-status-icon">${statusIcon}</div>
+            <div class="task-title-wrapper">
+                <div class="task-title">${escapeHtml(task.title)}</div>
+                ${privateBadge}
+            </div>
         </div>
-        <div class="task-meta">
-            <span><i class="fas fa-calendar"></i> ${dueDate}</span>
-            ${deleteButtonHtml}
+        
+        ${task.description ? `
+            <div class="task-description">
+                ${escapeHtml(task.description.substring(0, 100))}
+                ${task.description.length > 100 ? '...' : ''}
+            </div>
+        ` : ''}
+        
+        <div class="task-meta-grid">
+            <div class="task-meta-item">
+                <span class="task-priority priority-${task.priority}">
+                    <i class="fas fa-flag"></i> ${priorityText}
+                </span>
+            </div>
+            <div class="task-meta-item">
+                <span class="task-assignee">
+                    <i class="fas fa-user"></i> 
+                    <span>${escapeHtml(task.assigned_to || 'Не назначен')}</span>
+                </span>
+            </div>
+            <div class="task-meta-item ${dueDateClass}">
+                <span>${dueDateIcon} ${dueDate}</span>
+            </div>
         </div>
+        
+        ${actionsHtml}
     `;
     
     return card;
