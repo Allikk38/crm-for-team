@@ -6,24 +6,17 @@
     
     <!-- 
     ============================================
-    ФАЙЛ: deals-supabase.html
-    РОЛЬ: Управление заявками (сделки) с Supabase
-    ВЕРСИЯ: Модульная архитектура v2.0
-    
+    ФАЙЛ: app/deals.html
+    РОЛЬ: Управление заявками (сделки) - Двухрежимный интерфейс
     ОСОБЕННОСТИ:
-      - Kanban-доска с 6 статусами
-      - Drag-and-drop для изменения статуса
+      - Два режима просмотра: Kanban и Список
+      - Группировка по этапам в списочном режиме
       - Фильтрация по поиску, типу, агенту
       - Интеграция с объектами и контрагентами
-      - Модульная архитектура (подключение через реестр)
-    
-    ЗАВИСИМОСТИ:
-      - CSS: base.css, theme.css, components.css, kanban.css, modal.css, animations.css
-      - JS: модульная загрузка через registry
-    
+      - Модульная архитектура
     ИСТОРИЯ:
+      - 31.03.2026: Добавлен двухрежимный интерфейс
       - 30.03.2026: Переход на модульную архитектуру
-      - 30.03.2026: Исправлен конфликт PLANS, добавлен PlanManager
     ============================================
     -->
     
@@ -42,23 +35,23 @@
         })();
     </script>
     
-    <title>Сделки - CRM для команды (Supabase)</title>
+    <title>Сделки - CRM</title>
     
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link rel="stylesheet" href="css/base.css">
-    <link rel="stylesheet" href="css/theme.css">
-    <link rel="stylesheet" href="css/components.css">
-    <link rel="stylesheet" href="css/dashboard.css">
-    <link rel="stylesheet" href="css/kanban.css">
-    <link rel="stylesheet" href="css/manager.css">
-    <link rel="stylesheet" href="css/calendar.css">
-    <link rel="stylesheet" href="css/modal.css">
-    <link rel="stylesheet" href="css/responsive.css">
-    <link rel="stylesheet" href="css/animations.css">
+    <link rel="stylesheet" href="../css/base.css">
+    <link rel="stylesheet" href="../css/theme.css">
+    <link rel="stylesheet" href="../css/components.css">
+    <link rel="stylesheet" href="../css/dashboard.css">
+    <link rel="stylesheet" href="../css/kanban.css">
+    <link rel="stylesheet" href="../css/manager.css">
+    <link rel="stylesheet" href="../css/calendar.css">
+    <link rel="stylesheet" href="../css/modal.css">
+    <link rel="stylesheet" href="../css/responsive.css">
+    <link rel="stylesheet" href="../css/animations.css">
     
     <style>
-        /* Стили из deals-supabase.html - оставляем без изменений */
+        /* Стили для двухрежимного интерфейса */
         .deals-header {
             display: flex;
             justify-content: space-between;
@@ -86,6 +79,35 @@
             transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
         
+        .mode-switch {
+            display: flex;
+            gap: 8px;
+            background: var(--input-bg);
+            padding: 4px;
+            border-radius: 40px;
+            border: 1px solid var(--card-border);
+        }
+        
+        .mode-btn {
+            padding: 6px 16px;
+            border: none;
+            background: transparent;
+            border-radius: 32px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+        
+        .mode-btn.active {
+            background: var(--accent);
+            color: white;
+        }
+        
+        .mode-btn:hover:not(.active) {
+            background: var(--hover-bg);
+        }
+        
         .add-deal-btn {
             background: linear-gradient(135deg, var(--accent), var(--accent-hover));
             border: none;
@@ -105,6 +127,7 @@
             box-shadow: 0 4px 12px rgba(108, 108, 255, 0.4);
         }
         
+        /* Kanban режим */
         .kanban-board-deals {
             display: flex;
             gap: 20px;
@@ -181,51 +204,67 @@
             cursor: grabbing;
         }
         
-        .deal-title {
-            font-weight: 600;
-            margin-bottom: 8px;
-            display: flex;
-            justify-content: space-between;
+        /* Списочный режим */
+        .list-view-container {
+            display: block;
+            animation: fadeInUp 0.3s ease;
         }
         
-        .deal-number {
-            color: var(--accent);
+        .stage-group {
+            margin-bottom: 20px;
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            overflow: hidden;
+            background: var(--card-bg);
+        }
+        
+        .stage-group-header {
+            background: var(--input-bg);
+            padding: 14px 20px;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+        
+        .stage-group-header:hover {
+            background: var(--hover-bg);
+        }
+        
+        .stage-group-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .group-toggle-icon {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            transition: transform 0.2s;
+        }
+        
+        .stage-name {
+            font-weight: 600;
+            font-size: 1rem;
+        }
+        
+        .stage-count {
+            background: var(--accent);
+            color: white;
+            padding: 2px 10px;
+            border-radius: 20px;
             font-size: 0.7rem;
+            font-weight: 500;
         }
         
-        .deal-participants {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            margin-bottom: 8px;
+        .stage-group-content {
+            padding: 16px;
+        }
+        
+        /* Режим без группировки */
+        .ungrouped-view {
             display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
+            flex-direction: column;
+            gap: 12px;
         }
-        
-        .deal-price {
-            font-weight: 600;
-            font-size: 0.9rem;
-            margin-bottom: 8px;
-        }
-        
-        .deal-meta {
-            display: flex;
-            justify-content: space-between;
-            font-size: 0.65rem;
-            color: var(--text-muted);
-        }
-        
-        .deal-type {
-            display: inline-block;
-            padding: 2px 6px;
-            border-radius: 12px;
-            font-size: 0.6rem;
-        }
-        
-        .type-primary { background: rgba(76, 175, 80, 0.2); color: #4caf50; }
-        .type-secondary { background: rgba(33, 150, 243, 0.2); color: #2196f3; }
-        .type-exchange { background: rgba(255, 152, 0, 0.2); color: #ff9800; }
-        .type-urgent { background: rgba(244, 67, 54, 0.2); color: #f44336; }
         
         .empty-deals {
             text-align: center;
@@ -295,6 +334,7 @@
             color: var(--text-muted);
         }
         
+        /* Адаптивность */
         @media (max-width: 768px) {
             .form-row {
                 flex-direction: column;
@@ -303,6 +343,24 @@
             .deal-column {
                 min-width: 280px;
                 width: 280px;
+            }
+            .deals-header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .mode-switch {
+                align-self: flex-start;
+            }
+        }
+        
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
             }
         }
     </style>
@@ -329,6 +387,14 @@
         <main class="main-content">
             <div class="top-bar">
                 <div class="top-bar-actions">
+                    <div class="mode-switch" id="modeSwitch">
+                        <button class="mode-btn active" data-mode="kanban">
+                            <i class="fas fa-columns"></i> Kanban
+                        </button>
+                        <button class="mode-btn" data-mode="list">
+                            <i class="fas fa-list"></i> Список
+                        </button>
+                    </div>
                     <button id="addDealBtn" class="add-deal-btn">
                         <i class="fas fa-plus"></i> Новая заявка
                     </button>
@@ -349,18 +415,26 @@
                     <input type="text" id="searchInput" placeholder="🔍 Поиск по №, объекту, участникам">
                     <select id="typeFilter">
                         <option value="all">Все типы</option>
-                        <option value="primary">🏗️ Первичка</option>
+                        <option value="primary">🏗️ Новостройка</option>
                         <option value="secondary">🏠 Вторичка</option>
                         <option value="exchange">🔄 Альтернатива</option>
                         <option value="urgent">⚡ Срочный выкуп</option>
+                        <option value="new_building">🏗️ Новостройка</option>
+                        <option value="secondary_buy">🏠 Вторичка (покупка)</option>
+                        <option value="secondary_sell">🏠 Вторичка (продажа)</option>
+                        <option value="suburban">🏡 Загородка</option>
                     </select>
                     <select id="agentFilter">
                         <option value="all">Все агенты</option>
                     </select>
+                    <select id="groupingFilter" style="display: none;">
+                        <option value="none">Без группировки</option>
+                        <option value="stage">Группировка по этапам</option>
+                    </select>
                 </div>
             </div>
             
-            <div class="kanban-board-deals" id="kanbanBoard">
+            <div id="dealsContent">
                 <div class="loading-state">
                     <i class="fas fa-spinner fa-pulse"></i>
                     <p>Загрузка заявок...</p>
@@ -407,10 +481,14 @@
                 <div class="input-group">
                     <label><i class="fas fa-tag"></i> Тип сделки</label>
                     <select id="dealType">
-                        <option value="primary">Первичка</option>
                         <option value="secondary">Вторичка</option>
+                        <option value="primary">Новостройка</option>
                         <option value="exchange">Альтернатива</option>
                         <option value="urgent">Срочный выкуп</option>
+                        <option value="new_building">Новостройка</option>
+                        <option value="secondary_buy">Вторичка (покупка)</option>
+                        <option value="secondary_sell">Вторичка (продажа)</option>
+                        <option value="suburban">Загородка</option>
                     </select>
                 </div>
                 <div class="input-group">
@@ -469,12 +547,31 @@
         </div>
     </div>
     
-    <!-- ========== УНИВЕРСАЛЬНЫЙ ЗАГРУЗЧИК МОДУЛЕЙ ========== -->
-    <script type="module" src="js/core/moduleLoader.js"></script>
+    <!-- Универсальный загрузчик модулей -->
+    <script type="module" src="../js/core/moduleLoader.js"></script>
+    
+    <!-- Инициализация страницы сделок -->
+    <script type="module">
+        import { getCurrentSupabaseUser, requireSupabaseAuth, updateSupabaseUserInterface } from '../js/core/supabase-session.js';
+        
+        async function initDeals() {
+            const isAuth = await requireSupabaseAuth('../auth-supabase.html');
+            if (!isAuth) return;
+            
+            const currentUser = getCurrentSupabaseUser();
+            updateSupabaseUserInterface();
+            
+            // Загружаем модуль сделок
+            const { initDealsPage } = await import('../js/pages/deals.js');
+            initDealsPage();
+        }
+        
+        initDeals();
+    </script>
     
     <!-- Инициализация бокового меню -->
     <script type="module">
-        import * as sidebar from './layout.js';
+        import * as sidebar from '../layout.js';
         window.sidebar = sidebar;
         sidebar.initSidebar();
     </script>

@@ -6,21 +6,20 @@
     
     <!-- 
     ============================================
-    ФАЙЛ: complexes-supabase.html
-    РОЛЬ: Управление объектами недвижимости (ЖК) с Supabase
+    ФАЙЛ: app/complexes.html
+    РОЛЬ: Управление объектами недвижимости (ЖК)
+    
     ОСОБЕННОСТИ:
       - Карточки объектов с фильтрацией и сортировкой
       - Прогресс выполнения задач по объекту
       - Публичные/приватные объекты
       - Быстрое добавление через панель
       - Модальные окна для просмотра и редактирования
-    ЗАВИСИМОСТИ:
-      - CSS: base.css, theme.css, components.css, dashboard.css, modal.css, animations.css
-      - JS: js/pages/complexes.js, layout.js
-      - Таблицы: complexes, profiles, tasks
+    
     ИСТОРИЯ:
       - 27.03.2026: Создание supabase-версии
       - 27.03.2026: Рефакторинг — логика вынесена в js/pages/complexes.js
+      - 30.03.2026: Перенос в папку app, исправление путей
     ============================================
     -->
     
@@ -39,20 +38,20 @@
         })();
     </script>
     
-    <title>Объекты недвижимости - CRM для команды (Supabase)</title>
+    <title>Объекты недвижимости - CRM</title>
     
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link rel="stylesheet" href="css/base.css">
-    <link rel="stylesheet" href="css/theme.css">
-    <link rel="stylesheet" href="css/components.css">
-    <link rel="stylesheet" href="css/dashboard.css">
-    <link rel="stylesheet" href="css/kanban.css">
-    <link rel="stylesheet" href="css/manager.css">
-    <link rel="stylesheet" href="css/calendar.css">
-    <link rel="stylesheet" href="css/modal.css">
-    <link rel="stylesheet" href="css/responsive.css">
-    <link rel="stylesheet" href="css/animations.css">
+    <link rel="stylesheet" href="../css/base.css">
+    <link rel="stylesheet" href="../css/theme.css">
+    <link rel="stylesheet" href="../css/components.css">
+    <link rel="stylesheet" href="../css/dashboard.css">
+    <link rel="stylesheet" href="../css/kanban.css">
+    <link rel="stylesheet" href="../css/manager.css">
+    <link rel="stylesheet" href="../css/calendar.css">
+    <link rel="stylesheet" href="../css/modal.css">
+    <link rel="stylesheet" href="../css/responsive.css">
+    <link rel="stylesheet" href="../css/animations.css">
     
     <style>
         .complexes-header {
@@ -509,10 +508,10 @@
     <!-- ========== ПОДКЛЮЧЕНИЕ МОДУЛЕЙ ========== -->
     <script type="module">
         // Инициализация страницы объектов
-        import { initComplexesPage } from './js/pages/complexes.js';
+        import { initComplexesPage } from '../js/pages/complexes.js';
         
         // Загружаем пользователя
-        import { checkSupabaseSession } from './js/core/supabase-session.js';
+        import { checkSupabaseSession } from '../js/core/supabase-session.js';
         await checkSupabaseSession();
         
         console.log('[complexes] Пользователь загружен:', window.currentSupabaseUser?.name);
@@ -525,7 +524,7 @@
     
     <!-- Инициализация бокового меню -->
     <script type="module">
-        import * as sidebar from './layout.js';
+        import * as sidebar from '../layout.js';
         window.sidebar = sidebar;
         sidebar.initSidebar();
     </script>

@@ -2,12 +2,20 @@
  * ============================================
  * ФАЙЛ: js/services/deals-supabase.js
  * РОЛЬ: Сервис для работы со сделками (заявками) через Supabase
+ * 
+ * ОСОБЕННОСТИ:
+ *   - Полный CRUD для сделок
+ *   - Работа с этапами и чек-листами
+ *   - Логирование действий в deal_logs
+ *   - Поддержка списочного и детального режимов
+ *   - Автоматический расчет комиссии
+ * 
  * ЗАВИСИМОСТИ:
  *   - js/core/supabase.js
- * ============================================
  * 
- * ВНИМАНИЕ: В таблице deals используется поле stage (не status!)
- * Статусы: new, showing, negotiation, documents, closed, cancelled
+ * ИСТОРИЯ:
+ *   - 31.03.2026: Добавлен addDealLog, улучшена работа со stages
+ *   - 30.03.2026: Создание файла
  * ============================================
  */
 
@@ -37,7 +45,7 @@ export async function getDeals() {
         // Добавляем поле status как алиас для stage для совместимости
         const dealsWithStatus = (data || []).map(deal => ({
             ...deal,
-            status: deal.stage // добавляем status для совместимости с frontend
+            status: deal.stage
         }));
         
         console.log(`[deals-supabase] Загружено ${dealsWithStatus?.length || 0} сделок`);
@@ -64,11 +72,38 @@ export async function getDealById(id) {
             .eq('user_id', user.id)
             .single();
         
-        if (error) throw error;
+        if (error) {
+            console.error('[deals-supabase] Ошибка загрузки сделки:', error);
+            return null;
+        }
         
         if (data) {
-            data.status = data.stage; // добавляем status для совместимости
+            data.status = data.stage;
+            
+            // Убеждаемся, что stages и stage_order существуют
+            if (!data.stages) {
+                data.stages = {
+                    new: { completed: false, checklist: {} },
+                    selection: { completed: false, checklist: {} },
+                    documents: { completed: false, checklist: {} },
+                    deal: { completed: false, checklist: {} }
+                };
+            }
+            
+            if (!data.stage_order) {
+                data.stage_order = {
+                    new_building: ['new', 'selection', 'booking', 'documents', 'mortgage', 'registration', 'keys'],
+                    secondary_buy: ['new', 'matching', 'showing', 'negotiation', 'documents', 'mortgage', 'deal', 'keys'],
+                    secondary_sell: ['new', 'matching', 'documents', 'showing', 'negotiation', 'deal', 'keys'],
+                    suburban: ['new', 'selection', 'utilities', 'documents', 'deal']
+                };
+            }
+            
+            if (!data.warnings) {
+                data.warnings = [];
+            }
         }
+        
         return data;
     } catch (error) {
         console.error('[deals-supabase] Ошибка загрузки сделки:', error);
@@ -89,31 +124,46 @@ export async function createDeal(dealData) {
             throw new Error('Пользователь не авторизован');
         }
         
+        // Подготавливаем данные для вставки
+        const insertData = {
+            user_id: user.id,
+            complex_id: dealData.complex_id || null,
+            apartment: dealData.apartment || '',
+            seller_id: dealData.seller_id || null,
+            buyer_id: dealData.buyer_id || null,
+            agent_id: dealData.agent_id || null,
+            type: dealData.type || 'secondary',
+            stage: dealData.status || 'new',
+            price_initial: dealData.price_initial || 0,
+            price_current: dealData.price_current || dealData.price_initial || 0,
+            commission: dealData.commission || 3,
+            deadline: dealData.deadline || null,
+            bank: dealData.bank || null,
+            mortgage_approved: dealData.mortgage_approved || false,
+            notes: dealData.notes || null,
+            // Новые поля
+            predicted_close: dealData.predicted_close || null
+        };
+        
         const { data, error } = await supabase
             .from('deals')
-            .insert([{
-                user_id: user.id,
-                complex_id: dealData.complex_id || null,
-                apartment: dealData.apartment || '',
-                seller_id: dealData.seller_id || null,
-                buyer_id: dealData.buyer_id || null,
-                agent_id: dealData.agent_id || null,
-                type: dealData.type || 'secondary',
-                stage: dealData.status || 'new', // используем stage, а не status
-                price_initial: dealData.price_initial || 0,
-                price_current: dealData.price_current || dealData.price_initial || 0,
-                commission: dealData.commission || 3,
-                deadline: dealData.deadline || null,
-                bank: dealData.bank || null,
-                mortgage_approved: dealData.mortgage_approved || false,
-                notes: dealData.notes || null
-            }])
+            .insert([insertData])
             .select();
         
         if (error) throw error;
         
-        console.log('[deals-supabase] Сделка создана:', data[0].id);
-        return data[0];
+        const newDeal = data[0];
+        
+        // Добавляем лог создания
+        if (newDeal) {
+            await addDealLog(newDeal.id, 'deal_created', {
+                type: newDeal.type,
+                price: newDeal.price_initial
+            });
+        }
+        
+        console.log('[deals-supabase] Сделка создана:', newDeal.id);
+        return newDeal;
     } catch (error) {
         console.error('[deals-supabase] Ошибка создания сделки:', error);
         return null;
@@ -164,8 +214,13 @@ export async function updateDeal(id, updates) {
             throw error;
         }
         
+        const updatedDeal = data[0];
+        if (updatedDeal) {
+            updatedDeal.status = updatedDeal.stage;
+        }
+        
         console.log('[deals-supabase] Сделка обновлена:', id);
-        return data[0];
+        return updatedDeal;
     } catch (error) {
         console.error('[deals-supabase] Ошибка обновления сделки:', error);
         return null;
@@ -179,6 +234,12 @@ export async function updateDeal(id, updates) {
  */
 export async function deleteDeal(id) {
     try {
+        // Сначала удаляем логи (каскадное удаление должно сработать, но на всякий случай)
+        await supabase
+            .from('deal_logs')
+            .delete()
+            .eq('deal_id', id);
+        
         const { error } = await supabase
             .from('deals')
             .delete()
@@ -207,7 +268,187 @@ export async function updateDealStatus(id, status) {
         updates.completed_at = new Date().toISOString();
     }
     
-    return await updateDeal(id, updates);
+    const result = await updateDeal(id, updates);
+    
+    if (result) {
+        await addDealLog(id, 'status_changed', {
+            old_status: result.stage,
+            new_status: status
+        });
+    }
+    
+    return result;
+}
+
+/**
+ * Добавить лог действия по сделке
+ * @param {string} dealId - ID сделки
+ * @param {string} action - Тип действия
+ * @param {Object} data - Дополнительные данные
+ * @returns {Promise<boolean>} Успех операции
+ */
+export async function addDealLog(dealId, action, data = {}) {
+    try {
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        const { error } = await supabase
+            .from('deal_logs')
+            .insert([{
+                deal_id: dealId,
+                action: action,
+                data: data,
+                user_id: user?.id || null,
+                created_at: new Date().toISOString()
+            }]);
+        
+        if (error) {
+            console.error('[deals-supabase] Ошибка добавления лога:', error);
+            return false;
+        }
+        
+        console.log('[deals-supabase] Лог добавлен:', action, 'для сделки', dealId);
+        return true;
+    } catch (error) {
+        console.error('[deals-supabase] Ошибка добавления лога:', error);
+        return false;
+    }
+}
+
+/**
+ * Получить логи сделки
+ * @param {string} dealId - ID сделки
+ * @param {number} limit - Лимит записей
+ * @returns {Promise<Array>} Массив логов
+ */
+export async function getDealLogs(dealId, limit = 50) {
+    try {
+        const { data, error } = await supabase
+            .from('deal_logs')
+            .select('*')
+            .eq('deal_id', dealId)
+            .order('created_at', { ascending: false })
+            .limit(limit);
+        
+        if (error) throw error;
+        
+        return data || [];
+    } catch (error) {
+        console.error('[deals-supabase] Ошибка загрузки логов:', error);
+        return [];
+    }
+}
+
+/**
+ * Обновить чек-лист этапа
+ * @param {string} dealId - ID сделки
+ * @param {string} stageName - Название этапа
+ * @param {string} itemKey - Ключ пункта чек-листа
+ * @param {boolean} completed - Статус выполнения
+ * @returns {Promise<Object|null>} Обновленная сделка
+ */
+export async function updateChecklistItem(dealId, stageName, itemKey, completed) {
+    try {
+        // Получаем текущую сделку
+        const deal = await getDealById(dealId);
+        if (!deal) return null;
+        
+        const stages = { ...deal.stages };
+        
+        if (!stages[stageName]) {
+            stages[stageName] = { completed: false, checklist: {} };
+        }
+        
+        if (!stages[stageName].checklist) {
+            stages[stageName].checklist = {};
+        }
+        
+        // Обновляем пункт чек-листа
+        stages[stageName].checklist[itemKey] = {
+            ...stages[stageName].checklist[itemKey],
+            completed: completed,
+            completedAt: completed ? new Date().toISOString() : null
+        };
+        
+        // Обновляем сделку
+        const updated = await updateDeal(dealId, { stages });
+        
+        if (updated) {
+            await addDealLog(dealId, 'checklist_updated', {
+                stage: stageName,
+                item: itemKey,
+                completed: completed
+            });
+        }
+        
+        return updated;
+    } catch (error) {
+        console.error('[deals-supabase] Ошибка обновления чек-листа:', error);
+        return null;
+    }
+}
+
+/**
+ * Завершить этап сделки
+ * @param {string} dealId - ID сделки
+ * @param {string} stageName - Название этапа
+ * @returns {Promise<Object|null>} Обновленная сделка
+ */
+export async function completeDealStage(dealId, stageName) {
+    try {
+        const deal = await getDealById(dealId);
+        if (!deal) return null;
+        
+        const stages = { ...deal.stages };
+        
+        // Проверяем, можно ли завершить этап (все чек-листы выполнены)
+        const stage = stages[stageName];
+        if (!stage) return null;
+        
+        const checklist = stage.checklist || {};
+        const allCompleted = Object.values(checklist).every(item => item.completed === true);
+        
+        if (!allCompleted) {
+            console.warn('[deals-supabase] Не все пункты чек-листа выполнены');
+            return null;
+        }
+        
+        // Завершаем этап
+        stages[stageName] = {
+            ...stage,
+            completed: true,
+            completedAt: new Date().toISOString()
+        };
+        
+        // Определяем следующий этап
+        const stageOrder = deal.stage_order?.[deal.type] || 
+            ['new', 'selection', 'documents', 'deal'];
+        const currentIndex = stageOrder.indexOf(stageName);
+        const nextStage = stageOrder[currentIndex + 1];
+        
+        // Обновляем сделку
+        const updates = {
+            stages: stages,
+            stage: nextStage || stageName
+        };
+        
+        if (nextStage && nextStage !== stageName) {
+            updates.current_stage = nextStage;
+        }
+        
+        const updated = await updateDeal(dealId, updates);
+        
+        if (updated) {
+            await addDealLog(dealId, 'stage_completed', {
+                stage: stageName,
+                next_stage: nextStage || 'completed'
+            });
+        }
+        
+        return updated;
+    } catch (error) {
+        console.error('[deals-supabase] Ошибка завершения этапа:', error);
+        return null;
+    }
 }
 
 /**
@@ -223,7 +464,7 @@ export async function getDealsByStatus(status) {
             .from('deals')
             .select('*')
             .eq('user_id', user.id)
-            .eq('stage', status); // используем stage, а не status
+            .eq('stage', status);
         
         if (error) throw error;
         
@@ -280,7 +521,7 @@ export async function getOverdueDeals() {
             .select('*')
             .eq('user_id', user.id)
             .lt('deadline', today)
-            .not('stage', 'in', ['closed', 'cancelled']); // используем stage
+            .not('stage', 'in', ['closed', 'cancelled']);
         
         if (error) throw error;
         
@@ -292,5 +533,66 @@ export async function getOverdueDeals() {
     } catch (error) {
         console.error('[deals-supabase] Ошибка загрузки просроченных сделок:', error);
         return [];
+    }
+}
+
+/**
+ * Получить статистику по сделкам
+ * @returns {Promise<Object>} Статистика
+ */
+export async function getDealsStats() {
+    try {
+        const deals = await getDeals();
+        
+        const stats = {
+            total: deals.length,
+            byStatus: {},
+            byType: {},
+            totalAmount: 0,
+            totalCommission: 0,
+            avgDealTime: 0,
+            overdue: 0
+        };
+        
+        let completedDealsTime = 0;
+        let completedCount = 0;
+        
+        for (const deal of deals) {
+            // По статусам
+            const status = deal.stage || 'new';
+            stats.byStatus[status] = (stats.byStatus[status] || 0) + 1;
+            
+            // По типам
+            const type = deal.type || 'secondary';
+            stats.byType[type] = (stats.byType[type] || 0) + 1;
+            
+            // Суммы
+            stats.totalAmount += deal.price_current || deal.price_initial || 0;
+            stats.totalCommission += deal.commission_amount || 0;
+            
+            // Просрочки
+            if (deal.deadline && new Date(deal.deadline) < new Date() && 
+                deal.stage !== 'closed' && deal.stage !== 'cancelled') {
+                stats.overdue++;
+            }
+            
+            // Время закрытия
+            if (deal.completed_at && deal.created_at) {
+                const created = new Date(deal.created_at);
+                const completed = new Date(deal.completed_at);
+                const days = (completed - created) / (1000 * 60 * 60 * 24);
+                completedDealsTime += days;
+                completedCount++;
+            }
+        }
+        
+        if (completedCount > 0) {
+            stats.avgDealTime = Math.round(completedDealsTime / completedCount);
+        }
+        
+        return stats;
+    } catch (error) {
+        console.error('[deals-supabase] Ошибка получения статистики:', error);
+        return null;
     }
 }

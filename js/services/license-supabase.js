@@ -4,10 +4,10 @@
  * РОЛЬ: Управление лицензиями и правами модулей
  * 
  * ОСОБЕННОСТИ:
- *   - Покупка модулей для пользователя/команды
+ *   - Покупка модулей для команды
  *   - Назначение модулей пользователям
  *   - Интеграция с системой прав (permissions.js)
- *   - Хранение в Supabase
+ *   - Работа с таблицами: modules, company_licenses, user_module_assignments, companies
  * 
  * ЗАВИСИМОСТИ:
  *   - js/core/supabase.js
@@ -16,6 +16,7 @@
  * ИСТОРИЯ:
  *   - 30.03.2026: Создание сервиса
  *   - 30.03.2026: Переход на Supabase
+ *   - 31.03.2026: Интеграция с новой структурой таблиц (modules, company_licenses, user_module_assignments)
  * ============================================
  */
 
@@ -24,98 +25,187 @@ import { getCurrentSupabaseUser } from '../core/supabase-session.js';
 
 console.log('[license-supabase] Сервис загружен');
 
-// Конфигурация модулей и их прав
-const MODULES_CONFIG = {
-    real_estate: {
-        id: 'real_estate',
-        name: 'Недвижимость',
-        price: 500,
-        permissions: [
-            'view_complexes',
-            'create_complexes',
-            'edit_all_complexes',
-            'view_own_deals',
-            'create_deals',
-            'edit_own_deals',
-            'view_counterparties',
-            'create_counterparties'
-        ],
-        pages: ['complexes-supabase.html', 'deals-supabase.html', 'counterparties-supabase.html'],
-        features: ['Объекты недвижимости', 'Сделки', 'Контрагенты', 'Ипотечный калькулятор']
-    },
-    finance: {
-        id: 'finance',
-        name: 'Финансы',
-        price: 300,
-        permissions: ['view_finance', 'edit_finance', 'export_finance'],
-        pages: ['finance-supabase.html'],
-        features: ['Бюджет', 'Расходы/Доходы', 'Отчеты', 'Категории']
-    },
-    education: {
-        id: 'education',
-        name: 'Образование',
-        price: 200,
-        permissions: ['view_education', 'edit_education'],
-        pages: ['education-supabase.html'],
-        features: ['Расписание', 'Оценки', 'Домашние задания', 'Успеваемость']
-    },
-    health: {
-        id: 'health',
-        name: 'Здоровье',
-        price: 150,
-        permissions: ['view_health', 'edit_health'],
-        pages: ['health-supabase.html'],
-        features: ['Тренировки', 'Питание', 'Замеры тела', 'Водный баланс']
-    },
-    productivity: {
-        id: 'productivity',
-        name: 'Продуктивность',
-        price: 0,
-        permissions: ['view_tasks', 'view_calendar', 'view_profile'],
-        pages: ['tasks-supabase.html', 'calendar-supabase.html'],
-        features: ['Задачи', 'Календарь', 'Заметки', 'Привычки'],
-        isFree: true
+// ========== КЭШ МОДУЛЕЙ ==========
+let modulesCache = null;
+
+/**
+ * Загрузить модули из БД (с кэшированием)
+ */
+async function loadModulesFromDB() {
+    if (modulesCache) return modulesCache;
+    
+    try {
+        const { data, error } = await supabase
+            .from('modules')
+            .select('*');
+        
+        if (error) throw error;
+        
+        modulesCache = data;
+        return data;
+    } catch (error) {
+        console.error('[license] Ошибка загрузки модулей:', error);
+        return [];
     }
-};
-
-// Получить все модули
-export function getModulesCatalog() {
-    return MODULES_CONFIG;
 }
 
-// Получить права модуля
-export function getModulePermissions(moduleId) {
-    return MODULES_CONFIG[moduleId]?.permissions || [];
+/**
+ * Получить каталог модулей (из БД)
+ */
+export async function getModulesCatalog() {
+    const modules = await loadModulesFromDB();
+    // Преобразуем в формат для совместимости с существующим кодом
+    const catalog = {};
+    for (const module of modules) {
+        catalog[module.id] = {
+            id: module.id,
+            name: module.name,
+            description: module.description,
+            price: module.price,
+            permissions: module.permissions || [],
+            pages: module.pages || [],
+            widgets: module.widgets || [],
+            icon: module.icon,
+            isFree: module.is_free,
+            isTeamModule: module.is_team_module
+        };
+    }
+    return catalog;
 }
 
-// Получить страницы модуля
-export function getModulePages(moduleId) {
-    return MODULES_CONFIG[moduleId]?.pages || [];
+/**
+ * Получить права модуля
+ */
+export async function getModulePermissions(moduleId) {
+    const catalog = await getModulesCatalog();
+    return catalog[moduleId]?.permissions || [];
 }
 
-// ========== УПРАВЛЕНИЕ ЛИЦЕНЗИЯМИ (SUPABASE) ==========
+/**
+ * Получить страницы модуля
+ */
+export async function getModulePages(moduleId) {
+    const catalog = await getModulesCatalog();
+    return catalog[moduleId]?.pages || [];
+}
+
+// ========== УПРАВЛЕНИЕ КОМПАНИЕЙ ==========
+
+/**
+ * Получить или создать компанию для текущего пользователя
+ */
+export async function getOrCreateCompany() {
+    const currentUser = getCurrentSupabaseUser();
+    if (!currentUser) return null;
+    
+    try {
+        // Ищем компанию, где пользователь владелец
+        let { data, error } = await supabase
+            .from('companies')
+            .select('*')
+            .eq('owner_id', currentUser.id)
+            .single();
+        
+        if (error && error.code !== 'PGRST116') {
+            console.error('[license] Ошибка поиска компании:', error);
+        }
+        
+        if (!data) {
+            // Создаем компанию
+            const { data: newCompany, error: createError } = await supabase
+                .from('companies')
+                .insert({
+                    name: `Компания ${currentUser.name}`,
+                    owner_id: currentUser.id
+                })
+                .select()
+                .single();
+            
+            if (createError) {
+                console.error('[license] Ошибка создания компании:', createError);
+                return null;
+            }
+            
+            // Добавляем владельца в company_members
+            await supabase
+                .from('company_members')
+                .insert({
+                    company_id: newCompany.id,
+                    user_id: currentUser.id,
+                    role: 'owner'
+                });
+            
+            data = newCompany;
+        }
+        
+        return data;
+    } catch (error) {
+        console.error('[license] Ошибка:', error);
+        return null;
+    }
+}
+
+/**
+ * Получить всех членов компании
+ */
+export async function getCompanyMembers(companyId) {
+    try {
+        const { data, error } = await supabase
+            .from('company_members')
+            .select('*, profiles:user_id(id, name, email, role, github_username)')
+            .eq('company_id', companyId);
+        
+        if (error) throw error;
+        
+        return data.map(m => ({
+            id: m.profiles.id,
+            name: m.profiles.name,
+            email: m.profiles.email,
+            role: m.profiles.role,
+            github_username: m.profiles.github_username,
+            member_role: m.role
+        }));
+    } catch (error) {
+        console.error('[license] Ошибка загрузки членов компании:', error);
+        return [];
+    }
+}
+
+// ========== УПРАВЛЕНИЕ ЛИЦЕНЗИЯМИ ==========
 
 /**
  * Получить все лицензии компании
  */
-export async function getCompanyLicenses() {
+export async function getCompanyLicenses(companyId = null) {
     const currentUser = getCurrentSupabaseUser();
     if (!currentUser) return [];
     
+    let company = null;
+    if (companyId) {
+        const { data } = await supabase
+            .from('companies')
+            .select('*')
+            .eq('id', companyId)
+            .single();
+        company = data;
+    } else {
+        company = await getOrCreateCompany();
+    }
+    
+    if (!company) return [];
+    
     try {
         const { data, error } = await supabase
-            .from('user_purchased_modules')
-            .select('*')
-            .eq('user_id', currentUser.id);
+            .from('company_licenses')
+            .select('*, modules:module_id(*)')
+            .eq('company_id', company.id)
+            .eq('status', 'active');
         
-        if (error) {
-            console.error('[license] Ошибка загрузки лицензий:', error);
-            return [];
-        }
+        if (error) throw error;
         
         return data || [];
     } catch (error) {
-        console.error('[license] Ошибка:', error);
+        console.error('[license] Ошибка загрузки лицензий:', error);
         return [];
     }
 }
@@ -123,8 +213,7 @@ export async function getCompanyLicenses() {
 /**
  * Купить модуль для команды
  * @param {string} moduleId - ID модуля
- * @param {number} maxUsers - максимальное количество пользователей (не используется пока)
- * @returns {Promise<boolean>}
+ * @param {number} maxUsers - максимальное количество пользователей
  */
 export async function purchaseModuleForTeam(moduleId, maxUsers = 10) {
     const currentUser = getCurrentSupabaseUser();
@@ -133,33 +222,42 @@ export async function purchaseModuleForTeam(moduleId, maxUsers = 10) {
         return false;
     }
     
-    const module = MODULES_CONFIG[moduleId];
+    const catalog = await getModulesCatalog();
+    const module = catalog[moduleId];
     if (!module) {
         console.error('[license] Модуль не найден');
         return false;
     }
     
-    // Проверяем, не куплен ли уже
+    // Получаем или создаем компанию
+    const company = await getOrCreateCompany();
+    if (!company) {
+        console.error('[license] Не удалось создать компанию');
+        return false;
+    }
+    
+    // Проверяем, не куплена ли уже лицензия
     const { data: existing } = await supabase
-        .from('user_purchased_modules')
+        .from('company_licenses')
         .select('*')
-        .eq('user_id', currentUser.id)
+        .eq('company_id', company.id)
         .eq('module_id', moduleId)
         .single();
     
     if (existing) {
-        console.warn('[license] Модуль уже приобретен');
+        console.warn('[license] Лицензия уже приобретена');
         return false;
     }
     
-    // Добавляем в БД
+    // Добавляем лицензию
     const { error } = await supabase
-        .from('user_purchased_modules')
+        .from('company_licenses')
         .insert({
-            user_id: currentUser.id,
+            company_id: company.id,
             module_id: moduleId,
-            status: 'active',
-            expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // +30 дней
+            purchased_by: currentUser.id,
+            max_users: maxUsers,
+            expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
         });
     
     if (error) {
@@ -167,95 +265,144 @@ export async function purchaseModuleForTeam(moduleId, maxUsers = 10) {
         return false;
     }
     
-    // Обновляем права пользователя
-    await updateUserPermissions(currentUser.id);
+    // Автоматически назначаем модуль владельцу
+    await assignModuleToUser(moduleId, currentUser.id);
     
-    console.log(`[license] Модуль "${module.name}" приобретен`);
+    console.log(`[license] Модуль "${module.name}" приобретен для команды`);
     return true;
 }
 
 /**
- * Назначить модуль пользователю (в демо-режиме пока)
+ * Назначить модуль пользователю
  * @param {string} moduleId - ID модуля
  * @param {string} userId - ID пользователя
- * @returns {Promise<boolean>}
  */
 export async function assignModuleToUser(moduleId, userId) {
-    // В текущей версии модуль назначается только покупателю
     const currentUser = getCurrentSupabaseUser();
-    if (userId !== currentUser?.id) {
-        console.warn('[license] Назначение модулей другим пользователям пока в разработке');
+    if (!currentUser) return false;
+    
+    // Проверяем, есть ли лицензия на модуль в компании
+    const company = await getOrCreateCompany();
+    if (!company) return false;
+    
+    const { data: license } = await supabase
+        .from('company_licenses')
+        .select('*')
+        .eq('company_id', company.id)
+        .eq('module_id', moduleId)
+        .eq('status', 'active')
+        .single();
+    
+    if (!license) {
+        console.error('[license] Лицензия на модуль не найдена');
         return false;
     }
     
+    // Проверяем количество назначений
+    const { count } = await supabase
+        .from('user_module_assignments')
+        .select('*', { count: 'exact', head: true })
+        .eq('company_id', company.id)
+        .eq('module_id', moduleId);
+    
+    if (count >= license.max_users) {
+        console.error('[license] Достигнут лимит пользователей');
+        return false;
+    }
+    
+    // Проверяем, не назначен ли уже
+    const { data: existing } = await supabase
+        .from('user_module_assignments')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('module_id', moduleId)
+        .eq('company_id', company.id)
+        .single();
+    
+    if (existing) {
+        console.warn('[license] Модуль уже назначен пользователю');
+        return false;
+    }
+    
+    // Назначаем модуль
+    const { error } = await supabase
+        .from('user_module_assignments')
+        .insert({
+            user_id: userId,
+            module_id: moduleId,
+            company_id: company.id,
+            assigned_by: currentUser.id
+        });
+    
+    if (error) {
+        console.error('[license] Ошибка назначения:', error);
+        return false;
+    }
+    
+    // Обновляем права пользователя
+    await updateUserPermissions(userId);
+    
+    console.log(`[license] Модуль назначен пользователю ${userId}`);
     return true;
 }
 
 /**
  * Отозвать модуль у пользователя
- * @param {string} moduleId - ID модуля
- * @param {string} userId - ID пользователя
- * @returns {Promise<boolean>}
  */
 export async function revokeModuleFromUser(moduleId, userId) {
-    const currentUser = getCurrentSupabaseUser();
-    if (userId !== currentUser?.id) {
-        console.warn('[license] Отзыв модулей у других пользователей пока в разработке');
-        return false;
-    }
+    const company = await getOrCreateCompany();
+    if (!company) return false;
     
     const { error } = await supabase
-        .from('user_purchased_modules')
+        .from('user_module_assignments')
         .delete()
         .eq('user_id', userId)
-        .eq('module_id', moduleId);
+        .eq('module_id', moduleId)
+        .eq('company_id', company.id);
     
     if (error) {
         console.error('[license] Ошибка отзыва:', error);
         return false;
     }
     
+    // Обновляем права пользователя
     await updateUserPermissions(userId);
+    
+    console.log(`[license] Модуль отозван у пользователя ${userId}`);
     return true;
 }
 
 /**
  * Получить все модули, назначенные пользователю
- * @param {string} userId - ID пользователя
- * @returns {Promise<Array>}
  */
 export async function getUserModules(userId) {
     try {
         const { data, error } = await supabase
-            .from('user_purchased_modules')
-            .select('*')
+            .from('user_module_assignments')
+            .select('*, modules:module_id(*)')
             .eq('user_id', userId)
             .eq('status', 'active');
         
-        if (error) {
-            console.error('[license] Ошибка загрузки модулей пользователя:', error);
-            return [];
-        }
+        if (error) throw error;
         
-        return data.map(purchase => ({
-            moduleId: purchase.module_id,
-            name: MODULES_CONFIG[purchase.module_id]?.name || purchase.module_id,
-            permissions: MODULES_CONFIG[purchase.module_id]?.permissions || [],
-            pages: MODULES_CONFIG[purchase.module_id]?.pages || [],
-            purchasedAt: purchase.created_at,
-            expiresAt: purchase.expires_at
+        const catalog = await getModulesCatalog();
+        
+        return (data || []).map(assignment => ({
+            moduleId: assignment.module_id,
+            name: assignment.modules?.name || catalog[assignment.module_id]?.name,
+            permissions: assignment.modules?.permissions || catalog[assignment.module_id]?.permissions || [],
+            pages: assignment.modules?.pages || catalog[assignment.module_id]?.pages || [],
+            assignedAt: assignment.assigned_at,
+            assignedBy: assignment.assigned_by
         }));
     } catch (error) {
-        console.error('[license] Ошибка:', error);
+        console.error('[license] Ошибка загрузки модулей пользователя:', error);
         return [];
     }
 }
 
 /**
  * Проверить, есть ли у пользователя модуль
- * @param {string} userId - ID пользователя
- * @param {string} moduleId - ID модуля
- * @returns {Promise<boolean>}
  */
 export async function hasUserModule(userId, moduleId) {
     const userModules = await getUserModules(userId);
@@ -264,7 +411,6 @@ export async function hasUserModule(userId, moduleId) {
 
 /**
  * Обновить права пользователя в системе
- * @param {string} userId - ID пользователя
  */
 export async function updateUserPermissions(userId) {
     // Получаем модули пользователя
@@ -273,7 +419,9 @@ export async function updateUserPermissions(userId) {
     // Собираем все права из модулей
     const allPermissions = [];
     for (const module of userModules) {
-        allPermissions.push(...module.permissions);
+        if (module.permissions) {
+            allPermissions.push(...module.permissions);
+        }
     }
     
     // Добавляем базовые права
@@ -315,11 +463,9 @@ export async function updateUserPermissions(userId) {
             }
         }
         
-        // 👇 ДОБАВИТЬ ЭТОТ БЛОК
-        // Обновляем навигацию после изменения прав
+        // Обновляем навигацию
         if (window.sidebar?.renderNavigation) {
             window.sidebar.renderNavigation();
-            console.log('[license] Навигация обновлена');
         }
         
         console.log(`[license] Права пользователя ${userId} обновлены:`, uniquePermissions);
@@ -331,22 +477,38 @@ export async function updateUserPermissions(userId) {
 }
 
 /**
- * Получить все назначенные модули для всех пользователей
- * @returns {Promise<Object>}
+ * Получить все назначения модулей
  */
 export async function getAllAssignments() {
-    // В текущей версии возвращаем модули текущего пользователя
-    const currentUser = getCurrentSupabaseUser();
-    if (!currentUser) return {};
+    const company = await getOrCreateCompany();
+    if (!company) return {};
     
-    const userModules = await getUserModules(currentUser.id);
-    const assignments = {};
-    assignments[currentUser.id] = userModules.map(m => ({
-        moduleId: m.moduleId,
-        name: m.name
-    }));
-    
-    return assignments;
+    try {
+        const { data, error } = await supabase
+            .from('user_module_assignments')
+            .select('*, modules:module_id(*)')
+            .eq('company_id', company.id)
+            .eq('status', 'active');
+        
+        if (error) throw error;
+        
+        const assignments = {};
+        for (const item of data || []) {
+            if (!assignments[item.user_id]) {
+                assignments[item.user_id] = [];
+            }
+            assignments[item.user_id].push({
+                moduleId: item.module_id,
+                name: item.modules?.name,
+                assignedAt: item.assigned_at
+            });
+        }
+        
+        return assignments;
+    } catch (error) {
+        console.error('[license] Ошибка загрузки назначений:', error);
+        return {};
+    }
 }
 
 /**
@@ -365,7 +527,6 @@ export async function getUserSubscription() {
             .single();
         
         if (error) {
-            // Нет активной подписки
             return { plan_type: 'free', status: 'active' };
         }
         
@@ -376,7 +537,7 @@ export async function getUserSubscription() {
     }
 }
 
-// Экспортируем в глобальный объект для обратной совместимости
+// Экспортируем в глобальный объект
 if (typeof window !== 'undefined') {
     window.CRM = window.CRM || {};
     window.CRM.License = {
@@ -391,7 +552,9 @@ if (typeof window !== 'undefined') {
         updateUserPermissions,
         getCompanyLicenses,
         getAllAssignments,
-        getUserSubscription
+        getUserSubscription,
+        getCompanyMembers,
+        getOrCreateCompany
     };
 }
 

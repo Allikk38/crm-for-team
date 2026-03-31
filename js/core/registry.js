@@ -154,6 +154,14 @@ function isModuleAvailable(moduleId) {
         return false;
     }
     
+    // ========== ДОБАВИТЬ ЭТУ ПРОВЕРКУ ==========
+    // Администратор имеет доступ ко всем модулям
+    if (window.currentSupabaseUser.role === 'admin') {
+        console.log(`[registry] Администратор, модуль ${moduleId} доступен`);
+        return true;
+    }
+    // ==========================================
+    
     // Проверка прав доступа
     if (module.requiredPermissions && module.requiredPermissions.length > 0) {
         // Проверяем, что объект Permissions существует
@@ -179,7 +187,6 @@ function isModuleAvailable(moduleId) {
     
     return true;
 }
-
 /**
  * Получить все доступные модули для текущего пользователя
  */

@@ -4,6 +4,22 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
+    <!-- 
+    ============================================
+    ФАЙЛ: app/my-modules.html
+    РОЛЬ: Страница управления личными модулями
+    
+    ОСОБЕННОСТИ:
+      - Список доступных модулей
+      - Активация/покупка модулей
+      - Разделение на базовые, личные и командные модули
+    
+    ИСТОРИЯ:
+      - 30.03.2026: Создание страницы
+      - 30.03.2026: Перенос в папку app, исправление путей
+    ============================================
+    -->
+    
     <script>
         (function() {
             try {
@@ -23,11 +39,11 @@
     
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link rel="stylesheet" href="css/base.css">
-    <link rel="stylesheet" href="css/theme.css">
-    <link rel="stylesheet" href="css/components.css">
-    <link rel="stylesheet" href="css/responsive.css">
-    <link rel="stylesheet" href="css/animations.css">
+    <link rel="stylesheet" href="../css/base.css">
+    <link rel="stylesheet" href="../css/theme.css">
+    <link rel="stylesheet" href="../css/components.css">
+    <link rel="stylesheet" href="../css/responsive.css">
+    <link rel="stylesheet" href="../css/animations.css">
     
     <style>
         .modules-container {
@@ -298,7 +314,7 @@
     </div>
     
     <script type="module">
-        import { getCurrentSupabaseUser, requireSupabaseAuth, updateSupabaseUserInterface } from './js/core/supabase-session.js';
+        import { getCurrentSupabaseUser, requireSupabaseAuth, updateSupabaseUserInterface } from '../js/core/supabase-session.js';
         
         // Каталог модулей
         const MODULES_CATALOG = {
@@ -453,8 +469,8 @@
         
         function openModule(moduleId) {
             const routes = {
-                'productivity': 'tasks-supabase.html',
-                'real_estate': 'deals-supabase.html',
+                'productivity': 'tasks.html',
+                'real_estate': 'deals.html',
                 'finance': '#',
                 'education': '#',
                 'health': '#'
@@ -557,7 +573,7 @@
                     <div class="empty-state">
                         <i class="fas fa-puzzle-piece"></i>
                         <p>У вас пока нет модулей</p>
-                        <button onclick="window.location.href='marketplace-supabase.html'" style="margin-top: 16px; padding: 10px 24px; background: var(--accent); border: none; border-radius: 40px; color: white; cursor: pointer;">
+                        <button onclick="window.location.href='marketplace.html'" style="margin-top: 16px; padding: 10px 24px; background: var(--accent); border: none; border-radius: 40px; color: white; cursor: pointer;">
                             Перейти в Маркетплейс
                         </button>
                     </div>
@@ -640,7 +656,7 @@
         window.openModule = openModule;
         
         async function init() {
-            const isAuth = await requireSupabaseAuth('auth-supabase.html');
+            const isAuth = await requireSupabaseAuth('../auth-supabase.html');
             if (!isAuth) return;
             
             currentUser = getCurrentSupabaseUser();
@@ -669,7 +685,7 @@
     
     <!-- Инициализация бокового меню -->
     <script type="module">
-        import * as sidebar from './layout.js';
+        import * as sidebar from '../layout.js';
         window.sidebar = sidebar;
         sidebar.initSidebar();
     </script>

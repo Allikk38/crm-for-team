@@ -13,6 +13,7 @@
  *   - window.currentSupabaseUser
  * 
  * ИСТОРИЯ:
+ *   - 31.03.2026: Администратор получает ENTERPRISE план
  *   - 30.03.2026: Создание менеджера планов
  * ============================================
  */
@@ -62,7 +63,7 @@ const PLANS = {
         id: 'enterprise',
         name: 'Корпоративный',
         price: 'по запросу',
-        modules: ['tasks', 'deals', 'complexes', 'calendar', 'counterparties', 'manager', 'admin', 'profile'],
+        modules: ['tasks', 'deals', 'complexes', 'calendar', 'counterparties', 'manager', 'admin', 'dashboard', 'profile'],
         features: {
             maxTasks: Infinity,
             maxDeals: Infinity,
@@ -99,14 +100,15 @@ class PlanManager {
         if (!user) {
             console.log('[planManager] Пользователь не загружен, используем FREE');
         } else if (user.role === 'admin') {
-            plan = PLANS.BUSINESS;
-            console.log('[planManager] Администратор → BUSINESS');
+            // Администратор получает ENTERPRISE план (максимальные права)
+            plan = PLANS.ENTERPRISE;
+            console.log('[planManager] Администратор → ENTERPRISE');
         } else if (user.role === 'manager') {
-            plan = PLANS.PRO;
-            console.log('[planManager] Менеджер → PRO');
+            plan = PLANS.BUSINESS;
+            console.log('[planManager] Менеджер → BUSINESS');
         } else if (user.role === 'agent') {
-            plan = PLANS.FREE;
-            console.log('[planManager] Агент → FREE');
+            plan = PLANS.PRO;
+            console.log('[planManager] Агент → PRO');
         } else {
             plan = PLANS.FREE;
             console.log('[planManager] Неизвестная роль → FREE');

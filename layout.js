@@ -4,45 +4,32 @@
  * РОЛЬ: Управление боковой навигационной панелью и шапкой
  * 
  * ОСОБЕННОСТИ:
- *   - Динамическая навигация на основе ролей и прав
- *   - Администратор видит все пункты меню
- *   - Ожидание загрузки прав перед отрисовкой с увеличенным таймаутом
- *   - Повторная отрисовка при событиях userLoaded и permissionsReady
+ *   - Мини-сайдбар с иконками (единый для всего приложения)
+ *   - Кнопки темы и выхода всегда внизу сайдбара
+ *   - Виджет помодоро в правом нижнем углу
  *   - Адаптивное мобильное меню
  * 
  * ИСТОРИЯ:
- *   - 30.03.2026: Переход на модульную загрузку
- *   - 30.03.2026: Ожидание загрузки прав перед отрисовкой
- *   - 30.03.2026: Администратор видит все пункты меню
- *   - 30.03.2026: Увеличен таймаут и добавлены события для повторной отрисовки
+ *   - 31.03.2026: Исправлен мини-сайдбар, добавлены кнопки темы и выхода
+ *   - 31.03.2026: Убраны дублирующиеся стили
  * ============================================
  */
 
 import { escapeHtml } from './js/utils/helpers.js';
+import { getState, start, pause, subscribe } from './js/services/pomodoro.js';
 
 let sidebarCollapsed = false;
 let isInitialized = false;
 
-/**
- * Конфигурация навигации
- * - href: путь к странице
- * - icon: иконка FontAwesome
- * - label: название пункта
- * - roles: массив ролей, которым доступен пункт (null = все)
- * - permissions: массив прав, необходимых для доступа
- */
-const NAVIGATION_ITEMS = [
-    { href: "index-supabase.html", icon: "fa-home", label: "Дашборд", roles: null, permissions: null },
-    { href: "tasks-supabase.html", icon: "fa-tasks", label: "Доска задач", roles: null, permissions: ['view_tasks'] },
-    { href: "complexes-supabase.html", icon: "fa-building", label: "Объекты", roles: null, permissions: ['view_complexes'] },
-    { href: "deals-supabase.html", icon: "fa-handshake", label: "Заявки", roles: null, permissions: ['view_own_deals'] },
-    { href: "counterparties-supabase.html", icon: "fa-users", label: "Контрагенты", roles: null, permissions: ['view_counterparties'] },
-    { href: "calendar-supabase.html", icon: "fa-calendar-alt", label: "Календарь", roles: null, permissions: ['view_calendar'] },
-    { href: "marketplace-supabase.html", icon: "fa-store", label: "Маркетплейс", roles: null, permissions: null },
-    { href: "my-modules-supabase.html", icon: "fa-puzzle-piece", label: "Мои модули", roles: null, permissions: null },
-    { href: "team-supabase.html", icon: "fa-users", label: "Команда", roles: ["admin", "manager"], permissions: null },
-    { href: "admin-supabase.html", icon: "fa-users-cog", label: "Управление", roles: ["admin"], permissions: null },
-    { href: "notifications-supabase.html", icon: "fa-bell", label: "Уведомления", roles: null, permissions: null }
+// Конфигурация модулей для мини-сайдбара
+const SIDEBAR_MODULES = [
+    { id: 'navigator', name: 'Навигатор', icon: 'fa-th-large', href: '/app/navigator.html' },
+    { id: 'dashboard', name: 'Дашборд', icon: 'fa-home', href: '/app/dashboard.html' },
+    { id: 'tasks', name: 'Задачи', icon: 'fa-tasks', href: '/app/tasks.html' },
+    { id: 'deals', name: 'Сделки', icon: 'fa-handshake', href: '/app/deals.html' },
+    { id: 'calendar', name: 'Календарь', icon: 'fa-calendar-alt', href: '/app/calendar.html' },
+    { id: 'notes', name: 'Заметки', icon: 'fa-sticky-note', href: '/app/notes.html' },
+    { id: 'profile', name: 'Профиль', icon: 'fa-user', href: '/app/profile.html' }
 ];
 
 /**
@@ -63,61 +50,75 @@ function getUserPermissions() {
 }
 
 /**
- * Рендер навигации с учетом ролей и прав
- * Администратор видит все пункты меню
+ * Проверить, доступен ли модуль для пользователя
  */
-export function renderNavigation() {
-    const container = document.getElementById('sidebar-nav');
-    if (!container) return;
-    
+function isModuleAvailable(module) {
     const userRole = getCurrentUserRole();
     const userPermissions = getUserPermissions();
     const isAdmin = userRole === 'admin';
     
-    const visibleItems = NAVIGATION_ITEMS.filter(item => {
-        // Администратор видит всё
-        if (isAdmin) return true;
-        
-        // Проверка по роли для не-админов
-        if (item.roles && (!userRole || !item.roles.includes(userRole))) {
-            return false;
-        }
-        
-        // Проверка по правам
-        if (item.permissions && item.permissions.length > 0) {
-            const hasPermission = item.permissions.some(p => userPermissions.includes(p));
-            if (!hasPermission) return false;
-        }
-        
-        return true;
-    });
+    if (isAdmin) return true;
     
-    const currentPath = window.location.pathname.split('/').pop() || 'index-supabase.html';
-    
-    let html = '';
-    for (const item of visibleItems) {
-        const isActive = item.href === currentPath;
-        html += `<a href="${item.href}" class="nav-item ${isActive ? 'active' : ''}">
-            <i class="fas ${item.icon}"></i>
-            <span>${escapeHtml(item.label)}</span>
-        </a>`;
+    // Проверка по ролям
+    if (module.roles && module.roles.length > 0) {
+        if (!module.roles.includes(userRole)) return false;
     }
     
-    container.innerHTML = html;
-    console.log('[layout] Навигация отрисована, пунктов:', visibleItems.length, isAdmin ? '(админ - все пункты)' : '');
+    // Проверка по правам
+    if (module.permissions && module.permissions.length > 0) {
+        const hasPermission = module.permissions.some(p => userPermissions.includes(p));
+        if (!hasPermission) return false;
+    }
+    
+    return true;
 }
 
 /**
- * Ожидание загрузки прав пользователя (увеличенный таймаут)
+ * Рендер мини-сайдбара (только иконки)
+ */
+function renderMiniSidebar() {
+    const container = document.getElementById('sidebar-nav');
+    if (!container) return;
+    
+    const currentPath = window.location.pathname;
+    
+    let html = '<div class="mini-sidebar-nav">';
+    
+    for (const module of SIDEBAR_MODULES) {
+        const isActive = module.href === currentPath;
+        html += `
+            <a href="${module.href}" class="mini-nav-item ${isActive ? 'active' : ''}" title="${escapeHtml(module.name)}">
+                <i class="fas ${module.icon}"></i>
+                <span class="mini-nav-label">${escapeHtml(module.name)}</span>
+            </a>
+        `;
+    }
+    
+    html += '</div>';
+    container.innerHTML = html;
+    
+    console.log('[layout] Мини-сайдбар отрисован, иконок:', SIDEBAR_MODULES.length);
+}
+
+/**
+ * Рендер навигации
+ */
+function renderNavigation() {
+    const container = document.getElementById('sidebar-nav');
+    if (!container) return;
+    
+    renderMiniSidebar();
+}
+
+/**
+ * Ожидание загрузки прав пользователя
  */
 async function waitForPermissions(timeout = 10000) {
     const startTime = Date.now();
     
     while (Date.now() - startTime < timeout) {
-        // Проверяем, загружен ли пользователь
         if (window.currentSupabaseUser) {
             const permissions = getUserPermissions();
-            // Если пользователь админ или есть права
             if (window.currentSupabaseUser.role === 'admin' || permissions.length > 0) {
                 console.log('[layout] Права загружены:', permissions);
                 return true;
@@ -136,18 +137,21 @@ export async function initSidebar() {
     if (isInitialized) return;
     
     const saved = localStorage.getItem('sidebar_collapsed');
+    // По умолчанию сайдбар развёрнут, если в localStorage нет значения или оно не 'true'
     if (saved === 'true') {
         sidebarCollapsed = true;
         document.getElementById('sidebar')?.classList.add('collapsed');
+    } else {
+        // Явно убираем класс collapsed при загрузке
+        sidebarCollapsed = false;
+        document.getElementById('sidebar')?.classList.remove('collapsed');
+        localStorage.setItem('sidebar_collapsed', 'false');
     }
     
-    // Ждем загрузки прав
     const hasPermissions = await waitForPermissions();
     
-    // Отрисовываем навигацию
     renderNavigation();
     
-    // Если права не загрузились, подписываемся на события для повторной отрисовки
     if (!hasPermissions) {
         window.addEventListener('userLoaded', () => {
             console.log('[layout] userLoaded событие, повторная отрисовка');
@@ -159,7 +163,6 @@ export async function initSidebar() {
             renderNavigation();
         });
         
-        // Также проверяем через интервал, если события не сработали
         let attempts = 0;
         const checkInterval = setInterval(() => {
             attempts++;
@@ -176,9 +179,10 @@ export async function initSidebar() {
     initMobileMenu();
     addSidebarButtons();
     addNotificationButtonToTopBar();
+    addPomodoroWidget();
     
     isInitialized = true;
-    console.log('[layout] Сайдбар инициализирован');
+    console.log('[layout] Мини-сайдбар инициализирован');
 }
 
 /**
@@ -223,35 +227,50 @@ function initMobileMenu() {
 }
 
 /**
- * Добавление кнопок в футер сайдбара
+ * Добавление кнопок в футер сайдбара (тема, выход)
  */
 function addSidebarButtons() {
     const sidebarFooter = document.querySelector('.sidebar-footer');
     if (!sidebarFooter) return;
     
-    const existingBtns = sidebarFooter.querySelectorAll('button:not(.collapse-btn)');
+    // Очищаем футер, оставляя только collapse-btn
+    const existingBtns = sidebarFooter.querySelectorAll('button');
     existingBtns.forEach(btn => btn.remove());
     
+    // Кнопка сворачивания
+    const collapseBtn = document.createElement('button');
+    collapseBtn.className = 'collapse-btn';
+    collapseBtn.innerHTML = '<i class="fas fa-chevron-left"></i><span>Свернуть</span>';
+    collapseBtn.style.cssText = 'width: 100%; padding: 10px; margin-bottom: 8px; background: var(--hover-bg); border: none; border-radius: 12px; color: var(--text-primary); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;';
+    collapseBtn.onclick = (e) => {
+        e.stopPropagation();
+        toggleSidebar();
+    };
+    sidebarFooter.appendChild(collapseBtn);
+    
+    // Кнопка темы
     const themeBtn = document.createElement('button');
     themeBtn.className = 'theme-btn';
     const currentTheme = localStorage.getItem('crm_theme') || 'dark';
     themeBtn.innerHTML = currentTheme === 'dark' 
-        ? '<i class="fas fa-sun"></i> <span>Светлая тема</span>' 
-        : '<i class="fas fa-moon"></i> <span>Тёмная тема</span>';
+        ? '<i class="fas fa-sun"></i><span>Светлая</span>' 
+        : '<i class="fas fa-moon"></i><span>Тёмная</span>';
+    themeBtn.style.cssText = 'width: 100%; padding: 10px; margin-bottom: 8px; background: var(--hover-bg); border: none; border-radius: 12px; color: var(--text-primary); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;';
     themeBtn.onclick = (e) => {
         e.stopPropagation();
         toggleTheme();
     };
+    sidebarFooter.appendChild(themeBtn);
     
+    // Кнопка выхода
     const logoutBtn = document.createElement('button');
     logoutBtn.className = 'logout-btn';
-    logoutBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i> <span>Выйти</span>';
+    logoutBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i><span>Выйти</span>';
+    logoutBtn.style.cssText = 'width: 100%; padding: 10px; background: rgba(255, 107, 107, 0.2); border: none; border-radius: 12px; color: #ff6b6b; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;';
     logoutBtn.onclick = (e) => {
         e.stopPropagation();
         logout();
     };
-    
-    sidebarFooter.appendChild(themeBtn);
     sidebarFooter.appendChild(logoutBtn);
 }
 
@@ -269,7 +288,7 @@ function addNotificationButtonToTopBar() {
     notificationWrapper.style.marginRight = '16px';
     notificationWrapper.style.cursor = 'pointer';
     notificationWrapper.onclick = () => {
-        window.location.href = 'notifications-supabase.html';
+        window.location.href = '/app/notifications.html';
     };
     
     notificationWrapper.innerHTML = `
@@ -336,8 +355,8 @@ function toggleTheme() {
     if (themeBtn) {
         const isDarkNow = document.documentElement.classList.contains('theme-dark');
         themeBtn.innerHTML = isDarkNow 
-            ? '<i class="fas fa-sun"></i> <span>Светлая тема</span>' 
-            : '<i class="fas fa-moon"></i> <span>Тёмная тема</span>';
+            ? '<i class="fas fa-sun"></i><span>Светлая</span>' 
+            : '<i class="fas fa-moon"></i><span>Тёмная</span>';
     }
 }
 
@@ -345,7 +364,7 @@ function toggleTheme() {
  * Переход на страницу профиля
  */
 export function goToProfile() {
-    window.location.href = 'profile-supabase.html';
+    window.location.href = '/app/profile.html';
 }
 
 /**
@@ -362,9 +381,265 @@ export function logout() {
     }
 }
 
-// Добавляем CSS для бейджа уведомлений
-const style = document.createElement('style');
-style.textContent = `
+/**
+ * Виджет помодоро
+ */
+function addPomodoroWidget() {
+    let checkCount = 0;
+    const checkInterval = setInterval(() => {
+        if (typeof getState === 'function' && typeof start === 'function') {
+            clearInterval(checkInterval);
+            createWidget();
+        } else if (checkCount > 50) {
+            clearInterval(checkInterval);
+            console.warn('[layout] Pomodoro сервис не загружен');
+        }
+        checkCount++;
+    }, 100);
+    
+    function createWidget() {
+        const widget = document.createElement('div');
+        widget.id = 'pomodoroWidget';
+        widget.style.cssText = `
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 12px 16px;
+            border: 1px solid var(--card-border);
+            cursor: pointer;
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transition: all 0.2s;
+        `;
+        widget.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <i class="fas fa-clock" style="color: var(--accent);"></i>
+                <span id="pomodoroTime" style="font-family: monospace; font-weight: 600;">25:00</span>
+            </div>
+            <div style="display: flex; gap: 4px;">
+                <button id="pomodoroPlayBtn" class="pomodoro-widget-btn" style="background: none; border: none; cursor: pointer; color: var(--accent); padding: 4px 8px; border-radius: 8px;">▶</button>
+                <button id="pomodoroPauseBtn" class="pomodoro-widget-btn" style="background: none; border: none; cursor: pointer; color: var(--text-muted); padding: 4px 8px; border-radius: 8px;">⏸</button>
+            </div>
+        `;
+        document.body.appendChild(widget);
+        
+        function updateWidgetTime() {
+            const state = getState();
+            if (state) {
+                const minutes = Math.floor(state.timeLeft / 60);
+                const seconds = state.timeLeft % 60;
+                const timeSpan = document.getElementById('pomodoroTime');
+                if (timeSpan) {
+                    timeSpan.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                }
+                
+                const playBtn = document.getElementById('pomodoroPlayBtn');
+                const pauseBtn = document.getElementById('pomodoroPauseBtn');
+                if (playBtn && pauseBtn) {
+                    if (state.status === 'running') {
+                        playBtn.style.color = 'var(--text-muted)';
+                        pauseBtn.style.color = 'var(--accent)';
+                    } else {
+                        playBtn.style.color = 'var(--accent)';
+                        pauseBtn.style.color = 'var(--text-muted)';
+                    }
+                }
+            }
+        }
+        
+        subscribe(updateWidgetTime);
+        setInterval(updateWidgetTime, 1000);
+        
+        widget.addEventListener('click', (e) => {
+            if (!e.target.closest('.pomodoro-widget-btn')) {
+                window.location.href = '/app/pomodoro.html';
+            }
+        });
+        
+        const playBtn = document.getElementById('pomodoroPlayBtn');
+        if (playBtn) {
+            playBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const state = getState();
+                if (state.status !== 'running') {
+                    start();
+                }
+            });
+        }
+        
+        const pauseBtn = document.getElementById('pomodoroPauseBtn');
+        if (pauseBtn) {
+            pauseBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                pause();
+            });
+        }
+        
+        updateWidgetTime();
+        console.log('[layout] Виджет помодоро добавлен');
+    }
+}
+
+// Стили для мини-сайдбара
+const navStyle = document.createElement('style');
+navStyle.textContent = `
+    /* Мини-сайдбар - только иконки */
+    .sidebar {
+        width: 72px;
+        transition: width 0.2s ease;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .sidebar.collapsed {
+        width: 0;
+        overflow: hidden;
+    }
+    
+    .sidebar-logo span {
+        display: none;
+    }
+    
+    .sidebar-logo i {
+        font-size: 1.5rem;
+        margin: 0 auto;
+    }
+    
+    .sidebar-logo {
+        justify-content: center;
+        padding: 20px 0;
+    }
+    
+    .mini-sidebar-nav {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        padding: 16px 8px;
+        flex: 1;
+    }
+    
+    .mini-nav-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        padding: 10px 0;
+        width: 48px;
+        border-radius: 12px;
+        color: var(--text-muted);
+        text-decoration: none;
+        transition: all 0.2s ease;
+    }
+    
+    .mini-nav-item i {
+        font-size: 1.25rem;
+    }
+    
+    .mini-nav-label {
+        font-size: 0.6rem;
+        font-weight: 500;
+    }
+    
+    .mini-nav-item:hover {
+        background: var(--hover-bg);
+        color: var(--accent);
+        transform: translateX(2px);
+    }
+    
+    .mini-nav-item.active {
+        background: var(--accent);
+        color: white;
+    }
+    
+    /* Футер сайдбара для мини-режима */
+    .sidebar-footer {
+        padding: 16px 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .sidebar-footer button span {
+        display: none;
+    }
+    
+    .sidebar-footer button i {
+        margin: 0;
+        font-size: 1.1rem;
+    }
+    
+    .sidebar-footer button {
+        justify-content: center !important;
+    }
+    
+    /* Основной контент */
+    .main-content {
+        margin-left: 72px;
+        transition: margin-left 0.2s ease;
+    }
+    
+    .sidebar.collapsed ~ .main-content {
+        margin-left: 0;
+    }
+    
+    /* Адаптивность */
+    @media (max-width: 768px) {
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            z-index: 1000;
+            transform: translateX(-72px);
+            transition: transform 0.2s ease;
+        }
+        
+        .sidebar.mobile-open {
+            transform: translateX(0);
+        }
+        
+        .main-content {
+            margin-left: 0;
+        }
+        
+        .mobile-menu-toggle {
+            display: flex;
+        }
+    }
+    
+    .mobile-menu-toggle {
+        position: fixed;
+        left: 16px;
+        bottom: 20px;
+        width: 48px;
+        height: 48px;
+        background: var(--accent);
+        border-radius: 24px;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        z-index: 1001;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+    
+    .mobile-menu-toggle i {
+        color: white;
+        font-size: 1.2rem;
+    }
+`;
+
+document.head.appendChild(navStyle);
+
+// Стили для уведомлений
+const notificationStyle = document.createElement('style');
+notificationStyle.textContent = `
     .notification-icon-wrapper {
         position: relative;
         cursor: pointer;
@@ -396,9 +671,9 @@ style.textContent = `
         100% { transform: scale(1); }
     }
 `;
-document.head.appendChild(style);
+document.head.appendChild(notificationStyle);
 
-// Глобальный объект для доступа из HTML (onclick)
+// Глобальный объект для доступа из HTML
 window.sidebar = {
     initSidebar,
     toggleSidebar,
@@ -407,3 +682,5 @@ window.sidebar = {
     renderNavigation,
     updateNotificationBadge
 };
+
+console.log('[layout] Модуль загружен (мини-сайдбар)');

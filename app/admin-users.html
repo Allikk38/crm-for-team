@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- 
+    ============================================
+    ФАЙЛ: app/admin-users.html
+    РОЛЬ: Управление пользователями и их правами
+    
+    ОСОБЕННОСТИ:
+      - Список всех пользователей
+      - Назначение модулей пользователям
+      - Управление правами доступа
+      - Только для администраторов
+    
+    ИСТОРИЯ:
+      - 31.03.2026: Создание страницы
+    ============================================
+    -->
+    
+    <script>
+        (function() {
+            try {
+                const savedTheme = localStorage.getItem('crm_theme');
+                if (savedTheme === 'light') {
+                    document.documentElement.classList.add('theme-light');
+                    document.body.classList.add('theme-light');
+                } else if (savedTheme === 'dark') {
+                    document.documentElement.classList.add('theme-dark');
+                    document.body.classList.add('theme-dark');
+                }
+            } catch(e) {}
+        })();
+    </script>
+    
+    <title>Управление пользователями - CRM</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="../css/base.css">
+    <link rel="stylesheet" href="../css/theme.css">
+    <link rel="stylesheet" href="../css/components.css">
+    <link rel="stylesheet" href="../css/responsive.css">
+    <link rel="stylesheet" href="../css/animations.css">
+    
+    <style>
+        .admin-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        
+        .page-header h1 {
+            font-size: 2rem;
+            background: linear-gradient(135deg, var(--text-primary), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .users-table {
+            background: var(--card-bg);
+            border-radius: 24px;
+            border: 1px solid var(--card-border);
+            overflow-x: auto;
+        }
+        
+        .users-table table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 800px;
+        }
+        
+        .users-table th,
+        .users-table td {
+            padding: 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--card-border);
+            vertical-align: top;
+        }
+        
+        .users-table th {
+            background: rgba(108, 108, 255, 0.1);
+            font-weight: 600;
+        }
+        
+        .users-table tbody tr {
+            transition: all 0.2s ease;
+        }
+        
+        .users-table tbody tr:hover {
+            background: rgba(108, 108, 255, 0.05);
+        }
+        
+        .user-name {
+            font-weight: 600;
+        }
+        
+        .user-email {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+        
+        .modules-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        
+        .module-checkbox {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: var(--hover-bg);
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .module-checkbox:hover {
+            background: rgba(108, 108, 255, 0.2);
+        }
+        
+        .module-checkbox input {
+            margin: 0;
+            cursor: pointer;
+        }
+        
+        .save-btn {
+            background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+            border: none;
+            padding: 6px 16px;
+            border-radius: 20px;
+            color: white;
+            cursor: pointer;
+            font-size: 0.7rem;
+            transition: all 0.2s;
+        }
+        
+        .save-btn:hover {
+            transform: translateY(-2px);
+        }
+        
+        .save-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .loading-state {
+            text-align: center;
+            padding: 60px;
+            color: var(--text-muted);
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px;
+            color: var(--text-muted);
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.65rem;
+        }
+        
+        .badge-admin {
+            background: rgba(108, 108, 255, 0.2);
+            color: var(--accent);
+        }
+        
+        .badge-manager {
+            background: rgba(76, 175, 80, 0.2);
+            color: #4caf50;
+        }
+        
+        .badge-agent {
+            background: rgba(255, 193, 7, 0.2);
+            color: #ffc107;
+        }
+        
+        @media (max-width: 768px) {
+            .users-table th,
+            .users-table td {
+                padding: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-layout">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-logo">
+                <i class="fas fa-chart-line"></i>
+                <span>CRM Team</span>
+            </div>
+            <nav class="sidebar-nav" id="sidebar-nav"></nav>
+            <div class="sidebar-footer">
+                <button class="collapse-btn" onclick="window.sidebar?.toggleSidebar()">
+                    <i class="fas fa-chevron-left"></i>
+                    <span>Свернуть</span>
+                </button>
+                <button class="logout-btn" onclick="window.sidebar?.logout()" style="margin-top: 12px; width: 100%; padding: 10px; background: rgba(255, 107, 107, 0.2); border: none; border-radius: 12px; color: #ff6b6b; cursor: pointer;">
+                    <i class="fas fa-sign-out-alt"></i> Выйти
+                </button>
+            </div>
+        </aside>
+        
+        <main class="main-content">
+            <div class="top-bar">
+                <div class="user-profile" onclick="window.sidebar?.goToProfile()">
+                    <div class="user-info">
+                        <div class="user-name" id="userName">Загрузка...</div>
+                        <div class="user-role" id="userRole">—</div>
+                    </div>
+                    <div class="user-avatar" id="userAvatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="admin-container">
+                <div class="page-header">
+                    <h1><i class="fas fa-users-cog"></i> Управление пользователями</h1>
+                </div>
+                
+                <div class="users-table">
+                    <div id="usersContent">
+                        <div class="loading-state">
+                            <i class="fas fa-spinner fa-pulse"></i>
+                            <p>Загрузка пользователей...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <script type="module">
+        import { getCurrentSupabaseUser, requireSupabaseAuth, updateSupabaseUserInterface } from '../js/core/supabase-session.js';
+        import { supabase } from '../js/core/supabase.js';
+        
+        let currentUser = null;
+        let users = [];
+        let modules = [];
+        let userModules = {}; // userId -> Set of module ids
+        let saving = new Set(); // userIds being saved
+        
+        function getRoleBadgeClass(role) {
+            switch (role) {
+                case 'admin': return 'badge-admin';
+                case 'manager': return 'badge-manager';
+                case 'agent': return 'badge-agent';
+                default: return '';
+            }
+        }
+        
+        function getRoleLabel(role) {
+            switch (role) {
+                case 'admin': return 'Администратор';
+                case 'manager': return 'Менеджер';
+                case 'agent': return 'Агент';
+                default: return role;
+            }
+        }
+        
+        async function loadModules() {
+            const { data, error } = await supabase
+                .from('modules')
+                .select('id, name, icon, is_team_module')
+                .order('name');
+            
+            if (!error && data) {
+                modules = data;
+                console.log('[admin-users] Загружено модулей:', modules.length);
+            }
+        }
+        
+        async function loadUsers() {
+            const { data, error } = await supabase
+                .from('profiles')
+                .select('id, name, email, role, github_username, permission_sets')
+                .order('name');
+            
+            if (!error && data) {
+                users = data;
+                console.log('[admin-users] Загружено пользователей:', users.length);
+            }
+        }
+        
+        async function loadUserModules() {
+            const { data, error } = await supabase
+                .from('user_module_assignments')
+                .select('user_id, module_id')
+                .eq('status', 'active');
+            
+            if (!error && data) {
+                userModules = {};
+                for (const item of data) {
+                    if (!userModules[item.user_id]) {
+                        userModules[item.user_id] = new Set();
+                    }
+                    userModules[item.user_id].add(item.module_id);
+                }
+                console.log('[admin-users] Загружены назначения модулей');
+            }
+        }
+        
+        async function assignModule(userId, moduleId) {
+            if (saving.has(`${userId}_${moduleId}`)) return;
+            saving.add(`${userId}_${moduleId}`);
+            
+            try {
+                // Проверяем, есть ли лицензия на модуль
+                const { data: license } = await supabase
+                    .from('company_licenses')
+                    .select('id')
+                    .eq('module_id', moduleId)
+                    .eq('status', 'active')
+                    .single();
+                
+                if (!license) {
+                    showToast('Модуль не приобретен для компании', 'error');
+                    return false;
+                }
+                
+                // Проверяем лимит
+                const { count } = await supabase
+                    .from('user_module_assignments')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('module_id', moduleId)
+                    .eq('status', 'active');
+                
+                if (count >= 10) {
+                    showToast('Достигнут лимит лицензий (10)', 'error');
+                    return false;
+                }
+                
+                // Добавляем назначение
+                const { error } = await supabase
+                    .from('user_module_assignments')
+                    .insert({
+                        user_id: userId,
+                        module_id: moduleId,
+                        assigned_by: currentUser.id
+                    });
+                
+                if (error) throw error;
+                
+                // Обновляем права пользователя
+                await updateUserPermissions(userId);
+                
+                showToast('Модуль назначен', 'success');
+                return true;
+                
+            } catch (error) {
+                console.error('[admin-users] Ошибка назначения:', error);
+                showToast('Ошибка назначения модуля', 'error');
+                return false;
+            } finally {
+                saving.delete(`${userId}_${moduleId}`);
+            }
+        }
+        
+        async function revokeModule(userId, moduleId) {
+            if (saving.has(`${userId}_${moduleId}`)) return;
+            saving.add(`${userId}_${moduleId}`);
+            
+            try {
+                const { error } = await supabase
+                    .from('user_module_assignments')
+                    .delete()
+                    .eq('user_id', userId)
+                    .eq('module_id', moduleId);
+                
+                if (error) throw error;
+                
+                await updateUserPermissions(userId);
+                
+                showToast('Модуль отозван', 'success');
+                return true;
+                
+            } catch (error) {
+                console.error('[admin-users] Ошибка отзыва:', error);
+                showToast('Ошибка отзыва модуля', 'error');
+                return false;
+            } finally {
+                saving.delete(`${userId}_${moduleId}`);
+            }
+        }
+        
+        async function updateUserPermissions(userId) {
+            // Получаем модули пользователя
+            const { data: assignments } = await supabase
+                .from('user_module_assignments')
+                .select('modules:module_id(*)')
+                .eq('user_id', userId)
+                .eq('status', 'active');
+            
+            // Собираем все права из модулей
+            let allPermissions = [];
+            for (const a of assignments || []) {
+                if (a.modules && a.modules.permissions) {
+                    allPermissions.push(...a.modules.permissions);
+                }
+            }
+            
+            // Добавляем базовые права
+            const basePermissions = [
+                'view_tasks', 'view_calendar', 'view_profile', 'edit_own_profile',
+                'view_dashboard', 'view_statistics'
+            ];
+            allPermissions.push(...basePermissions);
+            
+            // Уникальные права
+            const uniquePermissions = [...new Set(allPermissions)];
+            
+            // Обновляем профиль
+            const { error } = await supabase
+                .from('profiles')
+                .update({ permission_sets: uniquePermissions })
+                .eq('id', userId);
+            
+            if (!error) {
+                console.log(`[admin-users] Права пользователя ${userId} обновлены`);
+            }
+        }
+        
+        async function toggleModule(userId, moduleId, isChecked) {
+            if (isChecked) {
+                await assignModule(userId, moduleId);
+            } else {
+                await revokeModule(userId, moduleId);
+            }
+            await renderUsersTable();
+        }
+        
+        function renderUsersTable() {
+            const container = document.getElementById('usersContent');
+            if (!container) return;
+            
+            if (users.length === 0) {
+                container.innerHTML = '<div class="empty-state">Нет пользователей</div>';
+                return;
+            }
+            
+            // Фильтруем только командные модули
+            const teamModules = modules.filter(m => m.is_team_module !== false);
+            
+            let html = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Пользователь</th>
+                            <th>Роль</th>
+                            <th>Доступные модули</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            for (const user of users) {
+                // Пропускаем текущего пользователя (нельзя отозвать права у себя)
+                const isSelf = user.id === currentUser?.id;
+                
+                html += `
+                    <tr>
+                        <td>
+                            <div class="user-name">${escapeHtml(user.name)}</div>
+                            <div class="user-email">${escapeHtml(user.email || user.github_username)}</div>
+                        </td>
+                        <td>
+                            <span class="badge ${getRoleBadgeClass(user.role)}">${getRoleLabel(user.role)}</span>
+                        </td>
+                        <td>
+                            <div class="modules-list">
+                `;
+                
+                for (const module of teamModules) {
+                    const isAssigned = userModules[user.id]?.has(module.id) || false;
+                    const isDisabled = isSelf && module.id === 'admin'; // Нельзя отозвать админку у себя
+                    
+                    html += `
+                        <label class="module-checkbox">
+                            <input type="checkbox" 
+                                   data-user-id="${user.id}"
+                                   data-module-id="${module.id}"
+                                   ${isAssigned ? 'checked' : ''}
+                                   ${isDisabled ? 'disabled' : ''}
+                                   onchange="window.toggleModule('${user.id}', '${module.id}', this.checked)">
+                            <i class="fas ${module.icon || 'fa-puzzle-piece'}"></i>
+                            ${escapeHtml(module.name)}
+                        </label>
+                    `;
+                }
+                
+                html += `
+                            </div>
+                        </td>
+                        <td>
+                            <button class="save-btn" onclick="window.saveUserPermissions('${user.id}')" disabled style="opacity:0.5">
+                                Сохранить
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }
+            
+            html += `
+                    </tbody>
+                </table>
+            `;
+            
+            container.innerHTML = html;
+        }
+        
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.innerHTML = `<span>${escapeHtml(message)}</span>`;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+        
+        // Глобальные функции для вызова из HTML
+        window.toggleModule = async function(userId, moduleId, isChecked) {
+            await toggleModule(userId, moduleId, isChecked);
+        };
+        
+        window.saveUserPermissions = async function(userId) {
+            showToast('Права сохранены', 'success');
+        };
+        
+        async function init() {
+            const isAuth = await requireSupabaseAuth('../auth-supabase.html');
+            if (!isAuth) return;
+            
+            currentUser = getCurrentSupabaseUser();
+            updateSupabaseUserInterface();
+            
+            // Проверка прав администратора
+            if (currentUser?.role !== 'admin') {
+                const container = document.querySelector('.admin-container');
+                if (container) {
+                    container.innerHTML = `
+                        <div class="empty-state" style="text-align: center; padding: 60px;">
+                            <i class="fas fa-lock" style="font-size: 3rem; margin-bottom: 20px;"></i>
+                            <h2>Доступ ограничен</h2>
+                            <p>Эта страница доступна только администраторам.</p>
+                            <a href="dashboard.html" style="margin-top: 20px; display: inline-block; padding: 10px 20px; background: var(--accent); border-radius: 40px; color: white; text-decoration: none;">Вернуться на главную</a>
+                        </div>
+                    `;
+                }
+                return;
+            }
+            
+            await loadModules();
+            await loadUsers();
+            await loadUserModules();
+            renderUsersTable();
+            
+            console.log('[admin-users] Страница загружена');
+        }
+        
+        init();
+    </script>
+    
+    <!-- Инициализация бокового меню -->
+    <script type="module">
+        import * as sidebar from '../layout.js';
+        window.sidebar = sidebar;
+        sidebar.initSidebar();
+    </script>
+</body>
+</html>

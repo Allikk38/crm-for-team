@@ -3,14 +3,80 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- 
+    ============================================
+    ФАЙЛ: index.html
+    РОЛЬ: Точка входа в приложение
+    
+    ОСОБЕННОСТИ:
+      - Проверка сессии через Supabase
+      - Перенаправление на страницу-навигатор
+      - Красивый спиннер загрузки
+    ============================================
+    -->
+    
     <title>CRM для команды</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .loader {
+            text-align: center;
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            margin: 20px auto;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        a {
+            color: white;
+        }
+    </style>
     <script>
-        // Автоматическое перенаправление на дашборд
-        window.location.href = 'index-supabase.html';
+        async function checkSession() {
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (session) {
+                    // Перенаправляем на страницу-навигатор
+                    window.location.href = 'app/navigator.html';
+                } else {
+                    window.location.href = 'auth-supabase.html';
+                }
+            } catch (e) {
+                console.error('[index] Ошибка проверки сессии:', e);
+                window.location.href = 'auth-supabase.html';
+            }
+        }
+        
+        import('./js/core/supabase.js').then(module => {
+            window.supabase = module.supabase;
+            checkSession();
+        }).catch(err => {
+            console.error('[index] Ошибка загрузки Supabase:', err);
+            window.location.href = 'auth-supabase.html';
+        });
     </script>
 </head>
 <body>
-    <p>Перенаправление на CRM систему...</p>
-    <p>Если перенаправление не происходит, <a href="index-supabase.html">нажмите здесь</a></p>
+    <div class="loader">
+        <div class="spinner"></div>
+        <p>Загрузка CRM системы...</p>
+        <p style="font-size: 0.8rem; margin-top: 20px;">Если перенаправление не происходит, <a href="auth-supabase.html">войдите в систему</a></p>
+    </div>
 </body>
 </html>

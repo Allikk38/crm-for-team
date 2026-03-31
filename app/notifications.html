@@ -6,8 +6,8 @@
     
     <!-- 
     ============================================
-    ФАЙЛ: notifications-supabase.html
-    РОЛЬ: Центр уведомлений (Supabase версия)
+    ФАЙЛ: app/notifications.html
+    РОЛЬ: Центр уведомлений
     
     ОСОБЕННОСТИ:
       - Просмотр всех уведомлений
@@ -17,13 +17,13 @@
       - Автоматическое обновление счетчика
     
     ЗАВИСИМОСТИ:
-      - CSS: base.css, theme.css, components.css, modal.css, animations.css
-      - JS: js/pages/notifications.js, layout.js
-      - Таблица: notifications
+      - js/pages/notifications.js
+      - layout.js
     
     ИСТОРИЯ:
       - 27.03.2026: Создание supabase-версии уведомлений
       - 27.03.2026: Рефакторинг — логика вынесена в js/pages/notifications.js
+      - 31.03.2026: Перенос в папку app, исправление путей
     ============================================
     -->
     
@@ -42,20 +42,20 @@
         })();
     </script>
     
-    <title>Уведомления - CRM для команды (Supabase)</title>
+    <title>Уведомления - CRM</title>
     
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link rel="stylesheet" href="css/base.css">
-    <link rel="stylesheet" href="css/theme.css">
-    <link rel="stylesheet" href="css/components.css">
-    <link rel="stylesheet" href="css/dashboard.css">
-    <link rel="stylesheet" href="css/kanban.css">
-    <link rel="stylesheet" href="css/manager.css">
-    <link rel="stylesheet" href="css/calendar.css">
-    <link rel="stylesheet" href="css/modal.css">
-    <link rel="stylesheet" href="css/responsive.css">
-    <link rel="stylesheet" href="css/animations.css">
+    <link rel="stylesheet" href="../css/base.css">
+    <link rel="stylesheet" href="../css/theme.css">
+    <link rel="stylesheet" href="../css/components.css">
+    <link rel="stylesheet" href="../css/dashboard.css">
+    <link rel="stylesheet" href="../css/kanban.css">
+    <link rel="stylesheet" href="../css/manager.css">
+    <link rel="stylesheet" href="../css/calendar.css">
+    <link rel="stylesheet" href="../css/modal.css">
+    <link rel="stylesheet" href="../css/responsive.css">
+    <link rel="stylesheet" href="../css/animations.css">
     
     <style>
         /* Стили (без изменений) */
@@ -321,11 +321,30 @@
         </main>
     </div>
     
-    <!-- Подключаем модуль страницы (логика вынесена) -->
+    <!-- ========== ИНИЦИАЛИЗАЦИЯ СТРАНИЦЫ ========== -->
     <script type="module">
-        import { initNotificationsPage } from './js/pages/notifications.js';
-        initNotificationsPage();
+        import { getCurrentSupabaseUser, requireSupabaseAuth, updateSupabaseUserInterface } from '../js/core/supabase-session.js';
+        
+        async function initNotifications() {
+            const isAuth = await requireSupabaseAuth('../auth-supabase.html');
+            if (!isAuth) return;
+            
+            const currentUser = getCurrentSupabaseUser();
+            updateSupabaseUserInterface();
+            
+            // Загружаем модуль уведомлений
+            const { initNotificationsPage } = await import('../js/pages/notifications.js');
+            initNotificationsPage();
+        }
+        
+        initNotifications();
     </script>
-    <script type="module" src="layout.js"></script>
+    
+    <!-- Инициализация бокового меню -->
+    <script type="module">
+        import * as sidebar from '../layout.js';
+        window.sidebar = sidebar;
+        sidebar.initSidebar();
+    </script>
 </body>
 </html>

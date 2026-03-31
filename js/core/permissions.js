@@ -25,6 +25,7 @@ const PERMISSION_SETS = {
     BASE: {
         name: 'Базовый',
         permissions: [
+            'view_dashboard',
             'view_tasks',
             'view_calendar',
             'view_profile',

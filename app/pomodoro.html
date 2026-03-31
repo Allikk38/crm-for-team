@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- 
+    ============================================
+    ФАЙЛ: app/pomodoro.html
+    РОЛЬ: Таймер помодоро (личный модуль)
+    
+    ОСОБЕННОСТИ:
+      - Таймер 25/5 минут
+      - Уведомления о завершении
+      - Статистика сессий
+      - Глобальный таймер, не сбрасывающийся при переходе между страницами
+      - Синхронизация с виджетом в углу
+      - Интеграция с глобальным сервисом pomodoro.js
+    
+    ИСТОРИЯ:
+      - 30.03.2026: Создание страницы
+      - 31.03.2026: Интеграция с глобальным сервисом pomodoro.js
+      - 31.03.2026: Исправлено использование импортированных функций
+    ============================================
+    -->
+    
+    <script>
+        (function() {
+            try {
+                const savedTheme = localStorage.getItem('crm_theme');
+                if (savedTheme === 'light') {
+                    document.documentElement.classList.add('theme-light');
+                    document.body.classList.add('theme-light');
+                } else if (savedTheme === 'dark') {
+                    document.documentElement.classList.add('theme-dark');
+                    document.body.classList.add('theme-dark');
+                }
+            } catch(e) {}
+        })();
+    </script>
+    
+    <title>Помодоро - CRM</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="../css/base.css">
+    <link rel="stylesheet" href="../css/theme.css">
+    <link rel="stylesheet" href="../css/components.css">
+    <link rel="stylesheet" href="../css/responsive.css">
+    <link rel="stylesheet" href="../css/animations.css">
+    
+    <style>
+        .pomodoro-container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 60px 20px;
+            text-align: center;
+        }
+        
+        .timer-circle {
+            width: 300px;
+            height: 300px;
+            margin: 0 auto 40px;
+            border-radius: 50%;
+            background: var(--card-bg);
+            border: 4px solid var(--accent);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+            animation: fadeInScale 0.3s ease;
+            transition: border-color 0.3s ease;
+        }
+        
+        .timer-display {
+            font-size: 4rem;
+            font-weight: 700;
+            font-family: monospace;
+            color: var(--accent);
+        }
+        
+        .timer-label {
+            font-size: 1rem;
+            color: var(--text-muted);
+            margin-top: 8px;
+        }
+        
+        .timer-controls {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin-bottom: 40px;
+        }
+        
+        .timer-btn {
+            padding: 12px 32px;
+            border-radius: 40px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .timer-btn.primary {
+            background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+            color: white;
+        }
+        
+        .timer-btn.secondary {
+            background: var(--hover-bg);
+            color: var(--text-primary);
+            border: 1px solid var(--card-border);
+        }
+        
+        .timer-btn:hover {
+            transform: translateY(-2px);
+        }
+        
+        .stats-card {
+            background: var(--card-bg);
+            border-radius: 20px;
+            border: 1px solid var(--card-border);
+            padding: 24px;
+            margin-top: 20px;
+        }
+        
+        .stats-title {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+        }
+        
+        .stats-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+        
+        .quote-card {
+            margin-top: 32px;
+            padding: 20px;
+            background: var(--hover-bg);
+            border-radius: 16px;
+            font-style: italic;
+            color: var(--text-muted);
+        }
+        
+        .task-select {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+        
+        .task-select label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+        
+        .task-select select {
+            width: 100%;
+            padding: 10px 14px;
+            background: var(--input-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            color: var(--text-primary);
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+        }
+        
+        .timer-circle.running {
+            animation: pulse 1s ease infinite;
+        }
+        
+        .timer-circle.break {
+            border-color: #4caf50;
+        }
+        
+        .timer-circle.break .timer-display {
+            color: #4caf50;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-layout">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-logo">
+                <i class="fas fa-chart-line"></i>
+                <span>CRM Team</span>
+            </div>
+            <nav class="sidebar-nav" id="sidebar-nav"></nav>
+            <div class="sidebar-footer">
+                <button class="collapse-btn" onclick="window.sidebar?.toggleSidebar()">
+                    <i class="fas fa-chevron-left"></i>
+                    <span>Свернуть</span>
+                </button>
+                <button class="logout-btn" onclick="window.sidebar?.logout()" style="margin-top: 12px; width: 100%; padding: 10px; background: rgba(255, 107, 107, 0.2); border: none; border-radius: 12px; color: #ff6b6b; cursor: pointer;">
+                    <i class="fas fa-sign-out-alt"></i> Выйти
+                </button>
+            </div>
+        </aside>
+        
+        <main class="main-content">
+            <div class="top-bar">
+                <div class="user-profile" onclick="window.sidebar?.goToProfile()">
+                    <div class="user-info">
+                        <div class="user-name" id="userName">Загрузка...</div>
+                        <div class="user-role" id="userRole">—</div>
+                    </div>
+                    <div class="user-avatar" id="userAvatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="pomodoro-container">
+                <!-- Выбор задачи -->
+                <div class="task-select" id="taskSelectContainer" style="display: none;">
+                    <label><i class="fas fa-tasks"></i> Текущая задача</label>
+                    <select id="taskSelect">
+                        <option value="">Выберите задачу для фокуса</option>
+                    </select>
+                </div>
+                
+                <div class="timer-circle" id="timerCircle">
+                    <div class="timer-display" id="timerDisplay">25:00</div>
+                    <div class="timer-label" id="timerLabel">Работа</div>
+                </div>
+                
+                <div class="timer-controls">
+                    <button class="timer-btn primary" id="startBtn">▶ Старт</button>
+                    <button class="timer-btn secondary" id="pauseBtn">⏸ Пауза</button>
+                    <button class="timer-btn secondary" id="resetBtn">🔄 Сброс</button>
+                </div>
+                
+                <div class="stats-card">
+                    <div class="stats-title">Статистика сегодня</div>
+                    <div class="stats-grid">
+                        <div>
+                            <div class="stats-value" id="pomodoroCount">0</div>
+                            <div class="stats-label">помидоров</div>
+                        </div>
+                        <div>
+                            <div class="stats-value" id="totalMinutes">0</div>
+                            <div class="stats-label">минут</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="quote-card">
+                    <i class="fas fa-quote-left"></i>
+                    <span id="quote">Сосредоточьтесь на одном деле за раз</span>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <script type="module">
+        import { getCurrentSupabaseUser, requireSupabaseAuth, updateSupabaseUserInterface } from '../js/core/supabase-session.js';
+        import { supabase } from '../js/core/supabase.js';
+        import { getState, start, pause, reset, getStats, subscribe } from '../js/services/pomodoro.js';
+        
+        let currentUser = null;
+        let tasks = [];
+        let unsubscribe = null;
+        
+        const QUOTES = [
+            "Сосредоточьтесь на одном деле за раз",
+            "Маленькие шаги ведут к большим результатам",
+            "25 минут работы — 5 минут отдыха",
+            "Каждый помидор приближает к цели",
+            "Делай больше, отвлекаясь меньше",
+            "Время — самый ценный ресурс"
+        ];
+        
+        function updateUI() {
+            const state = getState();
+            
+            const minutes = Math.floor(state.timeLeft / 60);
+            const seconds = state.timeLeft % 60;
+            document.getElementById('timerDisplay').textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            
+            const timerCircle = document.getElementById('timerCircle');
+            const timerLabel = document.getElementById('timerLabel');
+            
+            if (state.mode === 'work') {
+                timerLabel.textContent = 'Работа';
+                timerLabel.style.color = 'var(--accent)';
+                timerCircle.classList.remove('break');
+            } else {
+                timerLabel.textContent = 'Отдых';
+                timerLabel.style.color = '#4caf50';
+                timerCircle.classList.add('break');
+            }
+            
+            if (state.status === 'running') {
+                timerCircle.classList.add('running');
+            } else {
+                timerCircle.classList.remove('running');
+            }
+            
+            const startBtn = document.getElementById('startBtn');
+            if (state.status === 'running') {
+                startBtn.textContent = '▶ Продолжить';
+            } else {
+                startBtn.textContent = '▶ Старт';
+            }
+        }
+        
+        async function loadTasks() {
+            try {
+                const { data, error } = await supabase
+                    .from('tasks')
+                    .select('id, title')
+                    .eq('user_id', currentUser.id)
+                    .neq('status', 'completed')
+                    .order('due_date', { ascending: true, nullsLast: true })
+                    .limit(20);
+                
+                if (!error && data) {
+                    tasks = data;
+                    const select = document.getElementById('taskSelect');
+                    if (select && tasks.length > 0) {
+                        select.innerHTML = '<option value="">Выберите задачу для фокуса</option>' +
+                            tasks.map(t => `<option value="${t.id}">${escapeHtml(t.title)}</option>`).join('');
+                        document.getElementById('taskSelectContainer').style.display = 'block';
+                    }
+                }
+            } catch (e) {
+                console.log('[pomodoro] Не удалось загрузить задачи');
+            }
+        }
+        
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function updateStats() {
+            const stats = getStats(1);
+            if (stats.length > 0) {
+                document.getElementById('pomodoroCount').textContent = stats[0].sessions;
+                document.getElementById('totalMinutes').textContent = stats[0].minutes;
+            }
+        }
+        
+        async function init() {
+            const isAuth = await requireSupabaseAuth('../auth-supabase.html');
+            if (!isAuth) return;
+            
+            currentUser = getCurrentSupabaseUser();
+            updateSupabaseUserInterface();
+            
+            await loadTasks();
+            
+            // Подписываемся на изменения таймера
+            unsubscribe = subscribe(updateUI);
+            
+            updateUI();
+            updateStats();
+            
+            const randomQuote = QUOTES[Math.floor(Math.random() * QUOTES.length)];
+            document.getElementById('quote').textContent = randomQuote;
+            
+            document.getElementById('startBtn').addEventListener('click', () => start());
+            document.getElementById('pauseBtn').addEventListener('click', () => pause());
+            document.getElementById('resetBtn').addEventListener('click', () => reset());
+            
+            setInterval(() => updateStats(), 5000);
+            
+            console.log('[pomodoro] Страница загружена');
+        }
+        
+        // Отписываемся при уходе со страницы
+        window.addEventListener('beforeunload', () => {
+            if (unsubscribe) unsubscribe();
+        });
+        
+        init();
+    </script>
+    
+    <!-- Инициализация бокового меню -->
+    <script type="module">
+        import * as sidebar from '../layout.js';
+        window.sidebar = sidebar;
+        sidebar.initSidebar();
+    </script>
+</body>
+</html>

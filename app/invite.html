@@ -4,6 +4,28 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
+    <!-- 
+    ============================================
+    ФАЙЛ: app/invite.html
+    РОЛЬ: Страница приглашения коллег в команду
+    
+    ОСОБЕННОСТИ:
+      - Генерация уникальной ссылки-приглашения
+      - Копирование ссылки в буфер обмена
+      - Приглашение по email (демо-режим)
+      - Список приглашенных с их статусом
+      - Сохранение в localStorage
+    
+    ЗАВИСИМОСТИ:
+      - js/core/supabase-session.js
+      - layout.js
+    
+    ИСТОРИЯ:
+      - 30.03.2026: Создание страницы приглашения
+      - 31.03.2026: Перенос в папку app, исправление путей
+    ============================================
+    -->
+    
     <script>
         (function() {
             try {
@@ -23,11 +45,11 @@
     
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link rel="stylesheet" href="css/base.css">
-    <link rel="stylesheet" href="css/theme.css">
-    <link rel="stylesheet" href="css/components.css">
-    <link rel="stylesheet" href="css/responsive.css">
-    <link rel="stylesheet" href="css/animations.css">
+    <link rel="stylesheet" href="../css/base.css">
+    <link rel="stylesheet" href="../css/theme.css">
+    <link rel="stylesheet" href="../css/components.css">
+    <link rel="stylesheet" href="../css/responsive.css">
+    <link rel="stylesheet" href="../css/animations.css">
     
     <style>
         .invite-container {
@@ -297,7 +319,7 @@
     </div>
     
     <script type="module">
-        import { getCurrentSupabaseUser, requireSupabaseAuth, updateSupabaseUserInterface } from './js/core/supabase-session.js';
+        import { getCurrentSupabaseUser, requireSupabaseAuth, updateSupabaseUserInterface } from '../js/core/supabase-session.js';
         
         let currentUser = null;
         let invites = [];
@@ -393,7 +415,6 @@
                 return;
             }
             
-            // Проверяем, не приглашали ли уже
             if (invites.some(i => i.email === email)) {
                 showToast('Этот email уже приглашен', 'warning');
                 return;
@@ -409,19 +430,17 @@
             renderInvitedList();
             emailInput.value = '';
             
-            // Демо-отправка
             console.log(`[DEMO] Приглашение отправлено на ${email}`);
             showToast(`Приглашение отправлено на ${email}`, 'success');
         };
         
         async function init() {
-            const isAuth = await requireSupabaseAuth('auth-supabase.html');
+            const isAuth = await requireSupabaseAuth('../auth-supabase.html');
             if (!isAuth) return;
             
             currentUser = getCurrentSupabaseUser();
             updateSupabaseUserInterface();
             
-            // Заполняем информацию о команде
             document.getElementById('adminName').textContent = currentUser?.name || 'Администратор';
             document.getElementById('inviteLink').textContent = getInviteLink();
             
@@ -438,6 +457,11 @@
         init();
     </script>
     
-    <script type="module" src="layout.js"></script>
+    <!-- Инициализация бокового меню -->
+    <script type="module">
+        import * as sidebar from '../layout.js';
+        window.sidebar = sidebar;
+        sidebar.initSidebar();
+    </script>
 </body>
 </html>

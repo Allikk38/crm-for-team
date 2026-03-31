@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    
+    <!-- 
+    ============================================
+    ФАЙЛ: app/navigator.html
+    РОЛЬ: Главная страница-навигатор (обзор всех модулей)
+    
+    ОСОБЕННОСТИ:
+      - Визуальная навигация по всем модулям
+      - Карточки с метриками
+      - Превью продвинутых модулей
+      - Быстрый поиск
+      - Адаптивная сетка
+      - Использует единый мини-сайдбар из layout.js
+    ============================================
+    -->
+    
+    <script>
+        (function() {
+            try {
+                const savedTheme = localStorage.getItem('crm_theme');
+                if (savedTheme === 'light') {
+                    document.documentElement.classList.add('theme-light');
+                    document.body.classList.add('theme-light');
+                } else if (savedTheme === 'dark') {
+                    document.documentElement.classList.add('theme-dark');
+                    document.body.classList.add('theme-dark');
+                }
+            } catch(e) {}
+        })();
+    </script>
+    
+    <title>Навигатор - CRM</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="../css/base.css">
+    <link rel="stylesheet" href="../css/theme.css">
+    <link rel="stylesheet" href="../css/components.css">
+    <link rel="stylesheet" href="../css/responsive.css">
+    <link rel="stylesheet" href="../css/animations.css">
+    
+    <style>
+        /* ============================================
+         * СТИЛИ ДЛЯ СТРАНИЦЫ-НАВИГАТОРА
+         * ============================================ */
+        
+        .navigator-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+        
+        .navigator-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+        
+        .navigator-title h1 {
+            font-size: 1.75rem;
+            margin-bottom: 4px;
+        }
+        
+        .navigator-title p {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+        
+        .search-box {
+            position: relative;
+            min-width: 280px;
+        }
+        
+        .search-box input {
+            width: 100%;
+            padding: 12px 16px 12px 44px;
+            background: var(--input-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 40px;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+        }
+        
+        .search-box input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+        
+        .search-box i {
+            position: absolute;
+            left: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+        }
+        
+        .category-section {
+            margin-bottom: 40px;
+        }
+        
+        .category-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid var(--card-border);
+        }
+        
+        .category-header i {
+            font-size: 1.25rem;
+            color: var(--accent);
+        }
+        
+        .category-header h2 {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+        
+        .category-header span {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            margin-left: auto;
+        }
+        
+        .modules-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+        }
+        
+        .module-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 20px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .module-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--accent);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+        }
+        
+        .module-card.preview {
+            opacity: 0.85;
+        }
+        
+        .card-badge {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: var(--accent);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 0.65rem;
+            font-weight: 500;
+        }
+        
+        .card-icon {
+            width: 48px;
+            height: 48px;
+            background: var(--input-bg);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 16px;
+        }
+        
+        .card-icon i {
+            font-size: 1.5rem;
+            color: var(--accent);
+        }
+        
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        
+        .card-description {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+            line-height: 1.4;
+        }
+        
+        .card-actions {
+            display: flex;
+            gap: 12px;
+        }
+        
+        .card-btn {
+            flex: 1;
+            padding: 8px 12px;
+            border-radius: 40px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+        }
+        
+        .card-btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+        
+        .card-btn-primary:hover {
+            background: var(--accent-hover);
+            transform: translateX(2px);
+        }
+        
+        .card-btn-preview {
+            background: transparent;
+            color: var(--accent);
+            border: 1px dashed var(--card-border);
+        }
+        
+        .card-btn-preview:hover {
+            background: rgba(108, 108, 255, 0.1);
+            border-color: var(--accent);
+        }
+        
+        .quick-access {
+            margin-bottom: 40px;
+        }
+        
+        .quick-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+        
+        .quick-item {
+            background: var(--input-bg);
+            border-radius: 16px;
+            padding: 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .quick-item:hover {
+            background: var(--hover-bg);
+            transform: translateX(4px);
+        }
+        
+        .quick-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--card-bg);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .quick-icon i {
+            font-size: 1.1rem;
+            color: var(--accent);
+        }
+        
+        .quick-info {
+            flex: 1;
+        }
+        
+        .quick-name {
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+        
+        .quick-metric {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+        
+        @media (max-width: 768px) {
+            .navigator-container {
+                padding: 16px;
+            }
+            
+            .navigator-header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .search-box {
+                min-width: auto;
+            }
+            
+            .modules-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .quick-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        @keyframes cardFadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .module-card {
+            animation: cardFadeIn 0.3s ease forwards;
+        }
+    </style>
+</head>
+<body>
+    <!-- Структура с сайдбаром - такая же как на dashboard.html -->
+    <div class="app-layout">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-logo">
+                <i class="fas fa-chart-line"></i>
+                <span>CRM Team</span>
+            </div>
+            <nav class="sidebar-nav" id="sidebar-nav"></nav>
+            <div class="sidebar-footer">
+                <button class="collapse-btn" onclick="window.sidebar?.toggleSidebar()">
+                    <i class="fas fa-chevron-left"></i>
+                    <span>Свернуть</span>
+                </button>
+                <button class="logout-btn" onclick="window.sidebar?.logout()" style="margin-top: 12px; width: 100%; padding: 10px; background: rgba(255, 107, 107, 0.2); border: none; border-radius: 12px; color: #ff6b6b; cursor: pointer;">
+                    <i class="fas fa-sign-out-alt"></i> Выйти
+                </button>
+            </div>
+        </aside>
+        
+        <main class="main-content">
+            <div class="top-bar">
+                <div class="top-bar-actions">
+                    <!-- Дополнительные кнопки -->
+                </div>
+                <div class="user-profile" onclick="window.sidebar?.goToProfile()">
+                    <div class="user-info">
+                        <div class="user-name" id="userName">Загрузка...</div>
+                        <div class="user-role" id="userRole">—</div>
+                    </div>
+                    <div class="user-avatar" id="userAvatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="navigator-container" id="navigatorContainer">
+                <div class="loading-state">
+                    <i class="fas fa-spinner fa-pulse fa-2x"></i>
+                    <p>Загрузка навигатора...</p>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <!-- Универсальный загрузчик модулей -->
+    <script type="module" src="../js/core/moduleLoader.js"></script>
+    
+    <!-- Инициализация бокового меню -->
+    <script type="module">
+        import * as sidebar from '../layout.js';
+        window.sidebar = sidebar;
+        sidebar.initSidebar();
+    </script>
+    
+    <!-- Инициализация страницы навигатора -->
+    <script type="module">
+        import { getCurrentSupabaseUser, requireSupabaseAuth, updateSupabaseUserInterface } from '../js/core/supabase-session.js';
+        
+        async function initNavigator() {
+            const isAuth = await requireSupabaseAuth('../auth-supabase.html');
+            if (!isAuth) return;
+            
+            const { initNavigatorPage } = await import('../js/pages/navigator.js');
+            initNavigatorPage();
+        }
+        
+        initNavigator();
+    </script>
+</body>
+</html>

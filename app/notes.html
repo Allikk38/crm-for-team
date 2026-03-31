@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- 
+    ============================================
+    ФАЙЛ: app/notes.html
+    РОЛЬ: Заметки с категориями, закреплением и поиском
+    
+    ОСОБЕННОСТИ:
+      - Категории (работа, личное, идеи, задачи)
+      - Закрепленные заметки
+      - Поиск по заголовку и тексту
+      - Markdown-форматирование
+      - Сохранение в Supabase
+    
+    ИСТОРИЯ:
+      - 30.03.2026: Создание страницы
+      - 31.03.2026: Переход на Supabase, добавлены категории и закрепление
+    ============================================
+    -->
+    
+    <script>
+        (function() {
+            try {
+                const savedTheme = localStorage.getItem('crm_theme');
+                if (savedTheme === 'light') {
+                    document.documentElement.classList.add('theme-light');
+                    document.body.classList.add('theme-light');
+                } else if (savedTheme === 'dark') {
+                    document.documentElement.classList.add('theme-dark');
+                    document.body.classList.add('theme-dark');
+                }
+            } catch(e) {}
+        })();
+    </script>
+    
+    <title>Заметки - CRM</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css">
+    <link rel="stylesheet" href="../css/base.css">
+    <link rel="stylesheet" href="../css/theme.css">
+    <link rel="stylesheet" href="../css/components.css">
+    <link rel="stylesheet" href="../css/responsive.css">
+    <link rel="stylesheet" href="../css/animations.css">
+    
+    <style>
+        .notes-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        
+        .notes-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-bottom: 32px;
+        }
+        
+        .notes-header h1 {
+            font-size: 2rem;
+            background: linear-gradient(135deg, var(--text-primary), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .notes-actions {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        
+        .search-box {
+            position: relative;
+            min-width: 250px;
+        }
+        
+        .search-box input {
+            width: 100%;
+            padding: 10px 16px 10px 40px;
+            background: var(--input-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 40px;
+            color: var(--text-primary);
+        }
+        
+        .search-box i {
+            position: absolute;
+            left: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+        }
+        
+        .add-note-btn {
+            background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+            border: none;
+            padding: 10px 24px;
+            border-radius: 40px;
+            color: white;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 500;
+        }
+        
+        .categories-bar {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--card-border);
+        }
+        
+        .category-chip {
+            padding: 6px 16px;
+            border-radius: 40px;
+            background: var(--hover-bg);
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.85rem;
+        }
+        
+        .category-chip.active {
+            background: var(--accent);
+            color: white;
+        }
+        
+        .category-chip:hover {
+            transform: translateY(-2px);
+        }
+        
+        .notes-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 24px;
+        }
+        
+        .note-card {
+            background: var(--card-bg);
+            border-radius: 20px;
+            border: 1px solid var(--card-border);
+            padding: 20px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+        }
+        
+        .note-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--accent);
+        }
+        
+        .note-card.pinned {
+            border-left: 4px solid var(--accent);
+        }
+        
+        .note-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+        
+        .note-title {
+            font-weight: 600;
+            font-size: 1.1rem;
+            flex: 1;
+            word-break: break-word;
+        }
+        
+        .note-actions {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .note-action-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+        
+        .note-action-btn:hover {
+            background: var(--hover-bg);
+            color: var(--accent);
+        }
+        
+        .note-category {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 0.65rem;
+            background: var(--hover-bg);
+            color: var(--text-muted);
+            margin-bottom: 12px;
+        }
+        
+        .note-content {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            line-height: 1.4;
+            margin-bottom: 16px;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        
+        .note-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            padding-top: 12px;
+            border-top: 1px solid var(--card-border);
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px;
+            color: var(--text-muted);
+        }
+        
+        /* Модальное окно */
+        .note-modal-content {
+            max-width: 800px;
+            width: 90%;
+        }
+        
+        .note-modal-content input,
+        .note-modal-content select {
+            width: 100%;
+            margin-bottom: 16px;
+            padding: 12px;
+            background: var(--input-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            color: var(--text-primary);
+        }
+        
+        .editor-toolbar {
+            background: var(--input-bg);
+            border-radius: 12px 12px 0 0;
+        }
+        
+        .EasyMDEContainer .CodeMirror {
+            background: var(--input-bg);
+            color: var(--text-primary);
+            border-radius: 0 0 12px 12px;
+        }
+        
+        .modal-buttons {
+            margin-top: 20px;
+        }
+        
+        @media (max-width: 768px) {
+            .notes-grid {
+                grid-template-columns: 1fr;
+            }
+            .notes-header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .search-box {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-layout">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-logo">
+                <i class="fas fa-chart-line"></i>
+                <span>CRM Team</span>
+            </div>
+            <nav class="sidebar-nav" id="sidebar-nav"></nav>
+            <div class="sidebar-footer">
+                <button class="collapse-btn" onclick="window.sidebar?.toggleSidebar()">
+                    <i class="fas fa-chevron-left"></i>
+                    <span>Свернуть</span>
+                </button>
+                <button class="logout-btn" onclick="window.sidebar?.logout()" style="margin-top: 12px; width: 100%; padding: 10px; background: rgba(255, 107, 107, 0.2); border: none; border-radius: 12px; color: #ff6b6b; cursor: pointer;">
+                    <i class="fas fa-sign-out-alt"></i> Выйти
+                </button>
+            </div>
+        </aside>
+        
+        <main class="main-content">
+            <div class="top-bar">
+                <div class="user-profile" onclick="window.sidebar?.goToProfile()">
+                    <div class="user-info">
+                        <div class="user-name" id="userName">Загрузка...</div>
+                        <div class="user-role" id="userRole">—</div>
+                    </div>
+                    <div class="user-avatar" id="userAvatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="notes-container">
+                <div class="notes-header">
+                    <h1><i class="fas fa-sticky-note"></i> Заметки</h1>
+                    <div class="notes-actions">
+                        <div class="search-box">
+                            <i class="fas fa-search"></i>
+                            <input type="text" id="searchInput" placeholder="Поиск по заметкам...">
+                        </div>
+                        <button class="add-note-btn" id="addNoteBtn">
+                            <i class="fas fa-plus"></i> Новая заметка
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="categories-bar" id="categoriesBar">
+                    <div class="category-chip active" data-category="all">Все</div>
+                    <div class="category-chip" data-category="work">Работа</div>
+                    <div class="category-chip" data-category="personal">Личное</div>
+                    <div class="category-chip" data-category="ideas">Идеи</div>
+                    <div class="category-chip" data-category="tasks">Задачи</div>
+                </div>
+                
+                <div id="notesGrid" class="notes-grid">
+                    <div class="empty-state">
+                        <i class="fas fa-spinner fa-pulse"></i>
+                        <p>Загрузка заметок...</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <!-- Модальное окно -->
+    <div id="noteModal" class="modal">
+        <div class="modal-content note-modal-content">
+            <h3 id="modalTitle">Новая заметка</h3>
+            <input type="hidden" id="noteId">
+            <input type="text" id="noteTitle" placeholder="Заголовок">
+            <select id="noteCategory">
+                <option value="work">Работа</option>
+                <option value="personal">Личное</option>
+                <option value="ideas">Идеи</option>
+                <option value="tasks">Задачи</option>
+            </select>
+            <div id="editor"></div>
+            <div class="modal-buttons">
+                <button onclick="closeNoteModal()">Отмена</button>
+                <button class="primary" id="saveNoteBtn">Сохранить</button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js"></script>
+    
+    <script type="module">
+        import { getCurrentSupabaseUser, requireSupabaseAuth, updateSupabaseUserInterface } from '../js/core/supabase-session.js';
+        import { supabase } from '../js/core/supabase.js';
+        
+        let currentUser = null;
+        let notes = [];
+        let currentCategory = 'all';
+        let searchQuery = '';
+        let editor = null;
+        
+        // Категории
+        const CATEGORIES = {
+            work: { name: 'Работа' },
+            personal: { name: 'Личное' },
+            ideas: { name: 'Идеи' },
+            tasks: { name: 'Задачи' }
+        };
+        
+        // ========== ЗАГРУЗКА ДАННЫХ ==========
+        
+        async function loadNotes() {
+            const { data, error } = await supabase
+                .from('notes')
+                .select('*')
+                .eq('user_id', currentUser.id)
+                .order('is_pinned', { ascending: false })
+                .order('updated_at', { ascending: false });
+            
+            if (!error && data) {
+                notes = data;
+                renderNotes();
+            }
+        }
+        
+        async function saveNote() {
+            const id = document.getElementById('noteId').value;
+            const title = document.getElementById('noteTitle').value.trim();
+            const content = editor ? editor.value() : '';
+            const category = document.getElementById('noteCategory').value;
+            
+            if (!title) {
+                showToast('Введите заголовок', 'error');
+                return;
+            }
+            
+            const noteData = {
+                title,
+                content,
+                category,
+                updated_at: new Date().toISOString()
+            };
+            
+            let error;
+            if (id) {
+                const { error: updateError } = await supabase
+                    .from('notes')
+                    .update(noteData)
+                    .eq('id', id);
+                error = updateError;
+            } else {
+                const { error: insertError } = await supabase
+                    .from('notes')
+                    .insert({
+                        ...noteData,
+                        user_id: currentUser.id
+                    });
+                error = insertError;
+            }
+            
+            if (!error) {
+                closeNoteModal();
+                await loadNotes();
+                showToast(id ? 'Заметка обновлена' : 'Заметка создана', 'success');
+            } else {
+                showToast('Ошибка сохранения', 'error');
+            }
+        }
+        
+        async function deleteNote(id) {
+            if (confirm('Удалить заметку?')) {
+                const { error } = await supabase
+                    .from('notes')
+                    .delete()
+                    .eq('id', id);
+                
+                if (!error) {
+                    await loadNotes();
+                    showToast('Заметка удалена', 'success');
+                }
+            }
+        }
+        
+        async function togglePin(id, currentPinned) {
+            const { error } = await supabase
+                .from('notes')
+                .update({ is_pinned: !currentPinned })
+                .eq('id', id);
+            
+            if (!error) {
+                await loadNotes();
+                showToast(currentPinned ? 'Заметка откреплена' : 'Заметка закреплена', 'success');
+            }
+        }
+        
+        // ========== ФИЛЬТРАЦИЯ ==========
+        
+        function getFilteredNotes() {
+            let filtered = [...notes];
+            
+            if (currentCategory !== 'all') {
+                filtered = filtered.filter(n => n.category === currentCategory);
+            }
+            
+            if (searchQuery) {
+                const query = searchQuery.toLowerCase();
+                filtered = filtered.filter(n => 
+                    n.title.toLowerCase().includes(query) ||
+                    (n.content && n.content.toLowerCase().includes(query))
+                );
+            }
+            
+            // Закрепленные вверху
+            filtered.sort((a, b) => {
+                if (a.is_pinned && !b.is_pinned) return -1;
+                if (!a.is_pinned && b.is_pinned) return 1;
+                return new Date(b.updated_at) - new Date(a.updated_at);
+            });
+            
+            return filtered;
+        }
+        
+        // ========== РЕНДЕРИНГ ==========
+        
+        function renderNotes() {
+            const container = document.getElementById('notesGrid');
+            if (!container) return;
+            
+            const filtered = getFilteredNotes();
+            
+            if (filtered.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-sticky-note"></i>
+                        <p>Нет заметок</p>
+                        <button class="add-note-btn" style="margin-top: 16px;" onclick="document.getElementById('addNoteBtn').click()">
+                            Создать заметку
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = filtered.map(note => {
+                const category = CATEGORIES[note.category] || { name: note.category };
+                const preview = note.content ? note.content.substring(0, 100).replace(/\n/g, ' ') : '';
+                
+                return `
+                    <div class="note-card ${note.is_pinned ? 'pinned' : ''}" data-note-id="${note.id}">
+                        <div class="note-header">
+                            <div class="note-title">${escapeHtml(note.title || 'Без названия')}</div>
+                            <div class="note-actions">
+                                <button class="note-action-btn pin-note" data-id="${note.id}" data-pinned="${note.is_pinned}" title="${note.is_pinned ? 'Открепить' : 'Закрепить'}">
+                                    <i class="fas ${note.is_pinned ? 'fa-thumbtack' : 'fa-thumbtack'}"></i>
+                                </button>
+                                <button class="note-action-btn delete-note" data-id="${note.id}" title="Удалить">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="note-category">
+                            ${category.name}
+                        </div>
+                        <div class="note-content">
+                            ${escapeHtml(preview) || '<em>Нет содержимого</em>'}
+                        </div>
+                        <div class="note-footer">
+                            <span><i class="far fa-clock"></i> ${formatDate(note.updated_at)}</span>
+                            <span><i class="far fa-edit"></i> Редактировать</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            // Добавляем обработчики
+            document.querySelectorAll('.note-card').forEach(card => {
+                card.addEventListener('click', (e) => {
+                    if (!e.target.closest('.note-action-btn')) {
+                        const noteId = card.dataset.noteId;
+                        openNoteModal(noteId);
+                    }
+                });
+            });
+            
+            document.querySelectorAll('.pin-note').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const id = btn.dataset.id;
+                    const pinned = btn.dataset.pinned === 'true';
+                    togglePin(id, pinned);
+                });
+            });
+            
+            document.querySelectorAll('.delete-note').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const id = btn.dataset.id;
+                    deleteNote(id);
+                });
+            });
+        }
+        
+        // ========== МОДАЛЬНОЕ ОКНО ==========
+        
+        async function openNoteModal(noteId = null) {
+            const modal = document.getElementById('noteModal');
+            const titleEl = document.getElementById('modalTitle');
+            const idField = document.getElementById('noteId');
+            const titleField = document.getElementById('noteTitle');
+            const categoryField = document.getElementById('noteCategory');
+            
+            if (noteId) {
+                const note = notes.find(n => n.id === noteId);
+                if (note) {
+                    titleEl.textContent = 'Редактировать заметку';
+                    idField.value = note.id;
+                    titleField.value = note.title;
+                    categoryField.value = note.category;
+                    if (editor) {
+                        editor.value(note.content || '');
+                    }
+                }
+            } else {
+                titleEl.textContent = 'Новая заметка';
+                idField.value = '';
+                titleField.value = '';
+                categoryField.value = 'work';
+                if (editor) {
+                    editor.value('');
+                }
+            }
+            
+            modal.classList.add('active');
+            if (editor) {
+                editor.codemirror.refresh();
+            }
+        }
+        
+        function closeNoteModal() {
+            document.getElementById('noteModal').classList.remove('active');
+        }
+        
+        // ========== ВСПОМОГАТЕЛЬНЫЕ ==========
+        
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function formatDate(dateStr) {
+            if (!dateStr) return '';
+            const date = new Date(dateStr);
+            const now = new Date();
+            const diff = now - date;
+            
+            if (diff < 24 * 60 * 60 * 1000) {
+                return date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+            }
+            return date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+        }
+        
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.innerHTML = `<span>${escapeHtml(message)}</span>`;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+        
+        // ========== ИНИЦИАЛИЗАЦИЯ ==========
+        
+        async function init() {
+            const isAuth = await requireSupabaseAuth('../auth-supabase.html');
+            if (!isAuth) return;
+            
+            currentUser = getCurrentSupabaseUser();
+            updateSupabaseUserInterface();
+            
+            // Инициализируем EasyMDE (глобальная переменная)
+            editor = new EasyMDE({
+                element: document.getElementById('editor'),
+                spellChecker: false,
+                toolbar: ['bold', 'italic', 'heading', '|', 'quote', 'unordered-list', 'ordered-list', '|', 'link', '|', 'preview'],
+                placeholder: 'Напишите что-нибудь...',
+                renderingConfig: {
+                    singleLineBreaks: false,
+                    codeSyntaxHighlighting: false,
+                },
+                previewRender: function(plainText) {
+                    return plainText;
+                }
+            });
+            
+            await loadNotes();
+            
+            // Поиск
+            const searchInput = document.getElementById('searchInput');
+            searchInput.addEventListener('input', (e) => {
+                searchQuery = e.target.value;
+                renderNotes();
+            });
+            
+            // Категории
+            document.querySelectorAll('.category-chip').forEach(chip => {
+                chip.addEventListener('click', () => {
+                    document.querySelectorAll('.category-chip').forEach(c => c.classList.remove('active'));
+                    chip.classList.add('active');
+                    currentCategory = chip.dataset.category;
+                    renderNotes();
+                });
+            });
+            
+            // Кнопка добавления
+            document.getElementById('addNoteBtn').addEventListener('click', () => openNoteModal());
+            
+            // Кнопка сохранения
+            document.getElementById('saveNoteBtn').addEventListener('click', saveNote);
+            
+            window.closeNoteModal = closeNoteModal;
+            
+            console.log('[notes] Страница загружена');
+        }
+        
+        init();
+    </script>
+    
+    <!-- Инициализация бокового меню -->
+    <script type="module">
+        import * as sidebar from '../layout.js';
+        window.sidebar = sidebar;
+        sidebar.initSidebar();
+    </script>
+</body>
+</html>

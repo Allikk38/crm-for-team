@@ -6,23 +6,16 @@
     
     <!-- 
     ============================================
-    ФАЙЛ: calendar-supabase.html
-    РОЛЬ: Календарь задач с возможностью drag-and-drop (Supabase версия)
-    ВЕРСИЯ: Модульная архитектура с универсальным загрузчиком
+    ФАЙЛ: app/calendar.html
+    РОЛЬ: Календарь задач с возможностью drag-and-drop
     
     ОСОБЕННОСТИ:
       - Отображение задач на календаре
       - Drag-and-drop для изменения дедлайнов
       - Навигация по месяцам
-      - Удаление дедлайнов
-      - Равномерная сетка 7x6
-    
-    ЗАВИСИМОСТИ:
-      - CSS: base.css, theme.css, components.css, calendar.css, modal.css, responsive.css, animations.css
-      - JS: универсальный загрузчик moduleLoader.js + layout.js
     
     ИСТОРИЯ:
-      - 30.03.2026: Переход на модульную архитектуру с универсальным загрузчиком
+      - 30.03.2026: Перенос в папку app, исправление путей
     ============================================
     -->
     
@@ -31,33 +24,33 @@
             try {
                 const savedTheme = localStorage.getItem('crm_theme');
                 if (savedTheme === 'light') {
-                    if (document.documentElement) document.documentElement.classList.add('theme-light');
-                    if (document.body) document.body.classList.add('theme-light');
+                    document.documentElement.classList.add('theme-light');
+                    document.body.classList.add('theme-light');
                 } else if (savedTheme === 'dark') {
-                    if (document.documentElement) document.documentElement.classList.add('theme-dark');
-                    if (document.body) document.body.classList.add('theme-dark');
+                    document.documentElement.classList.add('theme-dark');
+                    document.body.classList.add('theme-dark');
                 }
             } catch(e) {}
         })();
     </script>
     
-    <title>Календарь задач - CRM для команды (Supabase)</title>
+    <title>Календарь задач - CRM</title>
     
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link rel="stylesheet" href="css/base.css">
-    <link rel="stylesheet" href="css/theme.css">
-    <link rel="stylesheet" href="css/components.css">
-    <link rel="stylesheet" href="css/dashboard.css">
-    <link rel="stylesheet" href="css/kanban.css">
-    <link rel="stylesheet" href="css/manager.css">
-    <link rel="stylesheet" href="css/calendar.css">
-    <link rel="stylesheet" href="css/modal.css">
-    <link rel="stylesheet" href="css/responsive.css">
-    <link rel="stylesheet" href="css/animations.css">
+    <link rel="stylesheet" href="../css/base.css">
+    <link rel="stylesheet" href="../css/theme.css">
+    <link rel="stylesheet" href="../css/components.css">
+    <link rel="stylesheet" href="../css/dashboard.css">
+    <link rel="stylesheet" href="../css/kanban.css">
+    <link rel="stylesheet" href="../css/manager.css">
+    <link rel="stylesheet" href="../css/calendar.css">
+    <link rel="stylesheet" href="../css/modal.css">
+    <link rel="stylesheet" href="../css/responsive.css">
+    <link rel="stylesheet" href="../css/animations.css">
     
     <style>
-        /* Все стили остаются без изменений */
+        /* Стили из оригинального файла - без изменений */
         .calendar-container {
             background: var(--card-bg);
             backdrop-filter: blur(12px);
@@ -398,11 +391,11 @@
     </div>
     
     <!-- ========== УНИВЕРСАЛЬНЫЙ ЗАГРУЗЧИК МОДУЛЕЙ ========== -->
-    <script type="module" src="js/core/moduleLoader.js"></script>
+    <script type="module" src="../js/core/moduleLoader.js"></script>
     
     <!-- Инициализация бокового меню -->
     <script type="module">
-        import * as sidebar from './layout.js';
+        import * as sidebar from '../layout.js';
         window.sidebar = sidebar;
         sidebar.initSidebar();
     </script>

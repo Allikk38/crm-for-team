@@ -579,15 +579,11 @@ function renderKanbanBoard() {
     
     let todoCount = 0, progressCount = 0, doneCount = 0;
     
-    if (!window.CRM || !window.CRM.Kanban) {
-        console.error('Kanban компонент не загружен!');
-        return;
-    }
-    
     const filteredTasks = getFilteredTasks();
     
     for (const task of filteredTasks) {
-        const card = window.CRM.Kanban.createTaskCard(task, {
+        // Используем импортированную функцию createTaskCard
+        const card = createTaskCard(task, {
             showDelete: true
         });
         
