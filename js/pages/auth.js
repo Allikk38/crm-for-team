@@ -12,12 +12,14 @@
  * ИСТОРИЯ:
  *   - 01.04.2026: Исправлено использование company_id вместо team_id
  *   - 02.04.2026: Добавлена клиентская валидация email, debounce, улучшена обработка ошибок
+ *   - 02.04.2026: ДОБАВЛЕН RATE LIMITING для защиты от 429 ошибок
+ *   - 02.04.2026: ДОБАВЛЕНА ОЧИСТКА КЭША EMAIL при успешной регистрации
  * ============================================
  */
 
 import { supabase } from '../core/supabase.js';
 import { acceptInvite } from '../services/team-supabase.js';
-import { validateEmailForRegistration } from '../services/email-check.js';
+import { validateEmailForRegistration, clearEmailCache } from '../services/email-check.js';
 import { isValidEmail, formatSupabaseError, debounce } from '../utils/helpers.js';
 
 let currentMode = 'login';
@@ -176,6 +178,66 @@ async function validateRegisterForm() {
     return { valid: true, message: null };
 }
 
+// ========== ФУНКЦИИ RATE LIMITING ==========
+
+/**
+ * Проверка rate limit для регистрации
+ * @returns {{allowed: boolean, waitSeconds?: number}}
+ */
+function checkRegistrationRateLimit() {
+    const key = 'crm_registration_attempts';
+    const attempts = JSON.parse(localStorage.getItem(key) || '[]');
+    const now = Date.now();
+    
+    // Очищаем старые попытки (старше 60 секунд)
+    const recentAttempts = attempts.filter(t => now - t < 60000);
+    
+    // Сохраняем очищенный список обратно
+    localStorage.setItem(key, JSON.stringify(recentAttempts));
+    
+    // Если больше 3 попыток за минуту - блокируем
+    if (recentAttempts.length >= 3) {
+        const oldestAttempt = Math.min(...recentAttempts);
+        const waitSeconds = Math.ceil((oldestAttempt + 60000 - now) / 1000);
+        return { allowed: false, waitSeconds };
+    }
+    
+    return { allowed: true };
+}
+
+/**
+ * Запись попытки регистрации
+ */
+function recordRegistrationAttempt() {
+    const key = 'crm_registration_attempts';
+    const attempts = JSON.parse(localStorage.getItem(key) || '[]');
+    const now = Date.now();
+    
+    // Оставляем только попытки за последнюю минуту
+    const recentAttempts = attempts.filter(t => now - t < 60000);
+    recentAttempts.push(now);
+    localStorage.setItem(key, JSON.stringify(recentAttempts));
+}
+
+/**
+ * Показать сообщение о блокировке с таймером
+ * @param {number} seconds - сколько секунд ждать
+ */
+function showRateLimitMessage(seconds) {
+    const msgDiv = document.getElementById('message');
+    if (!msgDiv) return;
+    
+    msgDiv.innerHTML = `
+        <div class="message warning">
+            <i class="fas fa-hourglass-half"></i> 
+            Слишком много попыток регистрации. Подождите ${seconds} секунд.
+        </div>
+    `;
+    msgDiv.className = 'message warning';
+}
+
+// ========== ОСНОВНЫЕ ФУНКЦИИ ==========
+
 async function handleLogin() {
     const email = document.getElementById('email').value.trim();
     const password = document.getElementById('password').value;
@@ -224,6 +286,25 @@ async function handleRegister() {
         return;
     }
     
+    // ПРОВЕРКА RATE LIMIT
+    const rateLimit = checkRegistrationRateLimit();
+    if (!rateLimit.allowed) {
+        showRateLimitMessage(rateLimit.waitSeconds);
+        setRegisterButtonState(true, `⏳ Подождите ${rateLimit.waitSeconds} сек...`);
+        
+        // Автоматически разблокируем через указанное время
+        setTimeout(() => {
+            setRegisterButtonState(false);
+            const msgDiv = document.getElementById('message');
+            if (msgDiv && msgDiv.innerHTML.includes('Слишком много попыток')) {
+                msgDiv.innerHTML = '';
+                msgDiv.className = 'message';
+            }
+        }, rateLimit.waitSeconds * 1000);
+        
+        return;
+    }
+    
     // Валидация формы перед отправкой
     const validation = await validateRegisterForm();
     if (!validation.valid) {
@@ -251,6 +332,10 @@ async function handleRegister() {
         
         if (signUpError) throw signUpError;
         
+        // УСПЕШНАЯ РЕГИСТРАЦИЯ - очищаем историю попыток и кэш email
+        localStorage.removeItem('crm_registration_attempts');
+        clearEmailCache(email);
+        
         if (!authData.user) {
             throw new Error('Ошибка регистрации');
         }
@@ -268,7 +353,6 @@ async function handleRegister() {
         
         if (profileError) {
             console.error('[auth] Ошибка создания профиля:', profileError);
-            // Не прерываем регистрацию, профиль может создаться через триггер
         }
         
         // Проверяем invite-токен
@@ -304,6 +388,10 @@ async function handleRegister() {
     } catch (error) {
         console.error('[auth] Ошибка регистрации:', error);
         const userMessage = formatSupabaseError(error);
+        
+        // ЗАПИСЫВАЕМ НЕУДАЧНУЮ ПОПЫТКУ
+        recordRegistrationAttempt();
+        
         showMessage(userMessage, 'error');
         
         // Если ошибка связана с email, обновляем подсказку
