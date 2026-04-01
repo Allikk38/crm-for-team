@@ -17,11 +17,13 @@
  * ИСТОРИЯ:
  *   - 31.03.2026: Полная переработка, добавлена группировка модулей
  *   - 31.03.2026: Исправлены ошибки с неопределенными функциями
+ *   - 02.04.2026: Исправлена ошибка getCurrentUserRole, добавлена проверка прав для админ-модуля
  * ============================================
  */
 
 import { escapeHtml } from './js/utils/helpers.js';
 import { getState, start, pause, subscribe } from './js/services/pomodoro.js';
+import { hasPermission } from './js/core/permissions.js';
 
 let sidebarCollapsed = false;
 let isInitialized = false;
@@ -101,23 +103,30 @@ const MODULE_INFO = {
 };
 
 /**
- * Получить роль текущего пользователя
+ * Получить текущего пользователя
  */
-function getCurrentUserRole() {
-    return window.currentSupabaseUser?.role || null;
+function getCurrentUser() {
+    return window.currentSupabaseUser || null;
 }
 
 /**
  * Проверить, доступен ли модуль для пользователя
  */
 function isModuleAvailable(moduleId) {
-    const userRole = getCurrentUserRole();
+    const user = getCurrentUser();
+    if (!user) return false;
+    
+    // Для админ-модуля проверяем право manage_users
+    if (moduleId === 'admin') {
+        return hasPermission('manage_users', user);
+    }
+    
+    // Для остальных пока оставляем старую логику
+    const userRole = user.role;
     const isAdmin = userRole === 'admin';
     
-    // Администратор имеет доступ ко всем модулям
     if (isAdmin) return true;
     
-    // Проверка через Registry если доступен
     if (window.CRM?.Registry) {
         return window.CRM.Registry.isModuleAvailable(moduleId);
     }
@@ -136,8 +145,8 @@ function renderSidebarMenu() {
     }
     
     const currentPath = window.location.pathname;
-    const userRole = getCurrentUserRole();
-    const isAdmin = userRole === 'admin';
+    const user = getCurrentUser();
+    const isAdmin = user?.role === 'admin';
     
     let html = '<div class="sidebar-menu">';
     

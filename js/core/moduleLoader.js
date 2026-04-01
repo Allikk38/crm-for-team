@@ -16,6 +16,7 @@
  *   - 31.03.2026: Убран navigation из core модулей
  *   - 30.03.2026: Создание универсального загрузчика
  *   - 02.04.2026: ЛЕНИВАЯ ЗАГРУЗКА ВИДЖЕТОВ - виджеты загружаются только при вызове
+ *   - 02.04.2026: Убраны глобальные объекты, чистые экспорты/импорты
  * ============================================
  */
 
@@ -210,7 +211,7 @@ const loadedWidgets = new Map();
  * @param {string} widgetName - имя виджета
  * @returns {Promise<Object|null>}
  */
-export async function loadWidget(widgetName) {
+async function loadWidget(widgetName) {
     // Проверяем кэш
     if (loadedWidgets.has(widgetName)) {
         return loadedWidgets.get(widgetName);
@@ -248,7 +249,7 @@ export async function loadWidget(widgetName) {
  * @param {string[]} widgetNames - массив имен виджетов
  * @returns {Promise<Map>}
  */
-export async function loadWidgets(widgetNames = []) {
+async function loadWidgets(widgetNames = []) {
     const results = new Map();
     
     for (const widgetName of widgetNames) {
@@ -564,5 +565,5 @@ loadModule().catch(err => {
     console.error('[moduleLoader] ❌ Ошибка загрузки страницы:', err);
 });
 
-// Экспортируем функции для использования в других модулях
+// ========== ЭКСПОРТЫ ДЛЯ МОДУЛЬНОЙ СИСТЕМЫ ==========
 export { loadWidget, loadWidgets };

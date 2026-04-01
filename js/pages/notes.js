@@ -3,13 +3,6 @@
  * ФАЙЛ: js/pages/notes.js
  * РОЛЬ: Логика страницы заметок
  * 
- * ОСОБЕННОСТИ:
- *   - CRUD операции с заметками через Supabase
- *   - Категории и закрепление заметок
- *   - Поиск по заголовку и содержимому
- *   - Простой textarea редактор
- *   - Realtime обновления через Supabase
- * 
  * ЗАВИСИМОСТИ:
  *   - js/services/notes-supabase.js
  *   - js/core/supabase-session.js
@@ -17,6 +10,8 @@
  * 
  * ИСТОРИЯ:
  *   - 31.03.2026: Исправлено закрытие модалки через display
+ *   - 02.04.2026: Исправлено сброс темы при загрузке страницы
+ *   - 02.04.2026: Убраны глобальные объекты, чистые импорты/экспорты
  * ============================================
  */
 
@@ -59,7 +54,7 @@ function closeNoteModal() {
     }
     
     modal.classList.remove('active');
-    modal.style.display = 'none';  // КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ!
+    modal.style.display = 'none';
     document.body.style.overflow = '';
     
     const idField = document.getElementById('noteId');
@@ -120,7 +115,7 @@ function openNoteModal(noteId = null) {
         setEditorContent('');
     }
     
-    modal.style.display = 'flex';  // КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ!
+    modal.style.display = 'flex';
     modal.classList.add('active');
     document.body.style.overflow = 'hidden';
     console.log('[notes] Модальное окно открыто');
@@ -348,8 +343,8 @@ async function loadNotes() {
                 <div class="empty-state">
                     <i class="fas fa-exclamation-triangle"></i>
                     <p>Ошибка загрузки заметок: ${error.message || 'Неизвестная ошибка'}</p>
-                    <button class="add-note-btn" onclick="window.notesApp?.openNoteModal()">
-                        <i class="fas fa-plus"></i> Создать заметку
+                    <button class="add-note-btn" onclick="window.location.reload()">
+                        <i class="fas fa-sync-alt"></i> Обновить
                     </button>
                 </div>
             `;
@@ -509,6 +504,27 @@ function setupRealtime() {
     }
 }
 
+// ========== ПРИНУДИТЕЛЬНАЯ УСТАНОВКА ТЕМЫ ==========
+
+function enforceTheme() {
+    const savedTheme = localStorage.getItem('crm_theme') || 'dark';
+    const root = document.documentElement;
+    const body = document.body;
+    
+    root.classList.remove('theme-dark', 'theme-light');
+    body.classList.remove('theme-dark', 'theme-light');
+    
+    if (savedTheme === 'dark') {
+        root.classList.add('theme-dark');
+        body.classList.add('theme-dark');
+    } else {
+        root.classList.add('theme-light');
+        body.classList.add('theme-light');
+    }
+    
+    console.log('[notes] Принудительно установлена тема:', savedTheme);
+}
+
 // ========== ИНИЦИАЛИЗАЦИЯ СТРАНИЦЫ ==========
 
 export async function initNotesPage() {
@@ -518,6 +534,9 @@ export async function initNotesPage() {
     }
     
     console.log('[notes] Инициализация страницы...');
+    
+    // Принудительно устанавливаем тему до любой другой инициализации
+    enforceTheme();
     
     const isAuth = await requireSupabaseAuth('../auth-supabase.html');
     if (!isAuth) return;
@@ -542,19 +561,3 @@ export async function initNotesPage() {
     isInitialized = true;
     console.log('[notes] Страница инициализирована');
 }
-
-// ========== ЭКСПОРТ ==========
-
-window.notesApp = {
-    openNoteModal,
-    closeNoteModal,
-    saveNote,
-    deleteNote,
-    togglePin
-};
-
-window.debugNotes = {
-    openModal: openNoteModal,
-    closeModal: closeNoteModal,
-    getNotes: () => notes
-};

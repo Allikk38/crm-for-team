@@ -353,5 +353,42 @@ window.CRM.Permissions = {
     getAllPermissionSets: () => ({ ...PERMISSION_SETS }),
     updatePermissionsCache: updatePermissionsCache  // 👈 ДОБАВИТЬ ЭТУ СТРОКУ
 };
+// ========== ЭКСПОРТЫ ДЛЯ МОДУЛЬНОЙ СИСТЕМЫ ==========
+export {
+    hasPermission,
+    hasAnyPermission,
+    hasAllPermissions,
+    getUserPermissions,
+    canAccessModule,
+    getAccessibleModules,
+    updatePermissionsCache
+};
+// ========== ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА ПРИ ИЗМЕНЕНИИ ПОЛЬЗОВАТЕЛЯ ==========
 
+// Функция для принудительного обновления кэша
+export function refreshUserPermissions() {
+    if (window.currentSupabaseUser) {
+        console.log('[permissions] Принудительное обновление прав пользователя');
+        updatePermissionsCache(window.currentSupabaseUser);
+        
+        // Отправляем событие о готовности прав
+        window.dispatchEvent(new CustomEvent('permissionsReady', { 
+            detail: { user: window.currentSupabaseUser, permissions: getUserPermissions() }
+        }));
+        
+        return true;
+    }
+    return false;
+}
+
+// Периодически проверяем, не изменился ли пользователь (для случаев, когда событие не сработало)
+let lastUserId = window.currentSupabaseUser?.id;
+setInterval(() => {
+    const currentUserId = window.currentSupabaseUser?.id;
+    if (currentUserId && currentUserId !== lastUserId) {
+        lastUserId = currentUserId;
+        console.log('[permissions] Обнаружено изменение пользователя, обновляем права');
+        refreshUserPermissions();
+    }
+}, 1000);
 console.log('[permissions] Модуль загружен');

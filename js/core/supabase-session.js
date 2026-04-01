@@ -16,6 +16,7 @@
  * ИСТОРИЯ ОБНОВЛЕНИЙ:
  *   - 30.03.2026: Добавлено поле permission_sets для поддержки новой системы прав
  *   - 02.04.2026: ДОБАВЛЕНО КЭШИРОВАНИЕ профиля пользователя
+ *   - 02.04.2026: ИСПРАВЛЕН порядок обновления глобальной переменной и отправки события userLoaded
  * ============================================
  */
 
@@ -98,11 +99,11 @@ export async function checkSupabaseSession(forceRefresh = false) {
                 github_username: profile?.github_username || user.email?.split('@')[0] || user.id
             };
             
-            // После установки currentSupabaseUser отправляем событие
-            window.dispatchEvent(new CustomEvent('userLoaded', { detail: currentSupabaseUser }));
-            
-            // Обновляем глобальную переменную для layout.js
+            // СНАЧАЛА обновляем глобальную переменную для layout.js
             updateGlobalUser();
+            
+            // ПОТОМ отправляем событие (теперь window.currentSupabaseUser уже актуален)
+            window.dispatchEvent(new CustomEvent('userLoaded', { detail: currentSupabaseUser }));
             
             console.log('[supabase-session] Пользователь загружен:', {
                 name: currentSupabaseUser.name,
