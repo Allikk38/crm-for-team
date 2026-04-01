@@ -329,14 +329,8 @@
             return Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
         }
         
-        function getInviteLink() {
-            const code = localStorage.getItem('team_invite_code');
-            if (!code) {
-                const newCode = generateInviteCode();
-                localStorage.setItem('team_invite_code', newCode);
-                return `${window.location.origin}/join?code=${newCode}`;
-            }
-            return `${window.location.origin}/join?code=${code}`;
+        function getInviteLink(token) {
+            return `${window.location.origin}/auth-supabase.html?invite=${token}`;
         }
         
         function loadInvites() {

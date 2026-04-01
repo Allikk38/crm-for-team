@@ -1,82 +1,114 @@
 /**
  * ============================================
  * ФАЙЛ: js/pages/auth.js
- * РОЛЬ: Логика страницы авторизации (вход/регистрация) через Supabase
- * 
- * ОСОБЕННОСТИ:
- *   - Вход по email и паролю
- *   - Регистрация нового пользователя
- *   - Автоматическое создание профиля в таблице profiles
- *   - Перенаправление на дашборд после успешного входа
- *   - Проверка существующей сессии
+ * РОЛЬ: Логика страницы авторизации с поддержкой приглашений
  * 
  * ЗАВИСИМОСТИ:
  *   - js/core/supabase.js
+ *   - js/services/team-supabase.js
  * 
  * ИСТОРИЯ:
- *   - 27.03.2026: Создание файла, вынос логики из auth-supabase.html
+ *   - 01.04.2026: Исправлено использование company_id вместо team_id
  * ============================================
  */
 
 import { supabase } from '../core/supabase.js';
+import { acceptInvite } from '../services/team-supabase.js';
 
-// Элементы DOM
-const messageDiv = document.getElementById('message');
+let currentMode = 'login';
+let inviteToken = null;
+let referralToken = null;
 
-console.log('[auth.js] Модуль загружен');
-
-// ========== ВСПОМОГАТЕЛЬНЫЕ ==========
-
-function showMessage(text, type) {
-    if (!messageDiv) return;
-    messageDiv.style.display = 'block';
-    messageDiv.className = 'message ' + type;
-    messageDiv.innerHTML = text;
-    console.log(`[auth] Сообщение: [${type}] ${text}`);
+/**
+ * Инициализация страницы авторизации
+ */
+export function initAuthPage() {
+    console.log('[auth] Инициализация страницы');
+    
+    const urlParams = new URLSearchParams(window.location.search);
+    inviteToken = urlParams.get('invite');
+    referralToken = urlParams.get('referral');
+    
+    if (inviteToken) {
+        console.log('[auth] Найден invite-токен:', inviteToken);
+        const msgDiv = document.getElementById('message');
+        if (msgDiv) {
+            msgDiv.innerHTML = `
+                <div class="message info">
+                    <i class="fas fa-users"></i> Вас пригласили в команду!
+                    Зарегистрируйтесь, чтобы присоединиться.
+                </div>
+            `;
+        }
+        showRegister();
+    }
+    
+    if (referralToken) {
+        console.log('[auth] Найден referral-токен:', referralToken);
+        const msgDiv = document.getElementById('message');
+        if (msgDiv) {
+            msgDiv.innerHTML = `
+                <div class="message info">
+                    <i class="fas fa-gift"></i> Вас пригласили по реферальной ссылке!
+                    При регистрации вы получите бонус.
+                </div>
+            `;
+        }
+        showRegister();
+    }
+    
+    window.handleLogin = handleLogin;
+    window.handleRegister = handleRegister;
+    window.showLogin = showLogin;
+    window.showRegister = showRegister;
 }
 
-// ========== ЛОГИН ==========
-
 async function handleLogin() {
-    const email = document.getElementById('email')?.value;
-    const password = document.getElementById('password')?.value;
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
     
     if (!email || !password) {
         showMessage('Заполните все поля', 'error');
         return;
     }
     
-    console.log('[auth] Попытка входа:', email);
-    showMessage('Вход...', 'info');
-    
-    const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password
-    });
-    
-    if (error) {
-        console.error('[auth] Ошибка входа:', error.message);
-        showMessage('Ошибка: ' + error.message, 'error');
-        return;
-    }
-    
-    if (data.user) {
-        console.log('[auth] Успешный вход, пользователь:', data.user.email);
-        showMessage('✅ Вход выполнен! Перенаправление...', 'success');
+    try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+            email,
+            password
+        });
+        
+        if (error) throw error;
+        
+        showMessage('Вход выполнен! Перенаправление...', 'success');
+        
+        if (inviteToken) {
+            try {
+                const result = await acceptInvite(inviteToken);
+                if (result.success) {
+                    showMessage('Вы добавлены в команду!', 'success');
+                }
+            } catch (e) {
+                console.warn('[auth] Ошибка принятия приглашения:', e);
+            }
+        }
+        
         setTimeout(() => {
-            window.location.href = 'index-supabase.html';
+            window.location.href = '/app/navigator.html';
         }, 1000);
+        
+    } catch (error) {
+        console.error('[auth] Ошибка входа:', error);
+        showMessage(error.message || 'Ошибка входа', 'error');
     }
 }
 
-// ========== РЕГИСТРАЦИЯ ==========
-
 async function handleRegister() {
-    const email = document.getElementById('reg-email')?.value;
-    const password = document.getElementById('reg-password')?.value;
-    const fullName = document.getElementById('reg-name')?.value;
+    const email = document.getElementById('reg-email').value;
+    const name = document.getElementById('reg-name').value;
+    const password = document.getElementById('reg-password').value;
     
-    if (!email || !password || !fullName) {
+    if (!email || !name || !password) {
         showMessage('Заполните все поля', 'error');
         return;
     }
@@ -86,111 +118,99 @@ async function handleRegister() {
         return;
     }
     
-    console.log('[auth] Попытка регистрации:', email);
-    showMessage('Регистрация...', 'info');
-    
-    const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-            data: { full_name: fullName }
-        }
-    });
-    
-    if (error) {
-        console.error('[auth] Ошибка регистрации:', error.message);
-        showMessage('Ошибка: ' + error.message, 'error');
-        return;
-    }
-    
-    if (data.user) {
-        console.log('[auth] Успешная регистрация, пользователь:', data.user.email);
+    try {
+        const { data: authData, error: signUpError } = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+                data: {
+                    full_name: name
+                }
+            }
+        });
         
-        // Создаем профиль в таблице profiles
+        if (signUpError) throw signUpError;
+        
+        if (!authData.user) {
+            throw new Error('Ошибка регистрации');
+        }
+        
+        // Создаем профиль
         const { error: profileError } = await supabase
             .from('profiles')
-            .insert([{
-                id: data.user.id,
+            .insert({
+                id: authData.user.id,
+                name: name,
                 email: email,
-                name: fullName,
                 role: 'agent',
-                github_username: email.split('@')[0],
-                created_at: new Date().toISOString()
-            }]);
+                github_username: email.split('@')[0]
+            });
         
         if (profileError) {
             console.error('[auth] Ошибка создания профиля:', profileError);
-            showMessage('✅ Регистрация успешна! Но профиль создан с ошибкой. Обратитесь к администратору.', 'warning');
-        } else {
-            console.log('[auth] Профиль создан для:', fullName);
         }
         
-        showMessage('✅ Регистрация успешна! Теперь войдите.', 'success');
+        // Проверяем invite-токен
+        if (inviteToken) {
+            try {
+                const result = await acceptInvite(inviteToken);
+                if (result.success) {
+                    showMessage('Вы добавлены в команду!', 'success');
+                }
+            } catch (e) {
+                console.warn('[auth] Ошибка принятия приглашения:', e);
+            }
+        }
+        
+        // Проверяем referral-токен
+        if (referralToken) {
+            try {
+                const result = await acceptInvite(referralToken);
+                if (result.success && result.bonus) {
+                    showMessage('Вы получили бонус!', 'success');
+                }
+            } catch (e) {
+                console.warn('[auth] Ошибка активации реферала:', e);
+            }
+        }
+        
+        showMessage('Регистрация успешна!', 'success');
+        
         setTimeout(() => {
-            showLogin();
+            window.location.href = '/app/navigator.html';
         }, 2000);
+        
+    } catch (error) {
+        console.error('[auth] Ошибка регистрации:', error);
+        showMessage(error.message || 'Ошибка регистрации', 'error');
     }
-}
-
-// ========== ПЕРЕКЛЮЧЕНИЕ ФОРМ ==========
-
-function showRegister() {
-    const loginForm = document.getElementById('login-form');
-    const registerForm = document.getElementById('register-form');
-    
-    if (loginForm) loginForm.style.display = 'none';
-    if (registerForm) registerForm.style.display = 'block';
-    
-    if (messageDiv) {
-        messageDiv.style.display = 'block';
-        messageDiv.className = 'message info';
-        messageDiv.innerHTML = 'Зарегистрируйтесь для доступа к системе';
-    }
-    console.log('[auth] Переключено на форму регистрации');
 }
 
 function showLogin() {
+    currentMode = 'login';
     const loginForm = document.getElementById('login-form');
     const registerForm = document.getElementById('register-form');
-    
     if (loginForm) loginForm.style.display = 'block';
     if (registerForm) registerForm.style.display = 'none';
-    
-    if (messageDiv) {
-        messageDiv.style.display = 'block';
-        messageDiv.className = 'message info';
-        messageDiv.innerHTML = 'Используйте тестовые данные:<br>Email: test@crm.com<br>Пароль: test123456';
-    }
-    console.log('[auth] Переключено на форму входа');
 }
 
-// ========== ПРОВЕРКА СЕССИИ ==========
-
-async function checkExistingSession() {
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (user) {
-        console.log('[auth] Найдена активная сессия:', user.email);
-        showMessage(`✅ Вы уже авторизованы как ${user.email}. Перенаправление...`, 'success');
-        setTimeout(() => {
-            window.location.href = 'index-supabase.html';
-        }, 1000);
-    } else {
-        console.log('[auth] Активная сессия не найдена');
-    }
+function showRegister() {
+    currentMode = 'register';
+    const loginForm = document.getElementById('login-form');
+    const registerForm = document.getElementById('register-form');
+    if (loginForm) loginForm.style.display = 'none';
+    if (registerForm) registerForm.style.display = 'block';
 }
 
-// ========== ЭКСПОРТ ГЛОБАЛЬНЫХ ФУНКЦИЙ ДЛЯ HTML ==========
-
-window.handleLogin = handleLogin;
-window.handleRegister = handleRegister;
-window.showRegister = showRegister;
-window.showLogin = showLogin;
-
-// ========== ИНИЦИАЛИЗАЦИЯ ==========
-
-export async function initAuthPage() {
-    console.log('[auth] Инициализация страницы...');
-    await checkExistingSession();
-    console.log('[auth] Инициализация завершена');
+function showMessage(text, type) {
+    const msgDiv = document.getElementById('message');
+    if (!msgDiv) return;
+    msgDiv.textContent = text;
+    msgDiv.className = `message ${type}`;
+    
+    setTimeout(() => {
+        if (msgDiv.textContent === text) {
+            msgDiv.className = 'message';
+        }
+    }, 5000);
 }

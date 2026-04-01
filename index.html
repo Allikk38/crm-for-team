@@ -47,14 +47,17 @@
             color: white;
         }
     </style>
-    <script>
+    <script type="module">
+        import { supabase } from './js/core/supabase.js';
+        
         async function checkSession() {
             try {
                 const { data: { session } } = await supabase.auth.getSession();
                 if (session) {
-                    // Перенаправляем на страницу-навигатор
+                    console.log('[index] Сессия найдена, редирект на navigator');
                     window.location.href = 'app/navigator.html';
                 } else {
+                    console.log('[index] Нет сессии, редирект на auth');
                     window.location.href = 'auth-supabase.html';
                 }
             } catch (e) {
@@ -63,13 +66,7 @@
             }
         }
         
-        import('./js/core/supabase.js').then(module => {
-            window.supabase = module.supabase;
-            checkSession();
-        }).catch(err => {
-            console.error('[index] Ошибка загрузки Supabase:', err);
-            window.location.href = 'auth-supabase.html';
-        });
+        checkSession();
     </script>
 </head>
 <body>
