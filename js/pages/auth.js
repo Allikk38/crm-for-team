@@ -6,18 +6,24 @@
  * ЗАВИСИМОСТИ:
  *   - js/core/supabase.js
  *   - js/services/team-supabase.js
+ *   - js/services/email-check.js
+ *   - js/utils/helpers.js
  * 
  * ИСТОРИЯ:
  *   - 01.04.2026: Исправлено использование company_id вместо team_id
+ *   - 02.04.2026: Добавлена клиентская валидация email, debounce, улучшена обработка ошибок
  * ============================================
  */
 
 import { supabase } from '../core/supabase.js';
 import { acceptInvite } from '../services/team-supabase.js';
+import { validateEmailForRegistration } from '../services/email-check.js';
+import { isValidEmail, formatSupabaseError, debounce } from '../utils/helpers.js';
 
 let currentMode = 'login';
 let inviteToken = null;
 let referralToken = null;
+let isRegistering = false; // Флаг для предотвращения множественных запросов
 
 /**
  * Инициализация страницы авторизации
@@ -57,14 +63,121 @@ export function initAuthPage() {
         showRegister();
     }
     
+    // Добавляем валидацию на ввод email в реальном времени
+    const regEmailInput = document.getElementById('reg-email');
+    if (regEmailInput) {
+        regEmailInput.addEventListener('input', debounce(validateEmailField, 500));
+    }
+    
     window.handleLogin = handleLogin;
     window.handleRegister = handleRegister;
     window.showLogin = showLogin;
     window.showRegister = showRegister;
 }
 
+/**
+ * Валидация поля email в реальном времени
+ */
+async function validateEmailField() {
+    const emailInput = document.getElementById('reg-email');
+    const emailHint = document.getElementById('email-hint');
+    
+    if (!emailInput || !emailHint) return;
+    
+    const email = emailInput.value.trim();
+    
+    if (email === '') {
+        emailHint.textContent = '';
+        emailInput.classList.remove('valid', 'invalid');
+        return;
+    }
+    
+    // Проверка формата
+    if (!isValidEmail(email)) {
+        emailHint.textContent = '❌ Неверный формат email';
+        emailHint.style.color = '#c33';
+        emailInput.classList.remove('valid');
+        emailInput.classList.add('invalid');
+        return;
+    }
+    
+    // Проверка существования email
+    emailHint.textContent = '⏳ Проверка...';
+    emailHint.style.color = '#666';
+    
+    const { valid, message } = await validateEmailForRegistration(email);
+    
+    if (valid) {
+        emailHint.textContent = '✅ Email доступен';
+        emailHint.style.color = '#3c6';
+        emailInput.classList.remove('invalid');
+        emailInput.classList.add('valid');
+    } else {
+        emailHint.textContent = `❌ ${message}`;
+        emailHint.style.color = '#c33';
+        emailInput.classList.remove('valid');
+        emailInput.classList.add('invalid');
+    }
+}
+
+/**
+ * Установка состояния кнопки регистрации
+ * @param {boolean} disabled - заблокировать или разблокировать
+ * @param {string} text - текст на кнопке
+ */
+function setRegisterButtonState(disabled, text = null) {
+    const btn = document.getElementById('register-btn');
+    if (!btn) return;
+    
+    if (disabled) {
+        btn.disabled = true;
+        btn.dataset.originalText = btn.textContent;
+        btn.textContent = text || '⏳ Регистрация...';
+        btn.style.opacity = '0.6';
+        btn.style.cursor = 'not-allowed';
+    } else {
+        btn.disabled = false;
+        btn.textContent = btn.dataset.originalText || 'Зарегистрироваться';
+        btn.style.opacity = '1';
+        btn.style.cursor = 'pointer';
+    }
+}
+
+/**
+ * Валидация формы регистрации
+ * @returns {Promise<{valid: boolean, message: string|null}>}
+ */
+async function validateRegisterForm() {
+    const email = document.getElementById('reg-email').value.trim();
+    const name = document.getElementById('reg-name').value.trim();
+    const password = document.getElementById('reg-password').value;
+    
+    // Проверка на пустые поля
+    if (!email || !name || !password) {
+        return { valid: false, message: 'Заполните все поля' };
+    }
+    
+    // Проверка длины пароля
+    if (password.length < 6) {
+        return { valid: false, message: 'Пароль должен быть не менее 6 символов' };
+    }
+    
+    // Проверка email
+    if (!isValidEmail(email)) {
+        return { valid: false, message: 'Введите корректный email (например, name@domain.com)' };
+    }
+    
+    // Проверка существования email
+    const { valid, message } = await validateEmailForRegistration(email);
+    if (!valid) {
+        return { valid: false, message };
+    }
+    
+    return { valid: true, message: null };
+}
+
 async function handleLogin() {
-    const email = document.getElementById('email').value;
+    const email = document.getElementById('email').value.trim();
     const password = document.getElementById('password').value;
     
     if (!email || !password) {
@@ -99,24 +212,31 @@ async function handleLogin() {
         
     } catch (error) {
         console.error('[auth] Ошибка входа:', error);
-        showMessage(error.message || 'Ошибка входа', 'error');
+        const userMessage = formatSupabaseError(error);
+        showMessage(userMessage, 'error');
     }
 }
 
 async function handleRegister() {
-    const email = document.getElementById('reg-email').value;
-    const name = document.getElementById('reg-name').value;
+    // Защита от множественных запросов
+    if (isRegistering) {
+        console.log('[auth] Регистрация уже выполняется, игнорирую повторный клик');
+        return;
+    }
+    
+    // Валидация формы перед отправкой
+    const validation = await validateRegisterForm();
+    if (!validation.valid) {
+        showMessage(validation.message, 'error');
+        return;
+    }
+    
+    const email = document.getElementById('reg-email').value.trim();
+    const name = document.getElementById('reg-name').value.trim();
     const password = document.getElementById('reg-password').value;
     
-    if (!email || !name || !password) {
-        showMessage('Заполните все поля', 'error');
-        return;
-    }
-    
-    if (password.length < 6) {
-        showMessage('Пароль должен быть не менее 6 символов', 'error');
-        return;
-    }
+    isRegistering = true;
+    setRegisterButtonState(true);
     
     try {
         const { data: authData, error: signUpError } = await supabase.auth.signUp({
@@ -148,6 +268,7 @@ async function handleRegister() {
         
         if (profileError) {
             console.error('[auth] Ошибка создания профиля:', profileError);
+            // Не прерываем регистрацию, профиль может создаться через триггер
         }
         
         // Проверяем invite-токен
@@ -174,7 +295,7 @@ async function handleRegister() {
             }
         }
         
-        showMessage('Регистрация успешна!', 'success');
+        showMessage('Регистрация успешна! Перенаправление...', 'success');
         
         setTimeout(() => {
             window.location.href = '/app/navigator.html';
@@ -182,7 +303,23 @@ async function handleRegister() {
         
     } catch (error) {
         console.error('[auth] Ошибка регистрации:', error);
-        showMessage(error.message || 'Ошибка регистрации', 'error');
+        const userMessage = formatSupabaseError(error);
+        showMessage(userMessage, 'error');
+        
+        // Если ошибка связана с email, обновляем подсказку
+        if (userMessage.includes('email уже зарегистрирован') || 
+            userMessage.includes('корректный email')) {
+            const emailInput = document.getElementById('reg-email');
+            const emailHint = document.getElementById('email-hint');
+            if (emailInput && emailHint) {
+                emailHint.textContent = `❌ ${userMessage}`;
+                emailHint.style.color = '#c33';
+                emailInput.classList.add('invalid');
+            }
+        }
+    } finally {
+        isRegistering = false;
+        setRegisterButtonState(false);
     }
 }
 

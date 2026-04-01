@@ -9,6 +9,7 @@
  * ИСТОРИЯ:
  *   - 30.03.2026: Добавлены экспорты для модульной архитектуры
  *   - 30.03.2026: Полный переход на модульную загрузку
+ *   - 02.04.2026: Добавлены функции isValidEmail и formatSupabaseError
  * ============================================
  */
 
@@ -136,8 +137,65 @@ export function debounce(func, wait) {
     };
 }
 
-// ========== ГЛОБАЛЬНАЯ РЕГИСТРАЦИЯ ДЛЯ ОБРАТНОЙ СОВМЕСТИМОСТИ ==========
-// Это нужно для скриптов, которые еще не переведены на модули
+// ========== ФУНКЦИИ ВАЛИДАЦИИ ==========
+
+/**
+ * Проверка корректности формата email
+ * @param {string} email - email для проверки
+ * @returns {boolean} - true если формат корректный
+ */
+export function isValidEmail(email) {
+    if (!email || typeof email !== 'string') return false;
+    
+    // Стандартный regex для валидации email
+    // Допускает: латиницу, цифры, точки, дефисы, плюсы в локальной части
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    return emailRegex.test(email.trim());
+}
+
+/**
+ * Преобразование ошибки Supabase в понятное пользовательское сообщение
+ * @param {Error|Object} error - ошибка от Supabase
+ * @returns {string} - понятное сообщение для пользователя
+ */
+export function formatSupabaseError(error) {
+    if (!error) return 'Неизвестная ошибка';
+    
+    const message = error.message || '';
+    const status = error.status;
+    
+    // Обработка по кодам и тексту ошибки
+    if (message.includes('User already registered') || 
+        message.includes('already registered') ||
+        message.includes('email already exists')) {
+        return 'Этот email уже зарегистрирован. Попробуйте войти или восстановить пароль.';
+    }
+    
+    if (message.includes('invalid email') || 
+        message.includes('Invalid email')) {
+        return 'Введите корректный email (например, name@domain.com)';
+    }
+    
+    if (message.includes('rate limit') || 
+        message.includes('too many requests') ||
+        status === 429) {
+        return 'Слишком много попыток. Подождите минуту и попробуйте снова.';
+    }
+    
+    if (message.includes('password') && message.includes('6')) {
+        return 'Пароль должен содержать не менее 6 символов.';
+    }
+    
+    if (message.includes('validation') || 
+        message.includes('Invalid')) {
+        return 'Проверьте правильность заполнения формы.';
+    }
+    
+    // Для остальных ошибок возвращаем стандартное сообщение
+    return message || 'Ошибка при выполнении запроса. Попробуйте позже.';
+}
+
+// Обновляем глобальную регистрацию для обратной совместимости
 if (typeof window !== 'undefined') {
     window.CRM = window.CRM || {};
     window.CRM.helpers = {
@@ -149,13 +207,12 @@ if (typeof window !== 'undefined') {
         getUserRoleText,
         getDealStatusText,
         generateId,
-        debounce
+        debounce,
+        isValidEmail,
+        formatSupabaseError
     };
     
-    // Для обратной совместимости со старым кодом
-    window.escapeHtml = escapeHtml;
-    window.formatDate = formatDate;
-    window.showToast = showToast;
+    // Для обратной совместимости
+    window.isValidEmail = isValidEmail;
+    window.formatSupabaseError = formatSupabaseError;
 }
-
-// console.log('[helpers.js] Загружены вспомогательные функции (модульная версия)'); // DEBUG removed
