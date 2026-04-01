@@ -6,14 +6,17 @@
  * ЗАВИСИМОСТИ:
  *   - js/core/supabase.js
  *   - js/core/supabase-session.js
+ *   - js/services/cache-service.js
  * 
  * ИСТОРИЯ:
  *   - 01.04.2026: Исправлено использование companies вместо teams
+ *   - 02.04.2026: ДОБАВЛЕНО КЭШИРОВАНИЕ для getUserCompany и getCompanyMembers
  * ============================================
  */
 
 import { supabase } from '../core/supabase.js';
 import { getCurrentSupabaseUser } from '../core/supabase-session.js';
+import cacheService from './cache-service.js';
 
 /**
  * Создать новую компанию (для пользователя без команды)
@@ -45,15 +48,26 @@ export async function createCompany(name, slug = null) {
     
     if (profileError) throw profileError;
     
+    // Инвалидируем кэш после создания компании
+    cacheService.invalidate('user_company', 'all');
+    cacheService.invalidate(`company_members_${company.id}`, 'all');
+    
     return company;
 }
 
 /**
- * Получить компанию пользователя
+ * Получить компанию пользователя (с кэшированием)
+ * @param {boolean} forceRefresh - принудительно обновить кэш
  */
-export async function getUserCompany() {
+export async function getUserCompany(forceRefresh = false) {
     const user = getCurrentSupabaseUser();
     if (!user) return null;
+    
+    // Пытаемся получить из кэша
+    if (!forceRefresh) {
+        const cached = cacheService.get('user_company', 'session');
+        if (cached) return cached;
+    }
     
     // Получаем профиль с company_id
     const { data: profile, error: profileError } = await supabase
@@ -72,20 +86,42 @@ export async function getUserCompany() {
         .single();
     
     if (companyError) throw companyError;
+    
+    // Сохраняем в кэш (TTL 30 минут = 1800 секунд)
+    cacheService.set('user_company', company, { ttl: 1800, storage: 'session' });
+    
     return company;
 }
 
 /**
- * Получить участников компании
+ * Получить участников компании (с кэшированием)
+ * @param {number|string} companyId - ID компании
+ * @param {boolean} forceRefresh - принудительно обновить кэш
  */
-export async function getCompanyMembers(companyId) {
+export async function getCompanyMembers(companyId, forceRefresh = false) {
+    if (!companyId) return [];
+    
+    const cacheKey = `company_members_${companyId}`;
+    
+    // Пытаемся получить из кэша
+    if (!forceRefresh) {
+        const cached = cacheService.get(cacheKey, 'session');
+        if (cached) return cached;
+    }
+    
     const { data, error } = await supabase
         .from('profiles')
         .select('id, name, role, email, github_username')
         .eq('company_id', companyId);
     
     if (error) throw error;
-    return data || [];
+    
+    const members = data || [];
+    
+    // Сохраняем в кэш (TTL 5 минут = 300 секунд, участники могут меняться чаще)
+    cacheService.set(cacheKey, members, { ttl: 300, storage: 'session' });
+    
+    return members;
 }
 
 /**
@@ -206,6 +242,10 @@ export async function acceptInvite(token) {
                 accepted_at: new Date().toISOString()
             })
             .eq('id', invite.id);
+        
+        // Инвалидируем кэш компании и участников
+        cacheService.invalidate('user_company', 'all');
+        cacheService.invalidate(`company_members_${invite.company_id}`, 'all');
         
         return { success: true, companyId: invite.company_id };
     }

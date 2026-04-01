@@ -4,6 +4,7 @@
  * РОЛЬ: Управление сессией Supabase (параллельно с существующей auth.js)
  * ЗАВИСИМОСТИ:
  *   - js/core/supabase.js
+ *   - js/services/cache-service.js
  * ============================================
  * 
  * ВНИМАНИЕ: Этот файл НЕ заменяет существующий auth.js
@@ -14,12 +15,14 @@
  * 
  * ИСТОРИЯ ОБНОВЛЕНИЙ:
  *   - 30.03.2026: Добавлено поле permission_sets для поддержки новой системы прав
+ *   - 02.04.2026: ДОБАВЛЕНО КЭШИРОВАНИЕ профиля пользователя
  * ============================================
  */
 
 import { supabase } from './supabase.js';
+import cacheService from '../services/cache-service.js';
 
-// Текущий пользователь Supabase
+// Текущий пользователь Supabase (кэш в памяти)
 let currentSupabaseUser = null;
 
 // Глобальная переменная для layout.js
@@ -33,11 +36,22 @@ function updateGlobalUser() {
 }
 
 /**
- * Загрузить профиль пользователя из таблицы profiles
+ * Загрузить профиль пользователя из таблицы profiles (с кэшированием)
  * @param {string} userId - ID пользователя
+ * @param {boolean} forceRefresh - принудительно обновить кэш
  * @returns {Promise<Object|null>}
  */
-async function loadUserProfile(userId) {
+async function loadUserProfile(userId, forceRefresh = false) {
+    const cacheKey = `user_profile_${userId}`;
+    
+    // Пытаемся получить из кэша
+    if (!forceRefresh) {
+        const cached = cacheService.get(cacheKey, 'session');
+        if (cached) {
+            return cached;
+        }
+    }
+    
     try {
         const { data, error } = await supabase
             .from('profiles')
@@ -50,6 +64,11 @@ async function loadUserProfile(userId) {
             return null;
         }
         
+        // Сохраняем в кэш (TTL 30 минут = 1800 секунд)
+        if (data) {
+            cacheService.set(cacheKey, data, { ttl: 1800, storage: 'session' });
+        }
+        
         return data;
     } catch (error) {
         console.error('[supabase-session] Ошибка загрузки профиля:', error);
@@ -59,22 +78,23 @@ async function loadUserProfile(userId) {
 
 /**
  * Проверить текущую сессию Supabase
+ * @param {boolean} forceRefresh - принудительно обновить кэш
  * @returns {Promise<Object|null>} Пользователь или null
  */
-export async function checkSupabaseSession() {
+export async function checkSupabaseSession(forceRefresh = false) {
     try {
         const { data: { user } } = await supabase.auth.getUser();
         
         if (user) {
-            // Загружаем профиль из таблицы profiles
-            const profile = await loadUserProfile(user.id);
+            // Загружаем профиль из таблицы profiles (с кэшированием)
+            const profile = await loadUserProfile(user.id, forceRefresh);
             
             currentSupabaseUser = {
                 id: user.id,
                 email: user.email,
                 name: profile?.name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Пользователь',
                 role: profile?.role || 'agent',
-                permission_sets: profile?.permission_sets || ['BASE'], // НОВОЕ ПОЛЕ для системы прав
+                permission_sets: profile?.permission_sets || ['BASE'],
                 github_username: profile?.github_username || user.email?.split('@')[0] || user.id
             };
             
@@ -110,10 +130,32 @@ export function getCurrentSupabaseUser() {
 }
 
 /**
- * Выход из Supabase
+ * Обновить профиль пользователя (инвалидировать кэш и перезагрузить)
+ * @returns {Promise<Object|null>}
+ */
+export async function refreshUserProfile() {
+    const userId = currentSupabaseUser?.id;
+    if (!userId) return null;
+    
+    // Инвалидируем кэш
+    const cacheKey = `user_profile_${userId}`;
+    cacheService.invalidate(cacheKey, 'all');
+    
+    // Перезагружаем сессию
+    return await checkSupabaseSession(true);
+}
+
+/**
+ * Выход из Supabase (очищает кэш профиля)
  */
 export async function logoutFromSupabase() {
     try {
+        // Очищаем кэш пользователя
+        if (currentSupabaseUser?.id) {
+            const cacheKey = `user_profile_${currentSupabaseUser.id}`;
+            cacheService.invalidate(cacheKey, 'all');
+        }
+        
         await supabase.auth.signOut();
         currentSupabaseUser = null;
         updateGlobalUser();

@@ -9,13 +9,18 @@
  *   - Регистрирует модули в Registry с полными метаданными
  *   - Инициализирует страницу через реестр модулей
  *   - Ждет загрузки пользователя перед проверкой прав
+ *   - ЛЕНИВАЯ ЗАГРУЗКА ВИДЖЕТОВ (загружаются только при необходимости)
  * 
  * ИСТОРИЯ:
  *   - 31.03.2026: Добавлена регистрация модулей с метаданными
  *   - 31.03.2026: Убран navigation из core модулей
  *   - 30.03.2026: Создание универсального загрузчика
+ *   - 02.04.2026: ЛЕНИВАЯ ЗАГРУЗКА ВИДЖЕТОВ - виджеты загружаются только при вызове
  * ============================================
  */
+
+import { checkSupabaseSession, getCurrentSupabaseUser } from './supabase-session.js';
+import { supabase } from './supabase.js';
 
 console.log('[moduleLoader] Универсальный загрузчик модулей');
 
@@ -154,7 +159,7 @@ const MODULE_METADATA = {
         requiredRoles: ['admin']
     },
     
-    // Дополнительные модули (будут добавлены позже)
+    // Дополнительные модули
     'analytics': {
         name: 'Аналитика',
         icon: 'fa-chart-line',
@@ -197,14 +202,68 @@ const MODULE_METADATA = {
     }
 };
 
-// ========== РЕГИСТРАЦИЯ МОДУЛЯ ==========
+// ========== КЭШ ЗАГРУЖЕННЫХ ВИДЖЕТОВ ==========
+const loadedWidgets = new Map();
 
-async function registerModuleWithMetadata(moduleId) {
-    if (!window.CRM?.Registry) {
-        console.warn(`[moduleLoader] Registry не загружен, пропускаем регистрацию ${moduleId}`);
-        return false;
+/**
+ * Ленивая загрузка виджета по имени
+ * @param {string} widgetName - имя виджета
+ * @returns {Promise<Object|null>}
+ */
+export async function loadWidget(widgetName) {
+    // Проверяем кэш
+    if (loadedWidgets.has(widgetName)) {
+        return loadedWidgets.get(widgetName);
     }
     
+    const widgetMap = {
+        'MyTasksWidget': () => import('../components/widgets/my-tasks-widget.js'),
+        'KpiSummaryWidget': () => import('../components/widgets/kpi-summary-widget.js'),
+        'ProjectProgressWidget': () => import('../components/widgets/project-progress-widget.js'),
+        'WelcomeWidget': () => import('../components/widgets/welcome-widget.js'),
+        'AgentRankingWidget': () => import('../components/widgets/agent-ranking-widget.js'),
+        'TeamAnalyticsWidget': () => import('../components/widgets/team-analytics-widget.js')
+    };
+    
+    const loader = widgetMap[widgetName];
+    if (!loader) {
+        console.warn(`[moduleLoader] Виджет ${widgetName} не найден`);
+        return null;
+    }
+    
+    try {
+        const module = await loader();
+        const widget = module.default || module[widgetName];
+        loadedWidgets.set(widgetName, widget);
+        console.log(`[moduleLoader] ✅ Виджет ${widgetName} загружен лениво`);
+        return widget;
+    } catch (error) {
+        console.error(`[moduleLoader] ❌ Ошибка загрузки виджета ${widgetName}:`, error);
+        return null;
+    }
+}
+
+/**
+ * Загрузить все виджеты для страницы (только те, что нужны)
+ * @param {string[]} widgetNames - массив имен виджетов
+ * @returns {Promise<Map>}
+ */
+export async function loadWidgets(widgetNames = []) {
+    const results = new Map();
+    
+    for (const widgetName of widgetNames) {
+        const widget = await loadWidget(widgetName);
+        if (widget) {
+            results.set(widgetName, widget);
+        }
+    }
+    
+    return results;
+}
+
+// ========== РЕГИСТРАЦИЯ МОДУЛЯ ==========
+
+async function registerModuleWithMetadata(moduleId, registry, permissions) {
     const metadata = MODULE_METADATA[moduleId];
     if (!metadata) {
         console.warn(`[moduleLoader] Нет метаданных для модуля ${moduleId}`);
@@ -212,8 +271,9 @@ async function registerModuleWithMetadata(moduleId) {
     }
     
     // Получаем права пользователя для проверки доступности
-    const userRole = window.currentSupabaseUser?.role;
-    const userPermissions = window.CRM.Permissions?.getUserPermissions() || [];
+    const user = getCurrentSupabaseUser();
+    const userRole = user?.role;
+    const userPermissions = permissions?.getUserPermissions?.() || [];
     const isAdmin = userRole === 'admin';
     
     // Проверяем доступность модуля
@@ -258,7 +318,7 @@ async function registerModuleWithMetadata(moduleId) {
         }
     };
     
-    const result = window.CRM.Registry.registerModule(moduleDef);
+    const result = registry.registerModule(moduleDef);
     
     if (result) {
         console.log(`[moduleLoader] ✅ Модуль ${moduleId} зарегистрирован (${metadata.name}, ${metadata.category})`);
@@ -269,14 +329,14 @@ async function registerModuleWithMetadata(moduleId) {
 
 // ========== ЗАГРУЗКА МОДУЛЕЙ ==========
 
-async function loadAndRegisterModules() {
+async function loadAndRegisterModules(registry, permissions) {
     console.log('[moduleLoader] Загрузка и регистрация модулей...');
     
     // Регистрируем все модули из метаданных
     const moduleIds = Object.keys(MODULE_METADATA);
     
     for (const moduleId of moduleIds) {
-        await registerModuleWithMetadata(moduleId);
+        await registerModuleWithMetadata(moduleId, registry, permissions);
     }
     
     // Дополнительно загружаем модули из папки modules (если есть)
@@ -286,14 +346,14 @@ async function loadAndRegisterModules() {
         try {
             const module = await import(`../modules/${moduleId}/index.js`);
             const moduleVar = module.default || module[`${moduleId}Module`];
-            if (moduleVar && window.CRM?.Registry) {
+            if (moduleVar && registry) {
                 // Обогащаем метаданными, если их нет
                 if (!moduleVar.category) {
                     moduleVar.category = MODULE_METADATA[moduleId]?.category || 'other';
                     moduleVar.icon = MODULE_METADATA[moduleId]?.icon || 'fa-puzzle-piece';
                     moduleVar.order = MODULE_METADATA[moduleId]?.order || 500;
                 }
-                window.CRM.Registry.registerModule(moduleVar);
+                registry.registerModule(moduleVar);
                 console.log(`[moduleLoader] ✅ Модуль ${moduleId} зарегистрирован из папки modules`);
             }
         } catch (error) {
@@ -303,34 +363,6 @@ async function loadAndRegisterModules() {
     }
     
     console.log('[moduleLoader] Регистрация модулей завершена');
-}
-
-// ========== ИНИЦИАЛИЗАЦИЯ СТРАНИЦЫ ==========
-
-async function initPage(moduleId, pageName) {
-    if (moduleId && MODULE_INIT[moduleId]) {
-        try {
-            // Пытаемся загрузить модуль через Registry
-            if (window.CRM?.Registry) {
-                await window.CRM.Registry.loadModule(moduleId);
-            }
-            
-            // Вызываем инициализацию страницы
-            await MODULE_INIT[moduleId]();
-        } catch (error) {
-            console.warn(`[moduleLoader] Ошибка загрузки модуля ${moduleId}:`, error);
-            if (MODULE_INIT[moduleId]) {
-                await MODULE_INIT[moduleId]();
-            }
-        }
-    } else {
-        const initName = pageName.replace('-supabase.html', '').replace('.html', '');
-        if (MODULE_INIT[initName]) {
-            await MODULE_INIT[initName]();
-        } else {
-            console.warn(`[moduleLoader] Нет инициализатора для ${pageName}`);
-        }
-    }
 }
 
 // ========== МАППИНГ СТРАНИЦ НА МОДУЛИ ==========
@@ -352,7 +384,6 @@ const PAGE_TO_MODULE = {
     'notes.html': 'notes',
     'habits.html': 'habits',
     'pomodoro.html': 'pomodoro',
-    // Старые названия для обратной совместимости
     'tasks-supabase.html': 'tasks',
     'deals-supabase.html': 'deals',
     'complexes-supabase.html': 'complexes',
@@ -381,7 +412,7 @@ const MODULE_INIT = {
     'team': () => import('../pages/team.js').then(m => m.initTeamPage()),
     'marketplace': () => import('../pages/marketplace.js').then(m => m.initMarketplacePage()),
     'my-modules': () => import('../pages/my-modules.js').then(m => m.initMyModulesPage()),
-'notes': () => import('../pages/notes.js').then(m => m.initNotesPage()),
+    'notes': () => import('../pages/notes.js').then(m => m.initNotesPage()),
     'habits': () => import('../pages/habits.js').then(m => m.initHabitsPage()),
     'pomodoro': () => import('../pages/pomodoro.js').then(m => m.initPomodoroPage())
 };
@@ -394,36 +425,44 @@ function getCurrentPage() {
     return filename;
 }
 
-async function loadUser() {
-    try {
-        const { checkSupabaseSession } = await import('./supabase-session.js');
-        await checkSupabaseSession();
-        console.log('[moduleLoader] Пользователь загружен:', window.currentSupabaseUser?.name);
-        return true;
-    } catch (error) {
-        console.error('[moduleLoader] Ошибка загрузки пользователя:', error);
-        return false;
+async function initPage(moduleId, pageName) {
+    if (moduleId && MODULE_INIT[moduleId]) {
+        try {
+            await MODULE_INIT[moduleId]();
+        } catch (error) {
+            console.warn(`[moduleLoader] Ошибка загрузки модуля ${moduleId}:`, error);
+        }
+    } else {
+        const initName = pageName.replace('-supabase.html', '').replace('.html', '');
+        if (MODULE_INIT[initName]) {
+            await MODULE_INIT[initName]();
+        } else {
+            console.warn(`[moduleLoader] Нет инициализатора для ${pageName}`);
+        }
     }
 }
 
 async function loadCoreModules() {
     const coreModules = [
-        'supabase',
-        'eventBus',
-        'planManager',
-        'permissions',
-        'registry'
-        // navigator не загружаем как core - он будет загружаться на странице
+        './eventBus.js',
+        './permissions.js',
+        './registry.js'
     ];
     
-    for (const module of coreModules) {
+    const loaded = {};
+    
+    for (const modulePath of coreModules) {
         try {
-            await import(`./${module}.js`);
-            console.log(`[moduleLoader] ✅ Core модуль ${module} загружен`);
+            const module = await import(modulePath);
+            const name = modulePath.split('/').pop().replace('.js', '');
+            loaded[name] = module;
+            console.log(`[moduleLoader] ✅ Core модуль ${name} загружен`);
         } catch (error) {
-            console.error(`[moduleLoader] ❌ Ошибка загрузки core модуля ${module}:`, error);
+            console.error(`[moduleLoader] ❌ Ошибка загрузки core модуля ${modulePath}:`, error);
         }
     }
+    
+    return loaded;
 }
 
 async function loadServices() {
@@ -435,41 +474,11 @@ async function loadServices() {
     for (const service of services) {
         try {
             await import(service);
-            console.log(`[moduleLoader] ✅ Сервис ${service} загружен`);
+            console.log(`[moduleLoader] ✅ Сервис ${service.split('/').pop()} загружен`);
         } catch (error) {
             console.error(`[moduleLoader] ❌ Ошибка загрузки ${service}:`, error);
         }
     }
-}
-
-async function loadWidgets() {
-    console.log('[moduleLoader] Загрузка виджетов...');
-    
-    if (typeof window !== 'undefined') {
-        window.CRM = window.CRM || {};
-        window.CRM.Widgets = window.CRM.Widgets || {};
-    }
-    
-    const widgets = [
-        { name: 'MyTasksWidget', path: '../components/widgets/my-tasks-widget.js' },
-        { name: 'KpiSummaryWidget', path: '../components/widgets/kpi-summary-widget.js' },
-        { name: 'ProjectProgressWidget', path: '../components/widgets/project-progress-widget.js' },
-        { name: 'WelcomeWidget', path: '../components/widgets/welcome-widget.js' },
-        { name: 'AgentRankingWidget', path: '../components/widgets/agent-ranking-widget.js' },
-        { name: 'TeamAnalyticsWidget', path: '../components/widgets/team-analytics-widget.js' }
-    ];
-    
-    for (const widget of widgets) {
-        try {
-            const module = await import(widget.path);
-            window.CRM.Widgets[widget.name] = module.default;
-            console.log(`[moduleLoader] ✅ Виджет ${widget.name} загружен`);
-        } catch (error) {
-            console.error(`[moduleLoader] ❌ Ошибка загрузки виджета ${widget.name}:`, error);
-        }
-    }
-    
-    console.log('[moduleLoader] Виджеты загружены, доступно:', Object.keys(window.CRM.Widgets || {}).length);
 }
 
 async function loadComponents() {
@@ -504,7 +513,7 @@ async function loadModule() {
         console.error('[moduleLoader] ❌ Ошибка загрузки animations:', error);
     }
     
-    // Загружаем helpers (необходим для других модулей)
+    // Загружаем helpers
     try {
         await import('../utils/helpers.js');
         console.log('[moduleLoader] ✅ helpers загружен');
@@ -513,24 +522,22 @@ async function loadModule() {
     }
     
     // Загружаем core модули
-    await loadCoreModules();
-    
-    // Ждем инициализации CRM
-    let attempts = 0;
-    while (!window.CRM && attempts < 50) {
-        await new Promise(r => setTimeout(r, 100));
-        attempts++;
-    }
+    const core = await loadCoreModules();
+    const eventBus = core.eventBus?.default || core.eventBus;
+    const permissions = core.permissions?.default || core.permissions;
+    const registry = core.registry?.default || core.registry;
     
     // Загружаем пользователя
-    const userLoaded = await loadUser();
-    if (!userLoaded) {
+    const user = await checkSupabaseSession();
+    if (!user) {
         console.error('[moduleLoader] Пользователь не загружен');
         return;
     }
     
     // Регистрируем модули
-    await loadAndRegisterModules();
+    if (registry) {
+        await loadAndRegisterModules(registry, permissions);
+    }
     
     // Загружаем сервисы
     await loadServices();
@@ -538,8 +545,8 @@ async function loadModule() {
     // Загружаем компоненты
     await loadComponents();
     
-    // Загружаем виджеты
-    await loadWidgets();
+    // ВИДЖЕТЫ НЕ ЗАГРУЖАЕМ АВТОМАТИЧЕСКИ
+    // Они будут загружены через loadWidget() или loadWidgets() при необходимости
     
     // Инициализируем страницу
     await initPage(moduleId, pageName);
@@ -547,8 +554,8 @@ async function loadModule() {
     console.log(`[moduleLoader] ✅ Страница ${pageName} загружена`);
     
     // Отправляем событие о загрузке страницы
-    if (window.CRM?.EventBus) {
-        window.CRM.EventBus.emit('page:loaded', { page: pageName, module: moduleId });
+    if (eventBus) {
+        eventBus.emit('page:loaded', { page: pageName, module: moduleId });
     }
 }
 
@@ -556,3 +563,6 @@ async function loadModule() {
 loadModule().catch(err => {
     console.error('[moduleLoader] ❌ Ошибка загрузки страницы:', err);
 });
+
+// Экспортируем функции для использования в других модулях
+export { loadWidget, loadWidgets };

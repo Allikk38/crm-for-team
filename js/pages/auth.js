@@ -8,12 +8,14 @@
  *   - js/services/team-supabase.js
  *   - js/services/email-check.js
  *   - js/utils/helpers.js
+ *   - js/services/cache-service.js (для очистки кэша)
  * 
  * ИСТОРИЯ:
  *   - 01.04.2026: Исправлено использование company_id вместо team_id
  *   - 02.04.2026: Добавлена клиентская валидация email, debounce, улучшена обработка ошибок
  *   - 02.04.2026: ДОБАВЛЕН RATE LIMITING для защиты от 429 ошибок
  *   - 02.04.2026: ДОБАВЛЕНА ОЧИСТКА КЭША EMAIL при успешной регистрации
+ *   - 02.04.2026: ДОБАВЛЕНА ОЧИСТКА КЭША ПРОФИЛЯ при успешной регистрации
  * ============================================
  */
 
@@ -21,6 +23,7 @@ import { supabase } from '../core/supabase.js';
 import { acceptInvite } from '../services/team-supabase.js';
 import { validateEmailForRegistration, clearEmailCache } from '../services/email-check.js';
 import { isValidEmail, formatSupabaseError, debounce } from '../utils/helpers.js';
+import cacheService from '../services/cache-service.js';
 
 let currentMode = 'login';
 let inviteToken = null;
@@ -332,9 +335,14 @@ async function handleRegister() {
         
         if (signUpError) throw signUpError;
         
-        // УСПЕШНАЯ РЕГИСТРАЦИЯ - очищаем историю попыток и кэш email
+        // УСПЕШНАЯ РЕГИСТРАЦИЯ - очищаем историю попыток, кэш email и кэш профиля
         localStorage.removeItem('crm_registration_attempts');
         clearEmailCache(email);
+        
+        // Очищаем кэш профиля для нового пользователя (на всякий случай)
+        if (authData.user?.id) {
+            cacheService.invalidate(`user_profile_${authData.user.id}`, 'all');
+        }
         
         if (!authData.user) {
             throw new Error('Ошибка регистрации');
