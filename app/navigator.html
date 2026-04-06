@@ -1,421 +1,627 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+/**
+ * ============================================
+ * ФАЙЛ: layout.js
+ * РОЛЬ: Управление боковой навигационной панелью с группировкой модулей
+ * 
+ * ОСОБЕННОСТИ:
+ *   - Автоматическая группировка модулей из реестра
+ *   - Категории: Основные, Бизнес, Личное, Инструменты, Управление
+ *   - Вложенные подгруппы для бизнес-модулей
+ *   - Сохранение состояния сворачивания
+ *   - Адаптивное мобильное меню
+ * 
+ * ЗАВИСИМОСТИ:
+ *   - js/core/permissions.js (для проверки прав)
+ *   - js/utils/helpers.js (escapeHtml)
+ *   - js/services/pomodoro.js (виджет помодоро)
+ * 
+ * ИСТОРИЯ:
+ *   - 31.03.2026: Полная переработка, добавлена группировка модулей
+ *   - 31.03.2026: Исправлены ошибки с неопределенными функциями
+ *   - 02.04.2026: Исправлена ошибка getCurrentUserRole, добавлена проверка прав для админ-модуля
+ *   - 06.04.2026: Добавлена поддержка GitHub Pages через определение базового пути
+ *   - 06.04.2026: Полный переход на импорты, убраны глобальные объекты
+ * ============================================
+ */
+
+import { escapeHtml } from './js/utils/helpers.js';
+import { getState, start, pause, subscribe } from './js/services/pomodoro.js';
+import { hasPermission } from './js/core/permissions.js';
+
+let sidebarCollapsed = false;
+let isInitialized = false;
+
+// ========== ОПРЕДЕЛЕНИЕ БАЗОВОГО ПУТИ ДЛЯ GITHUB PAGES ==========
+function getBasePath() {
+    // Получаем путь к текущему файлу
+    const currentPath = window.location.pathname;
     
-    <!-- 
-    ============================================
-    ФАЙЛ: app/navigator.html
-    РОЛЬ: Главная страница-навигатор (обзор всех модулей)
+    // Проверяем, запущено ли на GitHub Pages (в пути есть /crm-for-team/)
+    if (currentPath.includes('/crm-for-team/')) {
+        return '/crm-for-team';
+    }
     
-    ОСОБЕННОСТИ:
-      - Визуальная навигация по всем модулям
-      - Карточки с метриками
-      - Превью продвинутых модулей
-      - Быстрый поиск
-      - Адаптивная сетка
-      - Использует единый мини-сайдбар из layout.js
-    ============================================
-    -->
+    // Локальная разработка или корень
+    return '';
+}
+
+const BASE_PATH = getBasePath();
+
+// ========== КАТЕГОРИИ МОДУЛЕЙ ==========
+const MODULE_CATEGORIES = {
+    essentials: {
+        id: 'essentials',
+        name: 'Основные',
+        icon: 'fa-star',
+        order: 0,
+        modules: ['navigator', 'dashboard']
+    },
+    business: {
+        id: 'business',
+        name: 'Бизнес',
+        icon: 'fa-briefcase',
+        order: 1,
+        modules: ['deals', 'complexes', 'counterparties', 'analytics', 'reports', 'invoices']
+    },
+    personal: {
+        id: 'personal',
+        name: 'Личное',
+        icon: 'fa-user',
+        order: 2,
+        modules: ['tasks', 'calendar', 'notes', 'habits', 'pomodoro']
+    },
+    tools: {
+        id: 'tools',
+        name: 'Инструменты',
+        icon: 'fa-tools',
+        order: 3,
+        modules: ['team', 'marketplace', 'my-modules', 'chat', 'documents']
+    },
+    admin: {
+        id: 'admin',
+        name: 'Управление',
+        icon: 'fa-cog',
+        order: 4,
+        modules: ['profile', 'notifications', 'admin'],
+        adminOnly: true
+    }
+};
+
+// ========== ОПИСАНИЯ МОДУЛЕЙ ==========
+// Функция для получения пути с базовым префиксом
+function getModulePath(page) {
+    return `${BASE_PATH}/app/${page}`;
+}
+
+const MODULE_INFO = {
+    // Основные
+    navigator: { name: 'Навигатор', icon: 'fa-th-large', get href() { return getModulePath('navigator.html'); }, description: 'Обзор всех модулей' },
+    dashboard: { name: 'Дашборд', icon: 'fa-home', get href() { return getModulePath('dashboard.html'); }, description: 'Главная панель управления' },
     
-    <script>
-        (function() {
-            try {
-                const savedTheme = localStorage.getItem('crm_theme');
-                if (savedTheme === 'light') {
-                    document.documentElement.classList.add('theme-light');
-                    document.body.classList.add('theme-light');
-                } else if (savedTheme === 'dark') {
-                    document.documentElement.classList.add('theme-dark');
-                    document.body.classList.add('theme-dark');
+    // Бизнес
+    deals: { name: 'Сделки', icon: 'fa-handshake', get href() { return getModulePath('deals.html'); }, description: 'Управление сделками' },
+    complexes: { name: 'Объекты', icon: 'fa-building', get href() { return getModulePath('complexes.html'); }, description: 'Управление объектами' },
+    counterparties: { name: 'Контрагенты', icon: 'fa-users', get href() { return getModulePath('counterparties.html'); }, description: 'База контрагентов' },
+    analytics: { name: 'Аналитика', icon: 'fa-chart-line', get href() { return getModulePath('analytics.html'); }, description: 'Расширенная аналитика' },
+    reports: { name: 'Отчеты', icon: 'fa-file-alt', get href() { return getModulePath('reports.html'); }, description: 'Формирование отчетов' },
+    invoices: { name: 'Счета', icon: 'fa-file-invoice', get href() { return getModulePath('invoices.html'); }, description: 'Управление счетами' },
+    
+    // Личное
+    tasks: { name: 'Задачи', icon: 'fa-tasks', get href() { return getModulePath('tasks.html'); }, description: 'Управление задачами' },
+    calendar: { name: 'Календарь', icon: 'fa-calendar-alt', get href() { return getModulePath('calendar.html'); }, description: 'Планирование событий' },
+    notes: { name: 'Заметки', icon: 'fa-sticky-note', get href() { return getModulePath('notes.html'); }, description: 'Быстрые заметки' },
+    habits: { name: 'Привычки', icon: 'fa-calendar-check', get href() { return getModulePath('habits.html'); }, description: 'Отслеживание привычек' },
+    pomodoro: { name: 'Помодоро', icon: 'fa-clock', get href() { return getModulePath('pomodoro.html'); }, description: 'Таймер продуктивности' },
+    
+    // Инструменты
+    team: { name: 'Команда', icon: 'fa-user-friends', get href() { return getModulePath('team.html'); }, description: 'Управление командой' },
+    marketplace: { name: 'Маркетплейс', icon: 'fa-store', get href() { return getModulePath('marketplace.html'); }, description: 'Магазин модулей' },
+    'my-modules': { name: 'Мои модули', icon: 'fa-puzzle-piece', get href() { return getModulePath('my-modules.html'); }, description: 'Установленные модули' },
+    chat: { name: 'Чат', icon: 'fa-comments', get href() { return getModulePath('chat.html'); }, description: 'Внутренний чат' },
+    documents: { name: 'Документы', icon: 'fa-file-pdf', get href() { return getModulePath('documents.html'); }, description: 'Электронный документооборот' },
+    
+    // Управление
+    profile: { name: 'Профиль', icon: 'fa-user', get href() { return getModulePath('profile.html'); }, description: 'Настройки профиля' },
+    notifications: { name: 'Уведомления', icon: 'fa-bell', get href() { return getModulePath('notifications.html'); }, description: 'Центр уведомлений' },
+    admin: { name: 'Администрирование', icon: 'fa-shield-alt', get href() { return getModulePath('admin.html'); }, description: 'Управление системой' }
+};
+
+// Функция для получения пути (для использования в других местах)
+function getFullPath(page) {
+    return `${BASE_PATH}/app/${page}`;
+}
+
+/**
+ * Получить текущего пользователя
+ */
+function getCurrentUser() {
+    return window.currentSupabaseUser || null;
+}
+
+/**
+ * Проверить, доступен ли модуль для пользователя
+ */
+function isModuleAvailable(moduleId) {
+    const user = getCurrentUser();
+    if (!user) return false;
+    
+    if (moduleId === 'admin') {
+        return hasPermission('manage_users', user);
+    }
+    
+    const userRole = user.role;
+    const isAdmin = userRole === 'admin';
+    
+    if (isAdmin) return true;
+    
+    return true;
+}
+
+/**
+ * Рендер бокового меню с группировкой
+ */
+function renderSidebarMenu() {
+    const container = document.getElementById('sidebar-nav');
+    if (!container) {
+        console.error('[layout] Контейнер sidebar-nav не найден');
+        return;
+    }
+    
+    const currentPath = window.location.pathname;
+    const user = getCurrentUser();
+    const isAdmin = user?.role === 'admin';
+    
+    let html = '<div class="sidebar-menu">';
+    
+    for (const [catId, category] of Object.entries(MODULE_CATEGORIES)) {
+        if (category.adminOnly && !isAdmin) continue;
+        
+        const availableModules = category.modules.filter(moduleId => {
+            const moduleInfo = MODULE_INFO[moduleId];
+            if (!moduleInfo) return false;
+            return isModuleAvailable(moduleId);
+        });
+        
+        if (availableModules.length === 0) continue;
+        
+        html += `
+            <div class="sidebar-category" data-category="${catId}">
+                <div class="sidebar-category-header">
+                    <i class="fas ${category.icon}"></i>
+                    <span class="category-name">${escapeHtml(category.name)}</span>
+                    <i class="fas fa-chevron-down category-toggle"></i>
+                </div>
+                <div class="sidebar-category-items">
+        `;
+        
+        for (const moduleId of availableModules) {
+            const module = MODULE_INFO[moduleId];
+            if (!module) continue;
+            
+            const isActive = module.href === currentPath;
+            
+            html += `
+                <a href="${module.href}" class="sidebar-menu-item ${isActive ? 'active' : ''}" 
+                   data-module="${moduleId}" title="${escapeHtml(module.name)}">
+                    <i class="fas ${module.icon}"></i>
+                    <span class="menu-item-label">${escapeHtml(module.name)}</span>
+                    ${isActive ? '<span class="active-indicator"></span>' : ''}
+                </a>
+            `;
+        }
+        
+        html += `
+                </div>
+            </div>
+        `;
+    }
+    
+    html += '</div>';
+    container.innerHTML = html;
+    
+    attachCategoryHandlers();
+    
+    console.log('[layout] Боковое меню отрисовано, BASE_PATH:', BASE_PATH);
+}
+
+/**
+ * Добавление обработчиков для сворачивания категорий
+ */
+function attachCategoryHandlers() {
+    const categories = document.querySelectorAll('.sidebar-category');
+    
+    categories.forEach(category => {
+        const header = category.querySelector('.sidebar-category-header');
+        const items = category.querySelector('.sidebar-category-items');
+        const toggle = category.querySelector('.category-toggle');
+        
+        const catId = category.dataset.category;
+        const isCollapsed = localStorage.getItem(`sidebar_category_${catId}`) === 'true';
+        
+        if (isCollapsed && items) {
+            items.classList.add('collapsed');
+            if (toggle) toggle.classList.add('collapsed');
+        }
+        
+        if (header) {
+            header.onclick = (e) => {
+                e.stopPropagation();
+                if (items) {
+                    items.classList.toggle('collapsed');
+                    if (toggle) toggle.classList.toggle('collapsed');
+                    
+                    const newState = items.classList.contains('collapsed');
+                    localStorage.setItem(`sidebar_category_${catId}`, newState);
                 }
-            } catch(e) {}
-        })();
-    </script>
+            };
+        }
+    });
+}
+
+/**
+ * Обновление кнопок в футере
+ */
+function updateFooterButtons() {
+    const sidebarFooter = document.querySelector('.sidebar-footer');
+    if (!sidebarFooter) return;
     
-    <title>Навигатор - CRM</title>
+    const isCollapsed = sidebarCollapsed;
+    sidebarFooter.innerHTML = '';
     
-    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link rel="stylesheet" href="../css/base.css">
-    <link rel="stylesheet" href="../css/theme.css">
-    <link rel="stylesheet" href="../css/components.css">
-    <link rel="stylesheet" href="../css/responsive.css">
-    <link rel="stylesheet" href="../css/animations.css">
+    const toggleBtn = document.createElement('button');
+    toggleBtn.className = 'sidebar-toggle-btn';
+    toggleBtn.innerHTML = isCollapsed 
+        ? '<i class="fas fa-chevron-right"></i><span>Развернуть</span>'
+        : '<i class="fas fa-chevron-left"></i><span>Свернуть</span>';
+    toggleBtn.onclick = () => toggleSidebar();
+    sidebarFooter.appendChild(toggleBtn);
     
-    <style>
-        /* ============================================
-         * СТИЛИ ДЛЯ СТРАНИЦЫ-НАВИГАТОРА
-         * ============================================ */
-        
-        .navigator-container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 24px;
+    const themeBtn = document.createElement('button');
+    themeBtn.className = 'theme-btn';
+    const currentTheme = localStorage.getItem('crm_theme') || 'dark';
+    themeBtn.innerHTML = currentTheme === 'dark' 
+        ? '<i class="fas fa-sun"></i><span>Светлая</span>' 
+        : '<i class="fas fa-moon"></i><span>Тёмная</span>';
+    themeBtn.onclick = () => toggleTheme();
+    sidebarFooter.appendChild(themeBtn);
+    
+    const logoutBtn = document.createElement('button');
+    logoutBtn.className = 'logout-btn';
+    logoutBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i><span>Выйти</span>';
+    logoutBtn.onclick = () => logout();
+    sidebarFooter.appendChild(logoutBtn);
+    
+    if (isCollapsed) {
+        [toggleBtn, themeBtn, logoutBtn].forEach(btn => btn.classList.add('collapsed-mode'));
+    }
+}
+
+/**
+ * Инициализация бокового меню
+ */
+export async function initSidebar() {
+    if (isInitialized) return;
+    
+    console.log('[layout] Инициализация бокового меню...');
+    
+    const saved = localStorage.getItem('sidebar_collapsed');
+    if (saved === 'true') {
+        sidebarCollapsed = true;
+        document.getElementById('sidebar')?.classList.add('collapsed');
+    } else {
+        sidebarCollapsed = false;
+        document.getElementById('sidebar')?.classList.remove('collapsed');
+        localStorage.setItem('sidebar_collapsed', 'false');
+    }
+    
+    renderSidebarMenu();
+    
+    window.addEventListener('userLoaded', () => {
+        console.log('[layout] userLoaded событие, обновляем меню');
+        renderSidebarMenu();
+    });
+    
+    initMobileMenu();
+    addNotificationButtonToTopBar();
+    addPomodoroWidget();
+    updateFooterButtons();
+    
+    isInitialized = true;
+    console.log('[layout] Боковое меню инициализировано');
+}
+
+/**
+ * Свернуть/развернуть боковое меню
+ */
+export function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    if (!sidebar) return;
+    
+    sidebarCollapsed = !sidebarCollapsed;
+    
+    if (sidebarCollapsed) {
+        sidebar.classList.add('collapsed');
+        localStorage.setItem('sidebar_collapsed', 'true');
+    } else {
+        sidebar.classList.remove('collapsed');
+        localStorage.setItem('sidebar_collapsed', 'false');
+    }
+    
+    updateFooterButtons();
+    
+    window.dispatchEvent(new CustomEvent('sidebarToggled', { 
+        detail: { collapsed: sidebarCollapsed } 
+    }));
+    
+    console.log('[layout] Сайдбар', sidebarCollapsed ? 'свернут' : 'развернут');
+}
+
+/**
+ * Инициализация мобильного меню
+ */
+function initMobileMenu() {
+    const existingToggle = document.querySelector('.mobile-menu-toggle');
+    if (existingToggle) existingToggle.remove();
+    
+    const toggleBtn = document.createElement('div');
+    toggleBtn.className = 'mobile-menu-toggle';
+    toggleBtn.innerHTML = '<i class="fas fa-bars"></i>';
+    toggleBtn.onclick = () => {
+        const sidebar = document.getElementById('sidebar');
+        sidebar?.classList.toggle('mobile-open');
+    };
+    document.body.appendChild(toggleBtn);
+    
+    document.addEventListener('click', (e) => {
+        const sidebar = document.getElementById('sidebar');
+        const toggle = document.querySelector('.mobile-menu-toggle');
+        if (window.innerWidth <= 768 && sidebar?.classList.contains('mobile-open')) {
+            if (!sidebar.contains(e.target) && !toggle?.contains(e.target)) {
+                sidebar.classList.remove('mobile-open');
+            }
         }
-        
-        .navigator-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 32px;
-            flex-wrap: wrap;
-            gap: 16px;
+    });
+}
+
+/**
+ * Добавление кнопки уведомлений
+ */
+function addNotificationButtonToTopBar() {
+    const topBar = document.querySelector('.top-bar');
+    if (!topBar) return;
+    if (topBar.querySelector('.notification-icon-wrapper')) return;
+    
+    const notificationWrapper = document.createElement('div');
+    notificationWrapper.className = 'notification-icon-wrapper';
+    notificationWrapper.style.position = 'relative';
+    notificationWrapper.style.marginRight = '16px';
+    notificationWrapper.style.cursor = 'pointer';
+    notificationWrapper.onclick = () => {
+        window.location.href = getFullPath('notifications.html');
+    };
+    
+    notificationWrapper.innerHTML = `
+        <i class="fas fa-bell" style="font-size: 1.2rem; color: var(--text-primary);"></i>
+        <span id="notificationBadge" class="notification-badge" style="display: none;">0</span>
+    `;
+    
+    const userProfile = topBar.querySelector('.user-profile');
+    if (userProfile) {
+        topBar.insertBefore(notificationWrapper, userProfile);
+    } else {
+        topBar.appendChild(notificationWrapper);
+    }
+}
+
+/**
+ * Обновление счетчика уведомлений
+ */
+async function updateNotificationBadge() {
+    const badge = document.getElementById('notificationBadge');
+    if (!badge) return;
+    try {
+        if (window.supabase) {
+            const { data: { user } } = await window.supabase.auth.getUser();
+            if (user) {
+                const { count } = await window.supabase
+                    .from('notifications')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('user_id', user.id)
+                    .eq('read', false);
+                if (count > 0) {
+                    badge.textContent = count > 99 ? '99+' : count;
+                    badge.style.display = 'flex';
+                    return;
+                }
+            }
         }
-        
-        .navigator-title h1 {
-            font-size: 1.75rem;
-            margin-bottom: 4px;
+        badge.style.display = 'none';
+    } catch (e) {
+        badge.style.display = 'none';
+    }
+}
+
+/**
+ * Переключение темы
+ */
+function toggleTheme() {
+    const isDark = document.documentElement.classList.contains('theme-dark');
+    if (isDark) {
+        document.documentElement.classList.remove('theme-dark');
+        document.documentElement.classList.add('theme-light');
+        document.body.classList.remove('theme-dark');
+        document.body.classList.add('theme-light');
+        localStorage.setItem('crm_theme', 'light');
+    } else {
+        document.documentElement.classList.remove('theme-light');
+        document.documentElement.classList.add('theme-dark');
+        document.body.classList.remove('theme-light');
+        document.body.classList.add('theme-dark');
+        localStorage.setItem('crm_theme', 'dark');
+    }
+    updateFooterButtons();
+}
+
+/**
+ * Переход на страницу профиля
+ */
+export function goToProfile() {
+    window.location.href = getFullPath('profile.html');
+}
+
+/**
+ * Выход из системы
+ */
+export function logout() {
+    if (confirm('Вы уверены, что хотите выйти из системы?')) {
+        if (window.supabaseSession?.logoutFromSupabase) {
+            window.supabaseSession.logoutFromSupabase();
+        } else {
+            localStorage.removeItem('crm_session');
+            window.location.href = `${BASE_PATH}/auth-supabase.html`;
         }
-        
-        .navigator-title p {
-            color: var(--text-muted);
-            font-size: 0.85rem;
+    }
+}
+
+/**
+ * Виджет помодоро
+ */
+function addPomodoroWidget() {
+    let checkCount = 0;
+    const checkInterval = setInterval(() => {
+        if (typeof getState === 'function' && typeof start === 'function') {
+            clearInterval(checkInterval);
+            createWidget();
+        } else if (checkCount > 50) {
+            clearInterval(checkInterval);
         }
-        
-        .search-box {
-            position: relative;
-            min-width: 280px;
-        }
-        
-        .search-box input {
-            width: 100%;
-            padding: 12px 16px 12px 44px;
-            background: var(--input-bg);
-            border: 1px solid var(--card-border);
-            border-radius: 40px;
-            color: var(--text-primary);
-            font-size: 0.9rem;
-        }
-        
-        .search-box input:focus {
-            outline: none;
-            border-color: var(--accent);
-        }
-        
-        .search-box i {
-            position: absolute;
-            left: 16px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--text-muted);
-        }
-        
-        .category-section {
-            margin-bottom: 40px;
-        }
-        
-        .category-header {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 20px;
-            padding-bottom: 8px;
-            border-bottom: 2px solid var(--card-border);
-        }
-        
-        .category-header i {
-            font-size: 1.25rem;
-            color: var(--accent);
-        }
-        
-        .category-header h2 {
-            font-size: 1.25rem;
-            font-weight: 600;
-        }
-        
-        .category-header span {
-            color: var(--text-muted);
-            font-size: 0.8rem;
-            margin-left: auto;
-        }
-        
-        .modules-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 20px;
-        }
-        
-        .module-card {
+        checkCount++;
+    }, 100);
+    
+    function createWidget() {
+        const widget = document.createElement('div');
+        widget.id = 'pomodoroWidget';
+        widget.style.cssText = `
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
             background: var(--card-bg);
+            border-radius: 16px;
+            padding: 12px 16px;
             border: 1px solid var(--card-border);
-            border-radius: 20px;
-            padding: 20px;
             cursor: pointer;
-            transition: all 0.2s ease;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .module-card:hover {
-            transform: translateY(-4px);
-            border-color: var(--accent);
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
-        }
-        
-        .module-card.preview {
-            opacity: 0.85;
-        }
-        
-        .card-badge {
-            position: absolute;
-            top: 12px;
-            right: 12px;
-            background: var(--accent);
-            color: white;
-            padding: 2px 8px;
-            border-radius: 20px;
-            font-size: 0.65rem;
-            font-weight: 500;
-        }
-        
-        .card-icon {
-            width: 48px;
-            height: 48px;
-            background: var(--input-bg);
-            border-radius: 16px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 16px;
-        }
-        
-        .card-icon i {
-            font-size: 1.5rem;
-            color: var(--accent);
-        }
-        
-        .card-title {
-            font-size: 1.1rem;
-            font-weight: 600;
-            margin-bottom: 8px;
-        }
-        
-        .card-description {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-            margin-bottom: 16px;
-            line-height: 1.4;
-        }
-        
-        .card-actions {
-            display: flex;
-            gap: 12px;
-        }
-        
-        .card-btn {
-            flex: 1;
-            padding: 8px 12px;
-            border-radius: 40px;
-            font-size: 0.8rem;
-            font-weight: 500;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.2s;
-            border: none;
-        }
-        
-        .card-btn-primary {
-            background: var(--accent);
-            color: white;
-        }
-        
-        .card-btn-primary:hover {
-            background: var(--accent-hover);
-            transform: translateX(2px);
-        }
-        
-        .card-btn-preview {
-            background: transparent;
-            color: var(--accent);
-            border: 1px dashed var(--card-border);
-        }
-        
-        .card-btn-preview:hover {
-            background: rgba(108, 108, 255, 0.1);
-            border-color: var(--accent);
-        }
-        
-        .quick-access {
-            margin-bottom: 40px;
-        }
-        
-        .quick-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 16px;
-        }
-        
-        .quick-item {
-            background: var(--input-bg);
-            border-radius: 16px;
-            padding: 16px;
+            z-index: 9999;
             display: flex;
             align-items: center;
             gap: 12px;
-            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
             transition: all 0.2s;
-        }
-        
-        .quick-item:hover {
-            background: var(--hover-bg);
-            transform: translateX(4px);
-        }
-        
-        .quick-icon {
-            width: 40px;
-            height: 40px;
-            background: var(--card-bg);
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .quick-icon i {
-            font-size: 1.1rem;
-            color: var(--accent);
-        }
-        
-        .quick-info {
-            flex: 1;
-        }
-        
-        .quick-name {
-            font-weight: 600;
-            font-size: 0.9rem;
-        }
-        
-        .quick-metric {
-            font-size: 0.7rem;
-            color: var(--text-muted);
-        }
-        
-        @media (max-width: 768px) {
-            .navigator-container {
-                padding: 16px;
-            }
-            
-            .navigator-header {
-                flex-direction: column;
-                align-items: stretch;
-            }
-            
-            .search-box {
-                min-width: auto;
-            }
-            
-            .modules-grid {
-                grid-template-columns: 1fr;
-            }
-            
-            .quick-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-        
-        @keyframes cardFadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-        
-        .module-card {
-            animation: cardFadeIn 0.3s ease forwards;
-        }
-    </style>
-</head>
-<body>
-    <!-- Структура с сайдбаром -->
-    <div class="app-layout">
-        <aside class="sidebar" id="sidebar">
-            <div class="sidebar-logo">
-                <i class="fas fa-chart-line"></i>
-                <span>CRM Team</span>
+        `;
+        widget.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <i class="fas fa-clock" style="color: var(--accent);"></i>
+                <span id="pomodoroTime" style="font-family: monospace; font-weight: 600;">25:00</span>
             </div>
-            <nav class="sidebar-nav" id="sidebar-nav"></nav>
-            <div class="sidebar-footer">
-                <button class="collapse-btn" onclick="window.sidebar?.toggleSidebar()">
-                    <i class="fas fa-chevron-left"></i>
-                    <span>Свернуть</span>
-                </button>
-                <button class="logout-btn" onclick="window.sidebar?.logout()">
-                    <i class="fas fa-sign-out-alt"></i> 
-                    <span>Выйти</span>
-                </button>
+            <div style="display: flex; gap: 4px;">
+                <button id="pomodoroPlayBtn" class="pomodoro-widget-btn" style="background: none; border: none; cursor: pointer; color: var(--accent); padding: 4px 8px; border-radius: 8px;">▶</button>
+                <button id="pomodoroPauseBtn" class="pomodoro-widget-btn" style="background: none; border: none; cursor: pointer; color: var(--text-muted); padding: 4px 8px; border-radius: 8px;">⏸</button>
             </div>
-        </aside>
+        `;
+        document.body.appendChild(widget);
         
-        <main class="main-content">
-            <div class="top-bar">
-                <div class="top-bar-actions">
-                    <!-- Дополнительные кнопки -->
-                </div>
-                <div class="user-profile" onclick="window.sidebar?.goToProfile()">
-                    <div class="user-info">
-                        <div class="user-name" id="userName">Загрузка...</div>
-                        <div class="user-role" id="userRole">—</div>
-                    </div>
-                    <div class="user-avatar" id="userAvatar">
-                        <i class="fas fa-user"></i>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="navigator-container" id="navigatorContainer">
-                <div class="loading-state">
-                    <i class="fas fa-spinner fa-pulse fa-2x"></i>
-                    <p>Загрузка навигатора...</p>
-                </div>
-            </div>
-        </main>
-    </div>
-    
-    <!-- Универсальный загрузчик модулей -->
-    <script type="module" src="../js/core/moduleLoader.js"></script>
-    
-    <!-- Инициализация бокового меню -->
-    <script type="module">
-        import * as sidebar from '../layout.js';
-        window.sidebar = sidebar;
+        function updateWidgetTime() {
+            const state = getState();
+            if (state) {
+                const minutes = Math.floor(state.timeLeft / 60);
+                const seconds = state.timeLeft % 60;
+                const timeSpan = document.getElementById('pomodoroTime');
+                if (timeSpan) {
+                    timeSpan.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                }
+                
+                const playBtn = document.getElementById('pomodoroPlayBtn');
+                const pauseBtn = document.getElementById('pomodoroPauseBtn');
+                if (playBtn && pauseBtn) {
+                    if (state.status === 'running') {
+                        playBtn.style.color = 'var(--text-muted)';
+                        pauseBtn.style.color = 'var(--accent)';
+                    } else {
+                        playBtn.style.color = 'var(--accent)';
+                        pauseBtn.style.color = 'var(--text-muted)';
+                    }
+                }
+            }
+        }
         
-        // Инициализируем сайдбар после загрузки DOM
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => {
-                sidebar.initSidebar();
+        subscribe(updateWidgetTime);
+        setInterval(updateWidgetTime, 1000);
+        
+        widget.addEventListener('click', (e) => {
+            if (!e.target.closest('.pomodoro-widget-btn')) {
+                window.location.href = getFullPath('pomodoro.html');
+            }
+        });
+        
+        const playBtn = document.getElementById('pomodoroPlayBtn');
+        if (playBtn) {
+            playBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const state = getState();
+                if (state.status !== 'running') {
+                    start();
+                }
             });
-        } else {
-            sidebar.initSidebar();
-        }
-    </script>
-    
-    <!-- Инициализация страницы навигатора -->
-    <script type="module">
-        import { getCurrentSupabaseUser, requireSupabaseAuth, updateSupabaseUserInterface } from '../js/core/supabase-session.js';
-        
-        async function initNavigator() {
-            const isAuth = await requireSupabaseAuth('../auth-supabase.html');
-            if (!isAuth) return;
-            
-            // Update top-bar user info after auth
-            updateSupabaseUserInterface();
-            
-            const { initNavigatorPage } = await import('../js/pages/navigator.js');
-            initNavigatorPage();
         }
         
-        // Ждем загрузки DOM
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', initNavigator);
-        } else {
-            initNavigator();
+        const pauseBtn = document.getElementById('pomodoroPauseBtn');
+        if (pauseBtn) {
+            pauseBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                pause();
+            });
         }
-    </script>
-</body>
-</html>
+        
+        updateWidgetTime();
+    }
+}
+
+// Стили для уведомлений
+const notificationStyle = document.createElement('style');
+notificationStyle.textContent = `
+    .notification-icon-wrapper {
+        position: relative;
+        cursor: pointer;
+        transition: transform 0.2s ease;
+    }
+    .notification-icon-wrapper:hover {
+        transform: scale(1.1);
+    }
+    .notification-badge {
+        position: absolute;
+        top: -8px;
+        right: -8px;
+        background: #ff6b6b;
+        color: white;
+        font-size: 0.65rem;
+        font-weight: bold;
+        min-width: 18px;
+        height: 18px;
+        border-radius: 9px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 4px;
+        animation: badgePulse 0.3s ease;
+    }
+    @keyframes badgePulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.2); }
+        100% { transform: scale(1); }
+    }
+`;
+document.head.appendChild(notificationStyle);
+
+// Экспорты для модульной системы
+export { updateNotificationBadge, getFullPath };
+
+console.log('[layout] Модуль загружен, BASE_PATH:', BASE_PATH);
