@@ -18,6 +18,7 @@
  *   - 31.03.2026: Полная переработка, добавлена группировка модулей
  *   - 31.03.2026: Исправлены ошибки с неопределенными функциями
  *   - 02.04.2026: Исправлена ошибка getCurrentUserRole, добавлена проверка прав для админ-модуля
+ *   - 06.04.2026: Исправлены абсолютные пути на относительные для GitHub Pages
  * ============================================
  */
 
@@ -69,37 +70,38 @@ const MODULE_CATEGORIES = {
 };
 
 // ========== ОПИСАНИЯ МОДУЛЕЙ ==========
+// ВНИМАНИЕ: Используются относительные пути (без ведущего слеша) для совместимости с GitHub Pages
 const MODULE_INFO = {
     // Основные
-    navigator: { name: 'Навигатор', icon: 'fa-th-large', href: '/app/navigator.html', description: 'Обзор всех модулей' },
-    dashboard: { name: 'Дашборд', icon: 'fa-home', href: '/app/dashboard.html', description: 'Главная панель управления' },
+    navigator: { name: 'Навигатор', icon: 'fa-th-large', href: 'app/navigator.html', description: 'Обзор всех модулей' },
+    dashboard: { name: 'Дашборд', icon: 'fa-home', href: 'app/dashboard.html', description: 'Главная панель управления' },
     
     // Бизнес
-    deals: { name: 'Сделки', icon: 'fa-handshake', href: '/app/deals.html', description: 'Управление сделками' },
-    complexes: { name: 'Объекты', icon: 'fa-building', href: '/app/complexes.html', description: 'Управление объектами' },
-    counterparties: { name: 'Контрагенты', icon: 'fa-users', href: '/app/counterparties.html', description: 'База контрагентов' },
-    analytics: { name: 'Аналитика', icon: 'fa-chart-line', href: '/app/analytics.html', description: 'Расширенная аналитика' },
-    reports: { name: 'Отчеты', icon: 'fa-file-alt', href: '/app/reports.html', description: 'Формирование отчетов' },
-    invoices: { name: 'Счета', icon: 'fa-file-invoice', href: '/app/invoices.html', description: 'Управление счетами' },
+    deals: { name: 'Сделки', icon: 'fa-handshake', href: 'app/deals.html', description: 'Управление сделками' },
+    complexes: { name: 'Объекты', icon: 'fa-building', href: 'app/complexes.html', description: 'Управление объектами' },
+    counterparties: { name: 'Контрагенты', icon: 'fa-users', href: 'app/counterparties.html', description: 'База контрагентов' },
+    analytics: { name: 'Аналитика', icon: 'fa-chart-line', href: 'app/analytics.html', description: 'Расширенная аналитика' },
+    reports: { name: 'Отчеты', icon: 'fa-file-alt', href: 'app/reports.html', description: 'Формирование отчетов' },
+    invoices: { name: 'Счета', icon: 'fa-file-invoice', href: 'app/invoices.html', description: 'Управление счетами' },
     
     // Личное
-    tasks: { name: 'Задачи', icon: 'fa-tasks', href: '/app/tasks.html', description: 'Управление задачами' },
-    calendar: { name: 'Календарь', icon: 'fa-calendar-alt', href: '/app/calendar.html', description: 'Планирование событий' },
-    notes: { name: 'Заметки', icon: 'fa-sticky-note', href: '/app/notes.html', description: 'Быстрые заметки' },
-    habits: { name: 'Привычки', icon: 'fa-calendar-check', href: '/app/habits.html', description: 'Отслеживание привычек' },
-    pomodoro: { name: 'Помодоро', icon: 'fa-clock', href: '/app/pomodoro.html', description: 'Таймер продуктивности' },
+    tasks: { name: 'Задачи', icon: 'fa-tasks', href: 'app/tasks.html', description: 'Управление задачами' },
+    calendar: { name: 'Календарь', icon: 'fa-calendar-alt', href: 'app/calendar.html', description: 'Планирование событий' },
+    notes: { name: 'Заметки', icon: 'fa-sticky-note', href: 'app/notes.html', description: 'Быстрые заметки' },
+    habits: { name: 'Привычки', icon: 'fa-calendar-check', href: 'app/habits.html', description: 'Отслеживание привычек' },
+    pomodoro: { name: 'Помодоро', icon: 'fa-clock', href: 'app/pomodoro.html', description: 'Таймер продуктивности' },
     
     // Инструменты
-    team: { name: 'Команда', icon: 'fa-user-friends', href: '/app/team.html', description: 'Управление командой' },
-    marketplace: { name: 'Маркетплейс', icon: 'fa-store', href: '/app/marketplace.html', description: 'Магазин модулей' },
-    'my-modules': { name: 'Мои модули', icon: 'fa-puzzle-piece', href: '/app/my-modules.html', description: 'Установленные модули' },
-    chat: { name: 'Чат', icon: 'fa-comments', href: '/app/chat.html', description: 'Внутренний чат' },
-    documents: { name: 'Документы', icon: 'fa-file-pdf', href: '/app/documents.html', description: 'Электронный документооборот' },
+    team: { name: 'Команда', icon: 'fa-user-friends', href: 'app/team.html', description: 'Управление командой' },
+    marketplace: { name: 'Маркетплейс', icon: 'fa-store', href: 'app/marketplace.html', description: 'Магазин модулей' },
+    'my-modules': { name: 'Мои модули', icon: 'fa-puzzle-piece', href: 'app/my-modules.html', description: 'Установленные модули' },
+    chat: { name: 'Чат', icon: 'fa-comments', href: 'app/chat.html', description: 'Внутренний чат' },
+    documents: { name: 'Документы', icon: 'fa-file-pdf', href: 'app/documents.html', description: 'Электронный документооборот' },
     
     // Управление
-    profile: { name: 'Профиль', icon: 'fa-user', href: '/app/profile.html', description: 'Настройки профиля' },
-    notifications: { name: 'Уведомления', icon: 'fa-bell', href: '/app/notifications.html', description: 'Центр уведомлений' },
-    admin: { name: 'Администрирование', icon: 'fa-shield-alt', href: '/app/admin.html', description: 'Управление системой' }
+    profile: { name: 'Профиль', icon: 'fa-user', href: 'app/profile.html', description: 'Настройки профиля' },
+    notifications: { name: 'Уведомления', icon: 'fa-bell', href: 'app/notifications.html', description: 'Центр уведомлений' },
+    admin: { name: 'Администрирование', icon: 'fa-shield-alt', href: 'app/admin.html', description: 'Управление системой' }
 };
 
 /**
@@ -394,7 +396,7 @@ function addNotificationButtonToTopBar() {
     notificationWrapper.style.marginRight = '16px';
     notificationWrapper.style.cursor = 'pointer';
     notificationWrapper.onclick = () => {
-        window.location.href = '/app/notifications.html';
+        window.location.href = 'app/notifications.html';
     };
     
     notificationWrapper.innerHTML = `
@@ -463,7 +465,7 @@ function toggleTheme() {
  * Переход на страницу профиля
  */
 export function goToProfile() {
-    window.location.href = '/app/profile.html';
+    window.location.href = 'app/profile.html';
 }
 
 /**
@@ -555,7 +557,7 @@ function addPomodoroWidget() {
         
         widget.addEventListener('click', (e) => {
             if (!e.target.closest('.pomodoro-widget-btn')) {
-                window.location.href = '/app/pomodoro.html';
+                window.location.href = 'app/pomodoro.html';
             }
         });
         
@@ -618,7 +620,7 @@ notificationStyle.textContent = `
 `;
 document.head.appendChild(notificationStyle);
 
-// Глобальный объект
+// Глобальный объект для обратной совместимости с HTML (onclick атрибуты)
 window.sidebar = {
     initSidebar,
     toggleSidebar,
