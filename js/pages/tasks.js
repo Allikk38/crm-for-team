@@ -651,62 +651,51 @@ async function handleDrop(e, newStatus) {
 }
 
 function setupDropZones() {
-    const columns = document.querySelectorAll('.kanban-column');
+    const containers = document.querySelectorAll('.tasks-container');
     
-    columns.forEach(column => {
-        const container = column.querySelector('.tasks-container');
-        if (!container) return;
-        
-        const status = column.getAttribute('data-status');
-        
+    containers.forEach(container => {
+        // Убираем старые обработчики
+        const newContainer = container.cloneNode(true);
+        container.parentNode.replaceChild(newContainer, container);
+    });
+    
+    // Вешаем новые обработчики
+    document.querySelectorAll('.tasks-container').forEach(container => {
         container.addEventListener('dragover', (e) => {
             e.preventDefault();
-            column.classList.add('drag-over');
+            container.closest('.kanban-column')?.classList.add('drag-over');
         });
         
         container.addEventListener('dragleave', () => {
-            column.classList.remove('drag-over');
+            container.closest('.kanban-column')?.classList.remove('drag-over');
         });
         
         container.addEventListener('drop', async (e) => {
             e.preventDefault();
-            column.classList.remove('drag-over');
+            const column = container.closest('.kanban-column');
+            column?.classList.remove('drag-over');
             
             const taskId = e.dataTransfer.getData('text/plain');
-            if (!taskId) return;
+            const newStatus = column?.getAttribute('data-status');
+            
+            if (!taskId || !newStatus) return;
             
             const task = tasks.find(t => t.id == taskId);
-            if (!task || task.status === status) return;
+            if (!task || task.status === newStatus) return;
             
-            // Находим карточку
-            const card = document.querySelector(`.task-card[data-task-id="${taskId}"]`);
+            console.log('[tasks] Перемещение:', taskId, task.status, '→', newStatus);
             
-            // Используем существующие классы анимации
-            if (card) {
-                card.classList.add('status-updating');
-            }
-            
-            console.log('[tasks] Перемещение задачи:', taskId, '→', status);
-            
-            const updated = await updateTaskStatusInDB(taskId, status);
-            
+            const updated = await updateTaskStatusInDB(taskId, newStatus);
             if (updated) {
-                task.status = status;
-                renderKanbanBoard();
-                
+                await loadTasksData();
                 if (window.showToast) {
                     window.showToast('success', 'Задача перемещена');
                 }
-            } else {
-                if (card) {
-                    card.classList.remove('status-updating');
-                }
-                alert('Ошибка перемещения задачи');
             }
         });
     });
     
-    console.log('[tasks] Drag-and-drop настроен для', columns.length, 'колонок');
+    console.log('[tasks] Drag-and-drop настроен');
 }
 // ========== НАСТРОЙКА ФИЛЬТРОВ ==========
 
