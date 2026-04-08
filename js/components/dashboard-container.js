@@ -325,14 +325,14 @@ class DashboardContainer {
             
             const fullHtml = gridHtml + `
                 <div class="dashboard-promo" style="margin-top: 32px; display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px;">
-                    <div class="promo-card" style="background: linear-gradient(135deg, var(--accent), var(--accent-hover)); border-radius: 20px; padding: 24px; color: white; cursor: pointer;" onclick="window.location.href='app/marketplace.html'">
+                    <div class="promo-card" style="background: linear-gradient(135deg, var(--accent), var(--accent-hover)); border-radius: 20px; padding: 24px; color: white; cursor: pointer;" onclick="window.location.href='marketplace.html'">
                         <i class="fas fa-store" style="font-size: 32px; margin-bottom: 12px; display: block;"></i>
                         <h3 style="margin-bottom: 8px;">🧩 Маркетплейс модулей</h3>
                         <p style="opacity: 0.9; font-size: 0.85rem;">Расширьте возможности платформы. Добавьте модули для недвижимости, финансов, образования и здоровья.</p>
                         <button style="margin-top: 16px; padding: 8px 20px; background: white; border: none; border-radius: 40px; color: var(--accent); font-weight: 500; cursor: pointer;">Перейти в магазин →</button>
                     </div>
                     
-                    <div class="promo-card" style="background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 20px; padding: 24px; cursor: pointer;" onclick="window.location.href='invite-supabase.html'">
+                    <div class="promo-card" style="background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 20px; padding: 24px; cursor: pointer;" onclick="window.location.href='invite.html'">
                         <i class="fas fa-users" style="font-size: 32px; margin-bottom: 12px; display: block; color: var(--accent);"></i>
                         <h3 style="margin-bottom: 8px;">👥 Пригласить команду</h3>
                         <p style="color: var(--text-muted); font-size: 0.85rem;">Работайте вместе над проектами, делясь задачами и достижениями. Пригласите коллег в команду.</p>
