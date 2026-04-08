@@ -8,21 +8,25 @@
  *   - Проверка доступности модулей
  *   - Контроль лимитов (задачи, сделки, объекты)
  *   - Поддержка разных тарифов (Free, Pro, Business)
+ *   - Чистые экспорты без глобальных объектов
  * 
  * ЗАВИСИМОСТИ:
- *   - window.currentSupabaseUser
+ *   - getCurrentSupabaseUser из supabase-session.js
  * 
  * ИСТОРИЯ:
  *   - 31.03.2026: Администратор получает ENTERPRISE план
  *   - 30.03.2026: Создание менеджера планов
+ *   - 08.04.2026: Переход на чистые экспорты, убраны глобальные объекты
  * ============================================
  */
+
+import { getCurrentSupabaseUser } from './supabase-session.js';
 
 console.log('[planManager] Загрузка...');
 
 // ========== ОПРЕДЕЛЕНИЕ ТАРИФНЫХ ПЛАНОВ ==========
 
-const PLANS = {
+export const PLANS = {
     FREE: {
         id: 'free',
         name: 'Бесплатный',
@@ -81,6 +85,36 @@ class PlanManager {
     constructor() {
         this.currentPlan = null;
         this.planCache = null;
+        this.userChangeHandler = null;
+        this.setupUserChangeListener();
+    }
+    
+    /**
+     * Настройка слушателя изменения пользователя
+     */
+    setupUserChangeListener() {
+        // Слушаем событие userLoaded для сброса кэша
+        if (typeof window !== 'undefined') {
+            this.userChangeHandler = () => {
+                console.log('[planManager] Пользователь изменился, сбрасываем кэш плана');
+                this.planCache = null;
+            };
+            window.addEventListener('userLoaded', this.userChangeHandler);
+        }
+    }
+    
+    /**
+     * Получить текущего пользователя
+     * @returns {Object|null}
+     */
+    getCurrentUser() {
+        // Пробуем получить из модуля
+        try {
+            return getCurrentSupabaseUser();
+        } catch (e) {
+            // Fallback на глобальную переменную
+            return window.currentSupabaseUser || null;
+        }
     }
     
     /**
@@ -88,7 +122,7 @@ class PlanManager {
      * @returns {Object} Объект плана
      */
     getUserPlan() {
-        const user = window.currentSupabaseUser;
+        const user = this.getCurrentUser();
         
         // Кэшируем план для этого пользователя
         if (this.planCache && this.planCache.userId === user?.id) {
@@ -100,7 +134,6 @@ class PlanManager {
         if (!user) {
             console.log('[planManager] Пользователь не загружен, используем FREE');
         } else if (user.role === 'admin') {
-            // Администратор получает ENTERPRISE план (максимальные права)
             plan = PLANS.ENTERPRISE;
             console.log('[planManager] Администратор → ENTERPRISE');
         } else if (user.role === 'manager') {
@@ -234,21 +267,32 @@ class PlanManager {
         
         return progress;
     }
+    
+    /**
+     * Очистка ресурсов
+     */
+    destroy() {
+        if (typeof window !== 'undefined' && this.userChangeHandler) {
+            window.removeEventListener('userLoaded', this.userChangeHandler);
+        }
+        this.planCache = null;
+    }
 }
 
-// ========== ИНИЦИАЛИЗАЦИЯ ==========
+// ========== СОЗДАНИЕ СИНГЛТОНА ==========
 
-// Создаем глобальный объект
-window.CRM = window.CRM || {};
-window.CRM.PlanManager = new PlanManager();
-window.CRM.PLANS = PLANS;
+const planManager = new PlanManager();
 
-// Подписываемся на событие загрузки пользователя для сброса кэша
+// ========== ЭКСПОРТЫ ==========
+
+export default planManager;
+export { PlanManager };
+
+// Для обратной совместимости (временно)
 if (typeof window !== 'undefined') {
-    window.addEventListener('userLoaded', () => {
-        console.log('[planManager] Пользователь загружен, сбрасываем кэш плана');
-        window.CRM.PlanManager.planCache = null;
-    });
+    window.CRM = window.CRM || {};
+    window.CRM.PlanManager = planManager;
+    window.CRM.PLANS = PLANS;
 }
 
 console.log('[planManager] Менеджер планов загружен');
