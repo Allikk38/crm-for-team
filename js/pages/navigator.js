@@ -7,11 +7,12 @@
  *   - Отображение всех доступных модулей
  *   - Группировка по категориям
  *   - Быстрый поиск
- *   - Превью продвинутых модулей
+ *   - Превью продвинутых модулей с проверкой тарифа
  *   - Исправлены пути с BASE_PATH
  * 
  * ИСТОРИЯ:
  *   - 08.04.2026: Исправлены пути для GitHub Pages
+ *   - 08.04.2026: Унифицировано отображение недоступных модулей
  * ============================================
  */
 
@@ -67,10 +68,11 @@ const MODULES_CONFIG = {
     ],
     
     advanced: [
-        { id: 'analytics', name: 'Аналитика', icon: 'fa-chart-line', page: null, description: 'Расширенная аналитика продаж', preview: true, price: 'PRO', action: 'upgrade' },
-        { id: 'chat', name: 'Чат', icon: 'fa-comments', page: null, description: 'Внутренний чат команды', preview: true, price: 'Бесплатно', action: 'install' },
-        { id: 'documents', name: 'Документы', icon: 'fa-file-pdf', page: null, description: 'Электронный документооборот', preview: true, price: 'BUSINESS', action: 'upgrade' },
-        { id: 'reports', name: 'Отчеты', icon: 'fa-file-alt', page: null, description: 'Формирование отчетов', preview: true, price: 'PRO', action: 'upgrade' }
+        { id: 'analytics', name: 'Аналитика', icon: 'fa-chart-line', page: null, description: 'Расширенная аналитика продаж', preview: true, price: 'PRO' },
+        { id: 'chat', name: 'Чат', icon: 'fa-comments', page: null, description: 'Внутренний чат команды', preview: true, price: 'FREE' },
+        { id: 'documents', name: 'Документы', icon: 'fa-file-pdf', page: null, description: 'Электронный документооборот', preview: true, price: 'BUSINESS' },
+        { id: 'reports', name: 'Отчеты', icon: 'fa-file-alt', page: null, description: 'Формирование отчетов', preview: true, price: 'PRO' },
+        { id: 'invoices', name: 'Счета', icon: 'fa-file-invoice', page: null, description: 'Управление счетами', preview: true, price: 'BUSINESS' }
     ],
     
     settings: [
@@ -92,6 +94,34 @@ const CATEGORIES = {
 let currentUser = null;
 let searchQuery = '';
 
+// ========== ПРОВЕРКА ДОСТУПНОСТИ ТАРИФА ==========
+
+function checkPlanAvailability(requiredTier) {
+    if (!requiredTier || requiredTier === 'FREE' || requiredTier === 'Бесплатно') return true;
+    
+    const currentPlan = planManager?.getUserPlan();
+    if (!currentPlan) return false;
+    
+    const tierMap = {
+        'FREE': 0,
+        'PRO': 1,
+        'BUSINESS': 2,
+        'ENTERPRISE': 3
+    };
+    
+    const planMap = {
+        'free': 0,
+        'pro': 1,
+        'business': 2,
+        'enterprise': 3
+    };
+    
+    const required = tierMap[requiredTier] || 0;
+    const current = planMap[currentPlan.id] || 0;
+    
+    return current >= required;
+}
+
 // ========== ПРОВЕРКА ДОСТУПНОСТИ МОДУЛЯ ==========
 
 function isModuleAvailable(module) {
@@ -108,7 +138,6 @@ function isModuleAvailable(module) {
     // Проверка по правам
     if (module.permission) {
         const userPermissions = currentUser.permission_sets || [];
-        // Упрощенная проверка - в реальности нужно через permissions.js
         if (module.permission === 'view_own_deals' && !userPermissions.includes('AGENT')) return false;
         if (module.permission === 'view_complexes' && !userPermissions.includes('AGENT')) return false;
         if (module.permission === 'view_counterparties' && !userPermissions.includes('AGENT')) return false;
@@ -197,6 +226,7 @@ async function renderModuleCard(module, categoryId) {
     
     let metricsHtml = '';
     let actionsHtml = '';
+    let statusBadge = '';
     
     // Загружаем метрику для доступных модулей
     let metricData = null;
@@ -222,6 +252,7 @@ async function renderModuleCard(module, categoryId) {
             </div>
         `;
     } else if (!isAvailable && !isPreview) {
+        statusBadge = '<div class="card-badge" style="background: #ff6b6b;">Нет доступа</div>';
         actionsHtml = `
             <div class="card-actions">
                 <button class="card-btn card-btn-preview" data-action="upgrade" data-module="${module.id}">
@@ -230,24 +261,35 @@ async function renderModuleCard(module, categoryId) {
             </div>
         `;
     } else if (isPreview) {
+        const requiredTier = module.price || 'FREE';
+        const isPlanAvailable = checkPlanAvailability(requiredTier);
+        
+        if (!isPlanAvailable) {
+            statusBadge = `<div class="card-badge" style="background: #ff6b6b;">${escapeHtml(requiredTier)}</div>`;
+        } else {
+            statusBadge = `<div class="card-badge" style="background: #4caf50;">${escapeHtml(requiredTier)}</div>`;
+        }
+        
+        const buttonText = isPlanAvailable ? 'Установить' : 'Повысить тариф';
+        const buttonIcon = isPlanAvailable ? 'fa-download' : 'fa-crown';
+        const buttonAction = isPlanAvailable ? 'install' : 'upgrade';
+        const buttonClass = isPlanAvailable ? 'card-btn-primary' : 'card-btn-preview';
+        
         actionsHtml = `
             <div class="card-actions">
-                <button class="card-btn card-btn-preview" data-action="${module.action}" data-module="${module.id}">
-                    <i class="fas ${module.action === 'upgrade' ? 'fa-crown' : 'fa-download'}"></i> 
-                    ${module.action === 'upgrade' ? 'Активировать' : 'Установить'}
+                <button class="card-btn ${buttonClass}" data-action="${buttonAction}" data-module="${module.id}" data-tier="${requiredTier}">
+                    <i class="fas ${buttonIcon}"></i> ${buttonText}
                 </button>
             </div>
         `;
     }
     
-    const statusBadge = !isAvailable && !isPreview ? 
-        '<div class="card-badge" style="background: #ff6b6b;">Нет доступа</div>' : 
-        (module.price ? `<div class="card-badge">${escapeHtml(module.price)}</div>` : '');
+    const opacity = (!isAvailable && !isPreview) || (isPreview && !checkPlanAvailability(module.price)) ? 'opacity: 0.7;' : '';
     
     return `
-        <div class="module-card ${isPreview ? 'preview' : ''} ${!isAvailable && !isPreview ? 'locked' : ''}" 
+        <div class="module-card ${isPreview ? 'preview' : ''}" 
              data-module-id="${module.id}" data-category="${categoryId}"
-             style="${!isAvailable && !isPreview ? 'opacity: 0.7;' : ''}">
+             style="${opacity}">
             ${statusBadge}
             <div class="card-icon">
                 <i class="fas ${module.icon}"></i>
@@ -360,7 +402,6 @@ async function renderNavigator() {
         </div>
     `;
     
-    // Загружаем метрики и рендерим контент
     const contentContainer = document.getElementById('navigatorContent');
     
     let html = renderQuickAccess();
@@ -402,10 +443,10 @@ function attachEventHandlers() {
             previewBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const action = previewBtn.dataset.action;
-                const moduleId = previewBtn.dataset.module;
+                const tier = previewBtn.dataset.tier;
                 
                 if (action === 'upgrade') {
-                    showToast('info', `Модуль доступен в расширенных тарифах`);
+                    showToast('info', `Модуль доступен в тарифе ${tier || 'PRO'}`);
                     setTimeout(() => {
                         window.location.href = getPageUrl('marketplace.html');
                     }, 1500);
@@ -418,7 +459,6 @@ function attachEventHandlers() {
             });
         }
         
-        // Клик по всей карточке если нет кнопки preview
         if (!previewBtn && openBtn) {
             card.addEventListener('click', () => {
                 const href = openBtn.dataset.href;
