@@ -659,9 +659,10 @@ function setupDropZones() {
         
         if (!container || !status) return;
         
-        // Удаляем старые обработчики через клонирование
-        const newContainer = container.cloneNode(false);
-        container.parentNode.replaceChild(newContainer, container);
+        // Удаляем старые обработчики (без клонирования!)
+        const oldContainer = container;
+        const newContainer = oldContainer.cloneNode(false);
+        oldContainer.parentNode.replaceChild(newContainer, oldContainer);
         
         // Вешаем новые обработчики
         newContainer.addEventListener('dragover', (e) => {
@@ -670,7 +671,6 @@ function setupDropZones() {
         });
         
         newContainer.addEventListener('dragleave', (e) => {
-            // Проверяем, что мышь действительно покинула контейнер
             const related = e.relatedTarget;
             if (!related || !newContainer.contains(related)) {
                 column.classList.remove('drag-over');
@@ -683,23 +683,10 @@ function setupDropZones() {
             column.classList.remove('drag-over');
             
             const taskId = e.dataTransfer.getData('text/plain');
-            console.log('[tasks] Drop event:', { taskId, newStatus: status });
-            
-            if (!taskId) {
-                console.warn('[tasks] Нет taskId в drop');
-                return;
-            }
+            if (!taskId) return;
             
             const task = tasks.find(t => t.id == taskId);
-            if (!task) {
-                console.warn('[tasks] Задача не найдена:', taskId);
-                return;
-            }
-            
-            if (task.status === status) {
-                console.log('[tasks] Статус не изменился');
-                return;
-            }
+            if (!task || task.status === status) return;
             
             console.log('[tasks] Перемещение:', taskId, task.status, '→', status);
             
@@ -982,8 +969,9 @@ export async function initTasksPage() {
     
     await loadUsers();
     await loadComplexes();
-    await loadTasksData();
-   // setupDropZones();
+    await loadTasksData();      // Рендерит карточки
+    setupDropZones();            // Настраивает drag-and-drop (и очищает контейнеры!)
+    await loadTasksData();       // Рендерит карточки ЗАНОВО
     setupFilters();
     
     const addTaskBtn = document.getElementById('addTaskBtn');
