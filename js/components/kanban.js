@@ -34,17 +34,29 @@ export function createTaskCard(task, options = {}) {
     card.draggable = true;
     card.setAttribute('draggable', 'true');
     
-    card.ondragstart = function(e) {
+    card.addEventListener('dragstart', (e) => {
+        // Запрещаем drag если кликнули на кнопку
+        const clickedElement = e.target.closest('.task-btn, .task-actions button');
+        if (clickedElement) {
+            e.preventDefault();
+            return false;
+        }
+        
         card.classList.add('dragging');
         e.dataTransfer.setData('text/plain', task.id);
         e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setDragImage(new Image(), 0, 0);
-        return true;
-    };
+        
+        // Создаём невидимое изображение для перетаскивания
+        const dragIcon = document.createElement('div');
+        dragIcon.style.cssText = 'position:absolute;top:-1000px;left:-1000px;width:1px;height:1px;';
+        document.body.appendChild(dragIcon);
+        e.dataTransfer.setDragImage(dragIcon, 0, 0);
+        setTimeout(() => document.body.removeChild(dragIcon), 0);
+    });
     
-    card.ondragend = function() {
+    card.addEventListener('dragend', () => {
         card.classList.remove('dragging');
-    };
+    });
     
     // Цветовая индикация: важное = золотой, обычное = синий
     if (task.is_important) {
