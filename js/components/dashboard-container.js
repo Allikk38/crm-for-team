@@ -12,11 +12,13 @@
  *   - 08.04.2026: Интеграция с planManager, добавлены тарифные ограничения
  *   - 08.04.2026: Добавлен виджет QuickTaskWidget (быстрая задача)
  *   - 08.04.2026: Исправлена инициализация PlanManager и синтаксис класса
+ *   - 08.04.2026: Переход на чистый импорт planManager
  * ============================================
  */
 
 import { getActiveDashboard, saveDashboardLayout } from '../services/dashboards-supabase.js';
 import { getCurrentSupabaseUser } from '../core/supabase-session.js';
+import planManager from '../core/planManager.js';
 
 // Импорты виджетов
 import KpiSummaryWidget from './widgets/kpi-summary-widget.js';
@@ -50,28 +52,10 @@ class DashboardContainer {
         this.initialized = false;
         this.renderInProgress = false;
         
-        // Инициализация PlanManager
-        this.planManager = null;
-        this.initPlanManager();
+        // Используем импортированный planManager
+        this.planManager = planManager;
         
-        console.log('[dashboard-container] Создан');
-    }
-    
-    /**
-     * Инициализация менеджера тарифных планов
-     */
-    initPlanManager() {
-        // Проверяем наличие PlanManager в глобальной области
-        if (window.CRM?.PlanManager) {
-            this.planManager = window.CRM.PlanManager;
-            console.log('[dashboard-container] PlanManager найден в window.CRM');
-        } else {
-            console.warn('[dashboard-container] PlanManager не найден, используем ENTERPRISE (все виджеты доступны)');
-            // Создаем заглушку для тестирования (все виджеты доступны)
-            this.planManager = {
-                getUserPlan: () => ({ id: 'enterprise', name: 'Корпоративный' })
-            };
-        }
+        console.log('[dashboard-container] Создан, planManager:', !!this.planManager);
     }
     
     /**
