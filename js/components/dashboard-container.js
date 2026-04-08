@@ -9,6 +9,7 @@
  *   - 30.03.2026: Добавлены новые виджеты (KPI, прогресс, приветствие)
  *   - 30.03.2026: Переход на чистые импорты виджетов
  *   - 30.03.2026: Добавлен виджет TeamAnalyticsWidget
+ *   - 08.04.2026: Интеграция с planManager, добавлены тарифные ограничения
  * ============================================
  */
 
@@ -25,6 +26,16 @@ import TeamAnalyticsWidget from './widgets/team-analytics-widget.js';
 
 console.log('[dashboard-container] Загрузка...');
 
+// Конфигурация тарифов для виджетов
+const WIDGET_TIERS = {
+    'my-tasks': 'FREE',
+    'welcome': 'FREE',
+    'kpi-summary': 'PRO',
+    'project-progress': 'PRO',
+    'agent-ranking': 'BUSINESS',
+    'team-analytics': 'BUSINESS'
+};
+
 class DashboardContainer {
     constructor(container, options = {}) {
         this.container = container;
@@ -34,8 +45,79 @@ class DashboardContainer {
         this.editMode = false;
         this.initialized = false;
         this.renderInProgress = false;
+        this.planManager = window.CRM?.PlanManager || null;
         
         console.log('[dashboard-container] Создан');
+    }
+    
+    /**
+     * Получить тариф виджета
+     * @param {string} widgetId 
+     * @returns {string} 'FREE'|'PRO'|'BUSINESS'|'ENTERPRISE'
+     */
+    getWidgetTier(widgetId) {
+        return WIDGET_TIERS[widgetId] || 'FREE';
+    }
+    
+    /**
+     * Проверить доступность виджета в текущем тарифе
+     * @param {string} widgetId 
+     * @returns {boolean}
+     */
+    isWidgetAvailable(widgetId) {
+        if (!this.planManager) return true;
+        
+        const widgetTier = this.getWidgetTier(widgetId);
+        const currentPlan = this.planManager.getUserPlan();
+        
+        const tierLevels = {
+            'FREE': 0,
+            'PRO': 1,
+            'BUSINESS': 2,
+            'ENTERPRISE': 3
+        };
+        
+        const planLevels = {
+            'free': 0,
+            'pro': 1,
+            'business': 2,
+            'enterprise': 3
+        };
+        
+        const requiredLevel = tierLevels[widgetTier] || 0;
+        const userLevel = planLevels[currentPlan.id] || 0;
+        
+        return userLevel >= requiredLevel;
+    }
+    
+    /**
+     * Получить название тарифа для отображения
+     * @param {string} tier 
+     * @returns {string}
+     */
+    getTierDisplayName(tier) {
+        const names = {
+            'FREE': 'Бесплатный',
+            'PRO': 'PRO',
+            'BUSINESS': 'Бизнес',
+            'ENTERPRISE': 'Корпоративный'
+        };
+        return names[tier] || tier;
+    }
+    
+    /**
+     * Получить цвет бейджа для тарифа
+     * @param {string} tier 
+     * @returns {string}
+     */
+    getTierBadgeColor(tier) {
+        const colors = {
+            'FREE': '#4caf50',
+            'PRO': '#2196f3',
+            'BUSINESS': '#9c27b0',
+            'ENTERPRISE': '#ff9800'
+        };
+        return colors[tier] || '#757575';
     }
     
     async init() {
@@ -145,7 +227,16 @@ class DashboardContainer {
             
             const widgets = this.dashboard.layout.widgets || [];
             
-            if (widgets.length === 0) {
+            // Фильтруем виджеты по доступности
+            const availableWidgets = widgets.filter(widget => {
+                const isAvailable = this.isWidgetAvailable(widget.id);
+                if (!isAvailable) {
+                    console.warn(`[dashboard-container] Виджет ${widget.id} недоступен в текущем тарифе, скрыт`);
+                }
+                return isAvailable;
+            });
+            
+            if (availableWidgets.length === 0) {
                 this.showEmptyState();
                 return;
             }
@@ -153,7 +244,7 @@ class DashboardContainer {
             // Удаляем дубликаты по id
             const uniqueWidgets = [];
             const seenIds = new Set();
-            for (const widget of widgets) {
+            for (const widget of availableWidgets) {
                 if (!seenIds.has(widget.id)) {
                     seenIds.add(widget.id);
                     uniqueWidgets.push(widget);
@@ -162,8 +253,8 @@ class DashboardContainer {
                 }
             }
             
-            // Если были дубликаты, обновляем дашборд
-            if (uniqueWidgets.length !== widgets.length) {
+            // Если были изменения, обновляем дашборд
+            if (uniqueWidgets.length !== availableWidgets.length || availableWidgets.length !== widgets.length) {
                 this.dashboard.layout.widgets = uniqueWidgets;
                 await saveDashboardLayout(this.dashboard.id, this.dashboard.layout);
             }
@@ -192,7 +283,6 @@ class DashboardContainer {
                 </div>
             `;
             
-            // После сетки виджетов добавляем блоки-подсказки
             const fullHtml = gridHtml + `
                 <div class="dashboard-promo" style="margin-top: 32px; display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px;">
                     <div class="promo-card" style="background: linear-gradient(135deg, var(--accent), var(--accent-hover)); border-radius: 20px; padding: 24px; color: white; cursor: pointer;" onclick="window.location.href='marketplace-supabase.html'">
@@ -213,7 +303,6 @@ class DashboardContainer {
 
             this.container.innerHTML = fullHtml;
             
-            // Загружаем виджеты
             for (const widgetConfig of uniqueWidgets) {
                 await this.loadWidget(widgetConfig);
             }
@@ -228,6 +317,8 @@ class DashboardContainer {
     renderWidgetPlaceholder(widgetConfig, index) {
         const widgetTitle = this.getWidgetTitle(widgetConfig.id);
         const widgetIcon = this.getWidgetIcon(widgetConfig.id);
+        const widgetTier = this.getWidgetTier(widgetConfig.id);
+        const tierColor = this.getTierBadgeColor(widgetTier);
         
         return `
             <div class="widget-card" data-widget-id="${widgetConfig.id}" data-widget-index="${index}" style="background: var(--card-bg); border-radius: 16px; border: 1px solid var(--card-border); overflow: hidden;">
@@ -235,6 +326,7 @@ class DashboardContainer {
                     <div class="widget-title" style="display: flex; align-items: center; gap: 8px; font-weight: 600;">
                         <i class="fas ${widgetIcon}" style="color: var(--accent);"></i>
                         <span>${widgetConfig.title || widgetTitle}</span>
+                        <span class="widget-tier-badge" style="font-size: 10px; padding: 2px 6px; border-radius: 10px; background: ${tierColor}20; color: ${tierColor}; margin-left: 8px;">${widgetTier}</span>
                     </div>
                     <div class="widget-actions" style="display: flex; gap: 8px;">
                         ${this.editMode ? `
@@ -285,9 +377,20 @@ class DashboardContainer {
         const contentContainer = this.container.querySelector(`[data-widget-content="${widgetConfig.id}"]`);
         if (!contentContainer) return;
         
-        // Проверяем, не загружен ли уже этот виджет
         if (this.widgets.has(widgetConfig.id)) {
             console.log(`[dashboard-container] Виджет ${widgetConfig.id} уже загружен`);
+            return;
+        }
+        
+        // Проверяем доступность перед загрузкой
+        if (!this.isWidgetAvailable(widgetConfig.id)) {
+            contentContainer.innerHTML = `
+                <div class="widget-locked" style="text-align: center; padding: 40px; color: var(--text-muted);">
+                    <i class="fas fa-lock" style="font-size: 32px; margin-bottom: 12px; display: block;"></i>
+                    <div>Виджет недоступен в вашем тарифе</div>
+                    <button onclick="window.location.href='settings.html#billing'" style="margin-top: 12px; padding: 6px 12px; border-radius: 8px; background: var(--accent); color: white; border: none; cursor: pointer;">Повысить тариф</button>
+                </div>
+            `;
             return;
         }
         
@@ -410,11 +513,11 @@ class DashboardContainer {
                 settings: { limit: 10 }
             },
             {
-                id: 'agent-ranking',
+                id: 'welcome',
                 moduleId: 'index',
-                title: 'Топ агентов',
-                description: 'Рейтинг агентов по завершенным задачам',
-                settings: { limit: 5, period: 'all' }
+                title: 'Приветствие',
+                description: 'Персональное приветствие и советы',
+                settings: {}
             },
             {
                 id: 'kpi-summary',
@@ -431,11 +534,11 @@ class DashboardContainer {
                 settings: {}
             },
             {
-                id: 'welcome',
+                id: 'agent-ranking',
                 moduleId: 'index',
-                title: 'Приветствие',
-                description: 'Персональное приветствие и советы',
-                settings: {}
+                title: 'Топ агентов',
+                description: 'Рейтинг агентов по завершенным задачам',
+                settings: { limit: 5, period: 'all' }
             },
             {
                 id: 'team-analytics',
@@ -453,7 +556,7 @@ class DashboardContainer {
             right: 0;
             top: 0;
             bottom: 0;
-            width: 320px;
+            width: 360px;
             background: var(--card-bg);
             border-left: 1px solid var(--card-border);
             transform: translateX(100%);
@@ -464,6 +567,71 @@ class DashboardContainer {
             box-shadow: -2px 0 8px rgba(0,0,0,0.1);
         `;
         
+        // Группируем виджеты по тарифам
+        const groupedWidgets = {
+            'FREE': [],
+            'PRO': [],
+            'BUSINESS': []
+        };
+        
+        availableWidgets.forEach(widget => {
+            const tier = this.getWidgetTier(widget.id);
+            if (groupedWidgets[tier]) {
+                groupedWidgets[tier].push(widget);
+            }
+        });
+        
+        const currentPlan = this.planManager?.getUserPlan() || { id: 'free' };
+        
+        let widgetsHtml = '';
+        
+        for (const [tier, widgets] of Object.entries(groupedWidgets)) {
+            if (widgets.length === 0) continue;
+            
+            const tierColor = this.getTierBadgeColor(tier);
+            const tierName = this.getTierDisplayName(tier);
+            const isTierAvailable = this.isWidgetAvailable(widgets[0].id);
+            
+            widgetsHtml += `
+                <div class="widget-palette-section" style="margin-bottom: 20px;">
+                    <div class="widget-palette-section-header" style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--card-border);">
+                        <span class="widget-tier-badge" style="font-size: 11px; padding: 3px 10px; border-radius: 12px; background: ${tierColor}20; color: ${tierColor}; font-weight: 600;">${tierName}</span>
+                        ${!isTierAvailable ? '<span style="font-size: 11px; color: var(--text-muted); margin-left: auto;"><i class="fas fa-lock"></i> Требуется повышение тарифа</span>' : ''}
+                    </div>
+                    ${widgets.map(widget => {
+                        const isAvailable = this.isWidgetAvailable(widget.id);
+                        const widgetTier = this.getWidgetTier(widget.id);
+                        const tierColor = this.getTierBadgeColor(widgetTier);
+                        
+                        return `
+                            <div class="widget-palette-item ${!isAvailable ? 'locked' : ''}" 
+                                 data-widget-id="${widget.id}" 
+                                 data-module-id="${widget.moduleId}" 
+                                 data-available="${isAvailable}"
+                                 style="padding: 12px; background: var(--hover-bg); border-radius: 12px; margin-bottom: 10px; cursor: ${isAvailable ? 'pointer' : 'not-allowed'}; transition: all 0.2s; display: flex; align-items: flex-start; gap: 12px; opacity: ${isAvailable ? '1' : '0.6'};">
+                                <i class="fas ${this.getWidgetIcon(widget.id)}" style="font-size: 20px; color: ${isAvailable ? 'var(--accent)' : 'var(--text-muted)'}; margin-top: 2px;"></i>
+                                <div class="widget-palette-info" style="flex: 1;">
+                                    <div class="widget-palette-name" style="font-weight: 600; margin-bottom: 4px; display: flex; align-items: center; gap: 8px;">
+                                        ${widget.title}
+                                        <span class="widget-tier-badge" style="font-size: 9px; padding: 2px 6px; border-radius: 10px; background: ${tierColor}20; color: ${tierColor};">${widgetTier}</span>
+                                    </div>
+                                    <div class="widget-palette-desc" style="font-size: 12px; opacity: 0.7;">${widget.description}</div>
+                                    ${!isAvailable ? `
+                                        <div style="margin-top: 8px;">
+                                            <button class="upgrade-btn" data-tier="${widgetTier}" style="padding: 4px 12px; border-radius: 16px; background: ${tierColor}; color: white; border: none; cursor: pointer; font-size: 11px;">
+                                                <i class="fas fa-crown"></i> Повысить до ${this.getTierDisplayName(widgetTier)}
+                                            </button>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                                ${!isAvailable ? '<i class="fas fa-lock" style="color: var(--text-muted); margin-top: 2px;"></i>' : ''}
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        }
+        
         palette.innerHTML = `
             <div class="widget-palette-header" style="padding: 20px; border-bottom: 1px solid var(--card-border); display: flex; justify-content: space-between; align-items: center;">
                 <div class="widget-palette-title" style="font-size: 18px; font-weight: 600;">
@@ -471,16 +639,14 @@ class DashboardContainer {
                 </div>
                 <button class="widget-palette-close" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-muted);">&times;</button>
             </div>
-            <div class="widget-palette-list" style="flex: 1; overflow-y: auto; padding: 16px;">
-                ${availableWidgets.map(widget => `
-                    <div class="widget-palette-item" data-widget-id="${widget.id}" data-module-id="${widget.moduleId}" style="padding: 12px; background: var(--hover-bg); border-radius: 12px; margin-bottom: 12px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 12px;">
-                        <i class="fas ${this.getWidgetIcon(widget.id)}" style="font-size: 20px; color: var(--accent);"></i>
-                        <div class="widget-palette-info" style="flex: 1;">
-                            <div class="widget-palette-name" style="font-weight: 600; margin-bottom: 4px;">${widget.title}</div>
-                            <div class="widget-palette-desc" style="font-size: 12px; opacity: 0.7;">${widget.description}</div>
-                        </div>
-                    </div>
-                `).join('')}
+            <div class="widget-palette-subheader" style="padding: 12px 20px; background: var(--hover-bg); border-bottom: 1px solid var(--card-border);">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <i class="fas fa-tag" style="color: var(--accent);"></i>
+                    <span style="font-size: 13px;">Текущий тариф: <strong style="color: var(--accent);">${this.getTierDisplayName(currentPlan.id === 'free' ? 'FREE' : currentPlan.id.toUpperCase())}</strong></span>
+                </div>
+            </div>
+            <div class="widget-palette-list" style="flex: 1; overflow-y: auto; padding: 20px;">
+                ${widgetsHtml}
             </div>
         `;
         
@@ -495,13 +661,18 @@ class DashboardContainer {
         
         const items = palette.querySelectorAll('.widget-palette-item');
         items.forEach(item => {
-            item.onclick = async () => {
+            item.onclick = async (e) => {
+                const isAvailable = item.dataset.available === 'true';
+                
+                if (!isAvailable) {
+                    return;
+                }
+                
                 const widgetId = item.dataset.widgetId;
                 const moduleId = item.dataset.moduleId;
                 const widgetDef = availableWidgets.find(w => w.id === widgetId);
                 
                 if (this.dashboard && this.dashboard.layout) {
-                    // Проверяем, нет ли уже такого виджета
                     const exists = this.dashboard.layout.widgets.some(w => w.id === widgetId);
                     if (exists) {
                         alert('Этот виджет уже добавлен');
@@ -523,6 +694,15 @@ class DashboardContainer {
                         await this.render();
                     }
                 }
+            };
+        });
+        
+        const upgradeBtns = palette.querySelectorAll('.upgrade-btn');
+        upgradeBtns.forEach(btn => {
+            btn.onclick = (e) => {
+                e.stopPropagation();
+                const tier = btn.dataset.tier;
+                window.location.href = 'settings.html#billing';
             };
         });
     }
@@ -567,7 +747,6 @@ class DashboardContainer {
     }
 }
 
-// Добавляем анимацию спиннера
 if (!document.querySelector('#widget-spinner-style')) {
     const style = document.createElement('style');
     style.id = 'widget-spinner-style';
