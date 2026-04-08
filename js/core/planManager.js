@@ -8,20 +8,23 @@
  *   - Проверка доступности модулей
  *   - Контроль лимитов (задачи, сделки, объекты)
  *   - Поддержка разных тарифов (Free, Pro, Business, Enterprise)
- *   - Чистые экспорты без глобальных объектов
+ *   - ЧИСТЫЕ ЭКСПОРТЫ, БЕЗ ГЛОБАЛЬНЫХ ОБЪЕКТОВ
  * 
  * ЗАВИСИМОСТИ:
  *   - getCurrentSupabaseUser из supabase-session.js
+ *   - eventBus из eventBus.js
  * 
  * ИСТОРИЯ:
  *   - 31.03.2026: Администратор получает ENTERPRISE план
  *   - 30.03.2026: Создание менеджера планов
  *   - 08.04.2026: Переход на чистые экспорты, убраны глобальные объекты
  *   - 08.04.2026: Исправлено определение тарифа по permission_sets
+ *   - 08.04.2026: Полное удаление глобальных объектов
  * ============================================
  */
 
 import { getCurrentSupabaseUser } from './supabase-session.js';
+import eventBus from './eventBus.js';
 
 console.log('[planManager] Загрузка...');
 
@@ -86,20 +89,24 @@ class PlanManager {
     constructor() {
         this.currentPlan = null;
         this.planCache = null;
-        this.userChangeHandler = null;
-        this.setupUserChangeListener();
+        this.setupEventListeners();
     }
     
     /**
-     * Настройка слушателя изменения пользователя
+     * Настройка слушателей событий
      */
-    setupUserChangeListener() {
-        if (typeof window !== 'undefined') {
-            this.userChangeHandler = () => {
-                console.log('[planManager] Пользователь изменился, сбрасываем кэш плана');
+    setupEventListeners() {
+        // Слушаем событие загрузки пользователя для сброса кэша
+        if (eventBus) {
+            eventBus.on('user:loaded', () => {
+                console.log('[planManager] Пользователь загружен, сбрасываем кэш плана');
                 this.planCache = null;
-            };
-            window.addEventListener('userLoaded', this.userChangeHandler);
+            });
+            
+            eventBus.on('user:updated', () => {
+                console.log('[planManager] Пользователь обновлен, сбрасываем кэш плана');
+                this.planCache = null;
+            });
         }
     }
     
@@ -108,11 +115,7 @@ class PlanManager {
      * @returns {Object|null}
      */
     getCurrentUser() {
-        try {
-            return getCurrentSupabaseUser();
-        } catch (e) {
-            return window.currentSupabaseUser || null;
-        }
+        return getCurrentSupabaseUser();
     }
     
     /**
@@ -277,31 +280,31 @@ class PlanManager {
     }
     
     /**
+     * Сбросить кэш плана
+     */
+    resetCache() {
+        this.planCache = null;
+        console.log('[planManager] Кэш плана сброшен');
+    }
+    
+    /**
      * Очистка ресурсов
      */
     destroy() {
-        if (typeof window !== 'undefined' && this.userChangeHandler) {
-            window.removeEventListener('userLoaded', this.userChangeHandler);
+        if (eventBus) {
+            eventBus.off('user:loaded');
+            eventBus.off('user:updated');
         }
         this.planCache = null;
     }
 }
 
-// ========== СОЗДАНИЕ СИНГЛТОНА ==========
+// ========== СОЗДАНИЕ И ЭКСПОРТ СИНГЛТОНА ==========
 
 const planManager = new PlanManager();
 
-// ========== ЭКСПОРТЫ ==========
-
 export default planManager;
 export { PlanManager };
-
-// Для обратной совместимости
-if (typeof window !== 'undefined') {
-    window.CRM = window.CRM || {};
-    window.CRM.PlanManager = planManager;
-    window.CRM.PLANS = PLANS;
-}
 
 console.log('[planManager] Менеджер планов загружен');
 console.log('[planManager] Доступные планы:', Object.keys(PLANS).join(', '));
