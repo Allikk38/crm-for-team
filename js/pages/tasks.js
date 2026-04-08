@@ -983,7 +983,7 @@ export async function initTasksPage() {
     await loadUsers();
     await loadComplexes();
     await loadTasksData();
-    setupDropZones();
+   // setupDropZones();
     setupFilters();
     
     const addTaskBtn = document.getElementById('addTaskBtn');
