@@ -29,6 +29,7 @@ import WelcomeWidget from './widgets/welcome-widget.js';
 import AgentRankingWidget from './widgets/agent-ranking-widget.js';
 import TeamAnalyticsWidget from './widgets/team-analytics-widget.js';
 import QuickTaskWidget from './widgets/quick-task-widget.js';
+import eventBus from '../core/eventBus.js';
 
 console.log('[dashboard-container] Загрузка...');
 
@@ -942,9 +943,9 @@ class DashboardContainer {
      * Подписаться на события шины событий
      */
     subscribeEvents() {
-        if (!window.CRM?.EventBus) return;
+        if (!eventBus) return;
         
-        window.CRM.EventBus.on('task:created', () => {
+        eventBus.on('task:created', () => {
             this.refreshAllWidgets();
         });
         
@@ -978,10 +979,5 @@ if (!document.querySelector('#widget-spinner-style')) {
     document.head.appendChild(style);
 }
 
-// Экспортируем в глобальную область
-if (typeof window !== 'undefined') {
-    window.CRM = window.CRM || {};
-    window.CRM.DashboardContainer = DashboardContainer;
-}
 
 export default DashboardContainer;
