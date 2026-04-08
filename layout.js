@@ -21,6 +21,7 @@
  *   - 02.04.2026: Исправлена ошибка getCurrentUserRole, добавлена проверка прав для админ-модуля
  *   - 06.04.2026: Добавлена поддержка GitHub Pages через определение базового пути
  *   - 06.04.2026: Полный переход на импорты, убраны глобальные объекты
+ *   - 08.04.2026: Добавлен модуль Финансы в категорию Личное
  * ============================================
  */
 
@@ -33,15 +34,12 @@ let isInitialized = false;
 
 // ========== ОПРЕДЕЛЕНИЕ БАЗОВОГО ПУТИ ДЛЯ GITHUB PAGES ==========
 function getBasePath() {
-    // Получаем путь к текущему файлу
     const currentPath = window.location.pathname;
     
-    // Проверяем, запущено ли на GitHub Pages (в пути есть /crm-for-team/)
     if (currentPath.includes('/crm-for-team/')) {
         return '/crm-for-team';
     }
     
-    // Локальная разработка или корень
     return '';
 }
 
@@ -68,7 +66,7 @@ const MODULE_CATEGORIES = {
         name: 'Личное',
         icon: 'fa-user',
         order: 2,
-        modules: ['tasks', 'calendar', 'notes', 'habits', 'pomodoro']
+        modules: ['tasks', 'calendar', 'notes', 'habits', 'pomodoro', 'finance']
     },
     tools: {
         id: 'tools',
@@ -88,7 +86,6 @@ const MODULE_CATEGORIES = {
 };
 
 // ========== ОПИСАНИЯ МОДУЛЕЙ ==========
-// Функция для получения пути с базовым префиксом
 function getModulePath(page) {
     return `${BASE_PATH}/app/${page}`;
 }
@@ -112,6 +109,7 @@ const MODULE_INFO = {
     notes: { name: 'Заметки', icon: 'fa-sticky-note', get href() { return getModulePath('notes.html'); }, description: 'Быстрые заметки' },
     habits: { name: 'Привычки', icon: 'fa-calendar-check', get href() { return getModulePath('habits.html'); }, description: 'Отслеживание привычек' },
     pomodoro: { name: 'Помодоро', icon: 'fa-clock', get href() { return getModulePath('pomodoro.html'); }, description: 'Таймер продуктивности' },
+    finance: { name: 'Финансы', icon: 'fa-money-bill-wave', get href() { return getModulePath('finance.html'); }, description: 'Учет доходов и расходов' },
     
     // Инструменты
     team: { name: 'Команда', icon: 'fa-user-friends', get href() { return getModulePath('team.html'); }, description: 'Управление командой' },
@@ -126,21 +124,14 @@ const MODULE_INFO = {
     admin: { name: 'Администрирование', icon: 'fa-shield-alt', get href() { return getModulePath('admin.html'); }, description: 'Управление системой' }
 };
 
-// Функция для получения пути (для использования в других местах)
 function getFullPath(page) {
     return `${BASE_PATH}/app/${page}`;
 }
 
-/**
- * Получить текущего пользователя
- */
 function getCurrentUser() {
     return window.currentSupabaseUser || null;
 }
 
-/**
- * Проверить, доступен ли модуль для пользователя
- */
 function isModuleAvailable(moduleId) {
     const user = getCurrentUser();
     if (!user) return false;
@@ -157,9 +148,6 @@ function isModuleAvailable(moduleId) {
     return true;
 }
 
-/**
- * Рендер бокового меню с группировкой
- */
 function renderSidebarMenu() {
     const container = document.getElementById('sidebar-nav');
     if (!container) {
@@ -224,9 +212,6 @@ function renderSidebarMenu() {
     console.log('[layout] Боковое меню отрисовано, BASE_PATH:', BASE_PATH);
 }
 
-/**
- * Добавление обработчиков для сворачивания категорий
- */
 function attachCategoryHandlers() {
     const categories = document.querySelectorAll('.sidebar-category');
     
@@ -258,9 +243,6 @@ function attachCategoryHandlers() {
     });
 }
 
-/**
- * Обновление кнопок в футере
- */
 function updateFooterButtons() {
     const sidebarFooter = document.querySelector('.sidebar-footer');
     if (!sidebarFooter) return;
@@ -296,9 +278,6 @@ function updateFooterButtons() {
     }
 }
 
-/**
- * Инициализация бокового меню
- */
 export async function initSidebar() {
     if (isInitialized) return;
     
@@ -330,9 +309,6 @@ export async function initSidebar() {
     console.log('[layout] Боковое меню инициализировано');
 }
 
-/**
- * Свернуть/развернуть боковое меню
- */
 export function toggleSidebar() {
     const sidebar = document.getElementById('sidebar');
     if (!sidebar) return;
@@ -356,9 +332,6 @@ export function toggleSidebar() {
     console.log('[layout] Сайдбар', sidebarCollapsed ? 'свернут' : 'развернут');
 }
 
-/**
- * Инициализация мобильного меню
- */
 function initMobileMenu() {
     const existingToggle = document.querySelector('.mobile-menu-toggle');
     if (existingToggle) existingToggle.remove();
@@ -383,9 +356,6 @@ function initMobileMenu() {
     });
 }
 
-/**
- * Добавление кнопки уведомлений
- */
 function addNotificationButtonToTopBar() {
     const topBar = document.querySelector('.top-bar');
     if (!topBar) return;
@@ -413,9 +383,6 @@ function addNotificationButtonToTopBar() {
     }
 }
 
-/**
- * Обновление счетчика уведомлений
- */
 async function updateNotificationBadge() {
     const badge = document.getElementById('notificationBadge');
     if (!badge) return;
@@ -441,9 +408,6 @@ async function updateNotificationBadge() {
     }
 }
 
-/**
- * Переключение темы
- */
 function toggleTheme() {
     const isDark = document.documentElement.classList.contains('theme-dark');
     if (isDark) {
@@ -462,16 +426,10 @@ function toggleTheme() {
     updateFooterButtons();
 }
 
-/**
- * Переход на страницу профиля
- */
 export function goToProfile() {
     window.location.href = getFullPath('profile.html');
 }
 
-/**
- * Выход из системы
- */
 export function logout() {
     if (confirm('Вы уверены, что хотите выйти из системы?')) {
         if (window.supabaseSession?.logoutFromSupabase) {
@@ -483,9 +441,6 @@ export function logout() {
     }
 }
 
-/**
- * Виджет помодоро
- */
 function addPomodoroWidget() {
     let checkCount = 0;
     const checkInterval = setInterval(() => {
@@ -585,7 +540,6 @@ function addPomodoroWidget() {
     }
 }
 
-// Стили для уведомлений
 const notificationStyle = document.createElement('style');
 notificationStyle.textContent = `
     .notification-icon-wrapper {
@@ -621,7 +575,6 @@ notificationStyle.textContent = `
 `;
 document.head.appendChild(notificationStyle);
 
-// Экспорты для модульной системы
 export { updateNotificationBadge, getFullPath };
 
 console.log('[layout] Модуль загружен, BASE_PATH:', BASE_PATH);
