@@ -20,17 +20,7 @@
  *   - 06.04.2026: Добавлена поддержка GitHub Pages через определение базового пути
  *   - 08.04.2026: Добавлен модуль Финансы в категорию Личное
  *   - 08.04.2026: Исправлены пути для GitHub Pages (относительные)
- * ============================================
- */
-
-/**
- * ============================================
- * ФАЙЛ: layout.js
- * РОЛЬ: Управление боковой навигационной панелью с группировкой модулей
- * 
- * ИСТОРИЯ:
- *   - 08.04.2026: Исправлено определение базового пути для GitHub Pages
- *   - 08.04.2026: Добавлен модуль Финансы в категорию Личное
+ *   - 08.04.2026: Добавлена обработка кликов в свернутом меню
  * ============================================
  */
 
@@ -43,18 +33,14 @@ let isInitialized = false;
 
 // ========== ОПРЕДЕЛЕНИЕ БАЗОВОГО ПУТИ ДЛЯ GITHUB PAGES ==========
 function getBasePath() {
-    // Получаем полный путь из текущего URL
     const fullPath = window.location.pathname;
     
-    // Ищем паттерн /crm-for-team/ в пути
     const match = fullPath.match(/^(\/crm-for-team)/);
     if (match) {
         return match[1];
     }
     
-    // Проверяем, есть ли репозиторий в hostname (для GitHub Pages)
     if (window.location.hostname.includes('github.io')) {
-        // Извлекаем имя репозитория из URL
         const parts = fullPath.split('/');
         if (parts.length > 1 && parts[1] && parts[1] !== 'app') {
             return `/${parts[1]}`;
@@ -66,7 +52,6 @@ function getBasePath() {
 
 const BASE_PATH = getBasePath();
 
-// ========== ФУНКЦИЯ ПОЛУЧЕНИЯ ПУТИ К СТРАНИЦЕ ==========
 function getPageUrl(page) {
     if (BASE_PATH) {
         return `${BASE_PATH}/app/${page}`;
@@ -156,10 +141,8 @@ function isModuleAvailable(moduleId) {
     const user = getCurrentUser();
     if (!user) return false;
     
-    // Администратор имеет доступ ко всему
     if (user.role === 'admin') return true;
     
-    // Маппинг модулей на разрешения
     const MODULE_PERMISSIONS = {
         'dashboard': 'view_dashboard',
         'tasks': 'view_tasks',
@@ -175,10 +158,8 @@ function isModuleAvailable(moduleId) {
     
     const requiredPermission = MODULE_PERMISSIONS[moduleId];
     
-    // Если права не указаны — модуль доступен всем
     if (!requiredPermission) return true;
     
-    // Проверяем наличие права
     return hasPermission(requiredPermission, user);
 }
 
@@ -262,10 +243,57 @@ function attachCategoryHandlers() {
             items.classList.add('collapsed');
             if (toggle) toggle.classList.add('collapsed');
         }
+    });
+    
+    // Отдельная настройка обработчиков через setupCollapsedIconHandlers
+}
+
+/**
+ * Настройка обработчиков для свернутого меню
+ */
+function setupCollapsedIconHandlers() {
+    const sidebar = document.getElementById('sidebar');
+    if (!sidebar) return;
+    
+    const categoryHeaders = sidebar.querySelectorAll('.sidebar-category-header');
+    
+    categoryHeaders.forEach(header => {
+        // Удаляем старый обработчик
+        header.removeEventListener('click', header._clickHandler);
         
-        if (header) {
-            header.onclick = (e) => {
-                e.stopPropagation();
+        // Создаем новый обработчик
+        const clickHandler = (e) => {
+            e.stopPropagation();
+            
+            const sidebarEl = document.getElementById('sidebar');
+            const isCollapsed = sidebarEl?.classList.contains('collapsed');
+            const category = header.closest('.sidebar-category');
+            
+            if (!category) return;
+            
+            const items = category.querySelector('.sidebar-category-items');
+            const toggle = category.querySelector('.category-toggle');
+            const catId = category.dataset.category;
+            
+            if (isCollapsed) {
+                // Меню свернуто - разворачиваем его
+                toggleSidebar();
+                
+                // Проверяем, была ли категория свернута
+                const wasCollapsed = items?.classList.contains('collapsed') || 
+                                    localStorage.getItem(`sidebar_category_${catId}`) === 'true';
+                
+                if (wasCollapsed) {
+                    setTimeout(() => {
+                        if (items) {
+                            items.classList.remove('collapsed');
+                            if (toggle) toggle.classList.remove('collapsed');
+                            localStorage.setItem(`sidebar_category_${catId}`, 'false');
+                        }
+                    }, 100);
+                }
+            } else {
+                // Меню уже развернуто - просто переключаем категорию
                 if (items) {
                     items.classList.toggle('collapsed');
                     if (toggle) toggle.classList.toggle('collapsed');
@@ -273,8 +301,11 @@ function attachCategoryHandlers() {
                     const newState = items.classList.contains('collapsed');
                     localStorage.setItem(`sidebar_category_${catId}`, newState);
                 }
-            };
-        }
+            }
+        };
+        
+        header._clickHandler = clickHandler;
+        header.addEventListener('click', clickHandler);
     });
 }
 
@@ -330,10 +361,12 @@ export async function initSidebar() {
     }
     
     renderSidebarMenu();
+    setupCollapsedIconHandlers();
     
     window.addEventListener('userLoaded', () => {
         console.log('[layout] userLoaded событие, обновляем меню');
         renderSidebarMenu();
+        setupCollapsedIconHandlers();
     });
     
     initMobileMenu();
@@ -360,6 +393,8 @@ export function toggleSidebar() {
     }
     
     updateFooterButtons();
+    
+    setTimeout(() => setupCollapsedIconHandlers(), 100);
     
     window.dispatchEvent(new CustomEvent('sidebarToggled', { 
         detail: { collapsed: sidebarCollapsed } 
