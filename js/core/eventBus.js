@@ -7,9 +7,11 @@
  *   - Модули могут общаться, не зная о существовании друг друга
  *   - Если модуль не загружен - просто игнорируем
  *   - Поддержка подписки на события
+ *   - ЧИСТЫЙ ЭКСПОРТ ДЛЯ МОДУЛЬНОЙ СИСТЕМЫ
  * 
  * ИСТОРИЯ:
  *   - 30.03.2026: Создание шины событий
+ *   - 08.04.2026: Добавлен ES6 экспорт
  * ============================================
  */
 
@@ -37,7 +39,6 @@ class EventBus {
             console.log(`[eventBus] Подписка на "${event}"`);
         }
         
-        // Возвращаем функцию для отписки
         return () => this.off(event, callback);
     }
     
@@ -115,13 +116,22 @@ class EventBus {
     }
 }
 
-// Создаем глобальную шину событий
-window.CRM = window.CRM || {};
-window.CRM.EventBus = new EventBus();
+// Создаем экземпляр
+const eventBus = new EventBus();
 
 // Включаем debug в режиме разработки
-if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-    window.CRM.EventBus.debug = true;
+if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+    eventBus.debug = true;
+}
+
+// ========== ЭКСПОРТЫ ==========
+export { eventBus, EventBus };
+export default eventBus;
+
+// Глобальный объект для обратной совместимости
+if (typeof window !== 'undefined') {
+    window.CRM = window.CRM || {};
+    window.CRM.EventBus = eventBus;
 }
 
 console.log('[eventBus] Шина событий загружена');
