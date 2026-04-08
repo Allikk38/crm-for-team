@@ -10,15 +10,20 @@
  *   - Управление состоянием загрузки
  *   - Кэширование данных
  *   - Поддержка разных размеров сетки
+ *   - ЧИСТЫЙ ES6 МОДУЛЬ БЕЗ ГЛОБАЛЬНЫХ ОБЪЕКТОВ
  * 
  * ЗАВИСИМОСТИ:
- *   - js/core/eventBus.js
- *   - js/utils/helpers.js (escapeHtml, formatDate)
+ *   - eventBus из js/core/eventBus.js
+ *   - escapeHtml из js/utils/helpers.js
  * 
  * ИСТОРИЯ:
  *   - 30.03.2026: Создание базового класса виджета
+ *   - 08.04.2026: Убраны глобальные объекты, чистый экспорт
  * ============================================
  */
+
+import eventBus from '../core/eventBus.js';
+import { escapeHtml } from '../utils/helpers.js';
 
 console.log('[widget.js] Базовый класс виджета загружен');
 
@@ -44,7 +49,7 @@ class Widget {
         this.loading = false;
         this.error = null;
         this.intervalId = null;
-        this.subscriptions = new Map(); // Храним подписки для отписки
+        this.subscriptions = new Map();
         this.cacheKey = `widget_${this.widgetId}_${JSON.stringify(this.settings)}`;
         
         console.log(`[widget] Создан виджет: ${this.widgetId}`);
@@ -85,7 +90,6 @@ class Widget {
      * Загрузка данных (должен быть переопределен)
      */
     async fetchData() {
-        // Переопределить в наследнике
         return {};
     }
     
@@ -108,15 +112,21 @@ class Widget {
      */
     showError(message) {
         if (!this.container) return;
+        const safeMessage = escapeHtml(message);
         this.container.innerHTML = `
             <div class="widget-error">
                 <i class="fas fa-exclamation-triangle"></i>
-                <span>${window.escapeHtml ? window.escapeHtml(message) : message}</span>
-                <button class="widget-retry-btn" onclick="this.closest('.widget').__widget?.refresh()">
+                <span>${safeMessage}</span>
+                <button class="widget-retry-btn" data-widget-refresh="${this.widgetId}">
                     <i class="fas fa-sync-alt"></i> Повторить
                 </button>
             </div>
         `;
+        
+        const retryBtn = this.container.querySelector('.widget-retry-btn');
+        if (retryBtn) {
+            retryBtn.addEventListener('click', () => this.refresh());
+        }
     }
     
     /**
@@ -125,10 +135,11 @@ class Widget {
      */
     showPlaceholder(message) {
         if (!this.container) return;
+        const safeMessage = escapeHtml(message);
         this.container.innerHTML = `
             <div class="widget-placeholder">
                 <i class="fas fa-cog"></i>
-                <span>${window.escapeHtml ? window.escapeHtml(message) : message}</span>
+                <span>${safeMessage}</span>
             </div>
         `;
     }
@@ -139,10 +150,11 @@ class Widget {
      */
     showEmpty(message = 'Нет данных') {
         if (!this.container) return;
+        const safeMessage = escapeHtml(message);
         this.container.innerHTML = `
             <div class="widget-empty">
                 <i class="fas fa-inbox"></i>
-                <span>${window.escapeHtml ? window.escapeHtml(message) : message}</span>
+                <span>${safeMessage}</span>
             </div>
         `;
     }
@@ -154,7 +166,7 @@ class Widget {
      * @param {boolean} autoRefresh - Автоматически обновлять виджет при событии
      */
     subscribe(event, handler, autoRefresh = true) {
-        if (!window.CRM?.EventBus) {
+        if (!eventBus) {
             console.warn('[widget] EventBus не доступен');
             return;
         }
@@ -168,9 +180,8 @@ class Widget {
             }
         };
         
-        const unsubscribe = window.CRM.EventBus.on(event, callback);
+        const unsubscribe = eventBus.on(event, callback);
         
-        // Сохраняем для отписки
         if (!this.subscriptions.has(event)) {
             this.subscriptions.set(event, []);
         }
@@ -186,8 +197,6 @@ class Widget {
      * @returns {boolean}
      */
     shouldHandleEvent(event, data) {
-        // По умолчанию обрабатываем все события
-        // В наследниках можно переопределить для фильтрации
         return true;
     }
     
@@ -242,7 +251,6 @@ class Widget {
                 return data;
             }
             
-            // Кэш устарел
             localStorage.removeItem(this.cacheKey);
             return null;
         } catch (error) {
@@ -289,7 +297,6 @@ class Widget {
      * @param {number} height - Новая высота
      */
     onResize(width, height) {
-        // Переопределить в наследнике при необходимости
         console.log(`[widget] Изменение размера: ${width}x${height}`);
     }
     
@@ -305,29 +312,6 @@ class Widget {
             this.container.innerHTML = '';
         }
     }
-    
-    /**
-     * Показать уведомление
-     * @param {string} message - Текст уведомления
-     * @param {string} type - Тип (info, success, warning, error)
-     */
-    showNotification(message, type = 'info') {
-        if (window.showToast) {
-            window.showToast(type, message);
-        } else {
-            console.log(`[widget] ${type}: ${message}`);
-        }
-    }
 }
 
-/**
- * Регистрируем виджет в глобальном объекте
- */
-if (typeof window !== 'undefined') {
-    window.CRM = window.CRM || {};
-    window.CRM.Widget = Widget;
-    console.log('[widget.js] Базовый класс виджета зарегистрирован');
-}
-
-// Экспорт для модулей
 export default Widget;
