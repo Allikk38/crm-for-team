@@ -12,10 +12,11 @@
     ОСОБЕННОСТИ:
       - Добавление доходов и расходов
       - Просмотр списка транзакций
-      - Фильтрация по дате, типу, категории
+      - Фильтрация по типу, периоду, датам
       - Статистика по периодам
       - Адаптивный дизайн для мобильных устройств
       - Виджеты справа (стационарные)
+      - Управление виджетами (как на дашборде)
     
     ЗАВИСИМОСТИ:
       - js/pages/finance.js
@@ -26,6 +27,7 @@
       - 08.04.2026: Создание страницы финансов
       - 08.04.2026: Добавлены стили для select в темной теме
       - 08.04.2026: Добавлена кнопка управления виджетами
+      - 08.04.2026: Заменен select периода на кнопки (как на дашборде)
     ============================================
     -->
     
@@ -213,23 +215,163 @@
             box-shadow: 0 4px 12px rgba(108, 108, 255, 0.4);
         }
         
-        /* Фильтры */
-        .filters-row {
+        /* Тулбар как на дашборде */
+        .finance-toolbar {
             display: flex;
+            justify-content: space-between;
+            align-items: center;
             flex-wrap: wrap;
-            gap: 12px;
+            gap: 16px;
             margin-bottom: 24px;
+            padding: 16px 20px;
+            background: var(--card-bg);
+            border-radius: 20px;
+            border: 1px solid var(--card-border);
+        }
+        
+        .finance-title {
+            font-size: 18px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .finance-title i {
+            color: var(--accent);
+        }
+        
+        .finance-controls {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        
+        .finance-btn {
+            padding: 8px 16px;
+            border-radius: 40px;
+            background: var(--hover-bg);
+            border: 1px solid var(--card-border);
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.85rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .finance-btn:hover {
+            background: rgba(108, 108, 255, 0.1);
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+        
+        .finance-btn.primary {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: white;
+        }
+        
+        .finance-btn.primary:hover {
+            background: var(--accent-hover);
+            transform: translateY(-2px);
+        }
+        
+        /* Кнопки периода */
+        .period-buttons {
+            display: flex;
+            gap: 8px;
+            background: var(--input-bg);
+            padding: 4px;
+            border-radius: 48px;
+            border: 1px solid var(--card-border);
+        }
+        
+        .period-btn {
+            padding: 6px 16px;
+            border-radius: 40px;
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+        
+        .period-btn:hover {
+            color: var(--accent);
+        }
+        
+        .period-btn.active {
+            background: var(--accent);
+            color: white;
+        }
+        
+        /* Фильтр по типу */
+        .type-filter {
+            display: flex;
+            gap: 8px;
+            background: var(--input-bg);
+            padding: 4px;
+            border-radius: 48px;
+            border: 1px solid var(--card-border);
+        }
+        
+        .type-filter-btn {
+            padding: 6px 16px;
+            border-radius: 40px;
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+        
+        .type-filter-btn:hover {
+            color: var(--accent);
+        }
+        
+        .type-filter-btn.active {
+            background: var(--accent);
+            color: white;
+        }
+        
+        /* Дата пикеры */
+        .date-pickers {
+            display: flex;
+            gap: 12px;
             align-items: center;
         }
         
-        .filter-select, .filter-date {
+        .date-picker-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 8px;
             background: var(--input-bg);
             border: 1px solid var(--card-border);
             border-radius: 40px;
-            padding: 10px 16px;
+            padding: 4px 12px;
+        }
+        
+        .date-picker-wrapper label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+        
+        .date-picker-wrapper input {
+            background: transparent;
+            border: none;
+            padding: 6px 0;
             color: var(--text-primary);
-            font-size: 0.85rem;
-            cursor: pointer;
+            font-size: 0.8rem;
+        }
+        
+        .date-picker-wrapper input:focus {
+            outline: none;
         }
         
         /* Таблица транзакций */
@@ -392,7 +534,30 @@
                 opacity: 1;
             }
             
-            /* На телефоне select остаются красивыми */
+            .finance-toolbar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .finance-controls {
+                justify-content: space-between;
+            }
+            
+            .period-buttons, .type-filter {
+                flex: 1;
+                justify-content: center;
+            }
+            
+            .date-pickers {
+                flex-direction: column;
+                width: 100%;
+            }
+            
+            .date-picker-wrapper {
+                width: 100%;
+                justify-content: space-between;
+            }
+            
             select, .filter-select, .modal-select {
                 background-size: 14px;
                 padding-right: 32px;
@@ -426,33 +591,6 @@
         @keyframes skeletonLoading {
             0% { background-position: 200% 0; }
             100% { background-position: -200% 0; }
-        }
-        
-        /* Кнопка настроек виджетов (глобальная) */
-        .widgets-global-settings {
-            display: flex;
-            justify-content: flex-end;
-            margin-bottom: 16px;
-        }
-        
-        .settings-icon-btn {
-            background: none;
-            border: 1px solid var(--card-border);
-            border-radius: 40px;
-            padding: 8px 16px;
-            color: var(--text-muted);
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 0.8rem;
-            transition: all 0.2s;
-        }
-        
-        .settings-icon-btn:hover {
-            background: rgba(108, 108, 255, 0.1);
-            border-color: var(--accent);
-            color: var(--accent);
         }
     </style>
 </head>
@@ -499,35 +637,50 @@
                         <div class="balance-value" id="balanceValue">0 ₽</div>
                     </div>
                     
-                    <!-- Кнопка добавления -->
-                    <button class="add-transaction-btn" id="addTransactionBtn">
-                        <i class="fas fa-plus"></i> Добавить операцию
-                    </button>
-                    
-                    <!-- Кнопка управления виджетами -->
-                    <div class="widgets-global-settings">
-                        <button class="settings-icon-btn" id="widgetSettingsBtn">
-                            <i class="fas fa-sliders-h"></i> Настроить виджеты
-                        </button>
+                    <!-- Тулбар как на дашборде -->
+                    <div class="finance-toolbar">
+                        <div class="finance-title">
+                            <i class="fas fa-money-bill-wave"></i> Финансы
+                        </div>
+                        <div class="finance-controls">
+                            <button class="finance-btn" id="addTransactionBtn">
+                                <i class="fas fa-plus"></i> Добавить
+                            </button>
+                            <button class="finance-btn" id="widgetSettingsBtn">
+                                <i class="fas fa-sliders-h"></i> Настроить
+                            </button>
+                        </div>
                     </div>
                     
                     <!-- Фильтры -->
-                    <div class="filters-row">
-                        <select id="filterType" class="filter-select">
-                            <option value="all">Все операции</option>
-                            <option value="income">Доходы</option>
-                            <option value="expense">Расходы</option>
-                        </select>
+                    <div style="margin-bottom: 24px;">
+                        <!-- Кнопки периода (как на дашборде) -->
+                        <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between;">
+                            <div class="period-buttons">
+                                <button class="period-btn" data-period="week">Неделя</button>
+                                <button class="period-btn active" data-period="month">Месяц</button>
+                                <button class="period-btn" data-period="year">Год</button>
+                                <button class="period-btn" data-period="all">Всё время</button>
+                            </div>
+                            
+                            <div class="type-filter">
+                                <button class="type-filter-btn active" data-type="all">Все</button>
+                                <button class="type-filter-btn" data-type="income">Доходы</button>
+                                <button class="type-filter-btn" data-type="expense">Расходы</button>
+                            </div>
+                        </div>
                         
-                        <select id="filterPeriod" class="filter-select">
-                            <option value="week">Неделя</option>
-                            <option value="month" selected>Месяц</option>
-                            <option value="year">Год</option>
-                            <option value="all">Всё время</option>
-                        </select>
-                        
-                        <input type="date" id="filterDateFrom" class="filter-date" placeholder="С">
-                        <input type="date" id="filterDateTo" class="filter-date" placeholder="По">
+                        <!-- Свои даты -->
+                        <div class="date-pickers" style="margin-top: 16px;">
+                            <div class="date-picker-wrapper">
+                                <label><i class="fas fa-calendar-alt"></i> С:</label>
+                                <input type="date" id="filterDateFrom" class="filter-date">
+                            </div>
+                            <div class="date-picker-wrapper">
+                                <label><i class="fas fa-calendar-alt"></i> По:</label>
+                                <input type="date" id="filterDateTo" class="filter-date">
+                            </div>
+                        </div>
                     </div>
                     
                     <!-- Список транзакций -->
