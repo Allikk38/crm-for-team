@@ -651,17 +651,41 @@ async function handleDrop(e, newStatus) {
 }
 
 function setupDropZones() {
-    const containers = document.querySelectorAll('.tasks-container');
-    containers.forEach(container => {
-        container.addEventListener('dragover', (e) => e.preventDefault());
+    const columns = document.querySelectorAll('.kanban-column');
+    
+    columns.forEach(column => {
+        const container = column.querySelector('.tasks-container');
+        if (!container) return;
+        
+        const status = column.getAttribute('data-status');
+        
+        container.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            container.classList.add('drag-over');
+        });
+        
+        container.addEventListener('dragleave', () => {
+            container.classList.remove('drag-over');
+        });
+        
         container.addEventListener('drop', async (e) => {
-            const newStatus = container.parentElement.getAttribute('data-status');
-            await handleDrop(e, newStatus);
+            e.preventDefault();
+            container.classList.remove('drag-over');
+            
+            const taskId = e.dataTransfer.getData('text/plain');
+            if (taskId) {
+                const task = tasks.find(t => t.id == taskId);
+                if (task && task.status !== status) {
+                    console.log('[tasks] Drag-and-drop: задача', taskId, '→', status);
+                    await updateTaskStatusInDB(taskId, status);
+                    await loadTasksData();
+                }
+            }
         });
     });
-    console.log('[tasks] Drop зоны настроены');
+    
+    console.log('[tasks] Drag-and-drop настроен для', columns.length, 'колонок');
 }
-
 // ========== НАСТРОЙКА ФИЛЬТРОВ ==========
 
 function setupFilters() {
