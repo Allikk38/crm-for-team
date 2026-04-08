@@ -10,6 +10,7 @@
  *   - 30.03.2026: Переход на чистые импорты виджетов
  *   - 30.03.2026: Добавлен виджет TeamAnalyticsWidget
  *   - 08.04.2026: Интеграция с planManager, добавлены тарифные ограничения
+ *   - 08.04.2026: Добавлен виджет QuickTaskWidget (быстрая задача)
  * ============================================
  */
 
@@ -23,6 +24,7 @@ import ProjectProgressWidget from './widgets/project-progress-widget.js';
 import WelcomeWidget from './widgets/welcome-widget.js';
 import AgentRankingWidget from './widgets/agent-ranking-widget.js';
 import TeamAnalyticsWidget from './widgets/team-analytics-widget.js';
+import QuickTaskWidget from './widgets/quick-task-widget.js';
 
 console.log('[dashboard-container] Загрузка...');
 
@@ -30,6 +32,7 @@ console.log('[dashboard-container] Загрузка...');
 const WIDGET_TIERS = {
     'my-tasks': 'FREE',
     'welcome': 'FREE',
+    'quick-task': 'FREE',
     'kpi-summary': 'PRO',
     'project-progress': 'PRO',
     'agent-ranking': 'BUSINESS',
@@ -41,7 +44,7 @@ class DashboardContainer {
         this.container = container;
         this.options = options;
         this.dashboard = null;
-        this.widgets = new Map(); // widgetId -> widgetInstance
+        this.widgets = new Map();
         this.editMode = false;
         this.initialized = false;
         this.renderInProgress = false;
@@ -50,20 +53,10 @@ class DashboardContainer {
         console.log('[dashboard-container] Создан');
     }
     
-    /**
-     * Получить тариф виджета
-     * @param {string} widgetId 
-     * @returns {string} 'FREE'|'PRO'|'BUSINESS'|'ENTERPRISE'
-     */
     getWidgetTier(widgetId) {
         return WIDGET_TIERS[widgetId] || 'FREE';
     }
     
-    /**
-     * Проверить доступность виджета в текущем тарифе
-     * @param {string} widgetId 
-     * @returns {boolean}
-     */
     isWidgetAvailable(widgetId) {
         if (!this.planManager) return true;
         
@@ -90,11 +83,6 @@ class DashboardContainer {
         return userLevel >= requiredLevel;
     }
     
-    /**
-     * Получить название тарифа для отображения
-     * @param {string} tier 
-     * @returns {string}
-     */
     getTierDisplayName(tier) {
         const names = {
             'FREE': 'Бесплатный',
@@ -105,11 +93,6 @@ class DashboardContainer {
         return names[tier] || tier;
     }
     
-    /**
-     * Получить цвет бейджа для тарифа
-     * @param {string} tier 
-     * @returns {string}
-     */
     getTierBadgeColor(tier) {
         const colors = {
             'FREE': '#4caf50',
@@ -217,7 +200,6 @@ class DashboardContainer {
                 return;
             }
             
-            // Удаляем существующие виджеты
             this.widgets.forEach((widget, id) => {
                 if (widget && widget.destroy) {
                     widget.destroy();
@@ -227,7 +209,6 @@ class DashboardContainer {
             
             const widgets = this.dashboard.layout.widgets || [];
             
-            // Фильтруем виджеты по доступности
             const availableWidgets = widgets.filter(widget => {
                 const isAvailable = this.isWidgetAvailable(widget.id);
                 if (!isAvailable) {
@@ -241,7 +222,6 @@ class DashboardContainer {
                 return;
             }
             
-            // Удаляем дубликаты по id
             const uniqueWidgets = [];
             const seenIds = new Set();
             for (const widget of availableWidgets) {
@@ -253,7 +233,6 @@ class DashboardContainer {
                 }
             }
             
-            // Если были изменения, обновляем дашборд
             if (uniqueWidgets.length !== availableWidgets.length || availableWidgets.length !== widgets.length) {
                 this.dashboard.layout.widgets = uniqueWidgets;
                 await saveDashboardLayout(this.dashboard.id, this.dashboard.layout);
@@ -352,6 +331,7 @@ class DashboardContainer {
     getWidgetTitle(widgetId) {
         const titles = {
             'my-tasks': 'Мои задачи',
+            'quick-task': 'Быстрая задача',
             'kpi-summary': 'Ключевые показатели',
             'project-progress': 'Прогресс проекта',
             'welcome': 'Приветствие',
@@ -364,6 +344,7 @@ class DashboardContainer {
     getWidgetIcon(widgetId) {
         const icons = {
             'my-tasks': 'fa-tasks',
+            'quick-task': 'fa-bolt',
             'kpi-summary': 'fa-chart-line',
             'project-progress': 'fa-chart-simple',
             'welcome': 'fa-rocket',
@@ -382,7 +363,6 @@ class DashboardContainer {
             return;
         }
         
-        // Проверяем доступность перед загрузкой
         if (!this.isWidgetAvailable(widgetConfig.id)) {
             contentContainer.innerHTML = `
                 <div class="widget-locked" style="text-align: center; padding: 40px; color: var(--text-muted);">
@@ -433,6 +413,7 @@ class DashboardContainer {
     getWidgetClass(widgetId) {
         const widgetsMap = {
             'my-tasks': MyTasksWidget,
+            'quick-task': QuickTaskWidget,
             'kpi-summary': KpiSummaryWidget,
             'project-progress': ProjectProgressWidget,
             'welcome': WelcomeWidget,
@@ -506,6 +487,13 @@ class DashboardContainer {
     async showWidgetPalette() {
         const availableWidgets = [
             {
+                id: 'quick-task',
+                moduleId: 'tasks',
+                title: 'Быстрая задача',
+                description: 'Быстрое создание задачи с выбором приоритета',
+                settings: {}
+            },
+            {
                 id: 'my-tasks',
                 moduleId: 'tasks',
                 title: 'Мои задачи',
@@ -567,7 +555,6 @@ class DashboardContainer {
             box-shadow: -2px 0 8px rgba(0,0,0,0.1);
         `;
         
-        // Группируем виджеты по тарифам
         const groupedWidgets = {
             'FREE': [],
             'PRO': [],
