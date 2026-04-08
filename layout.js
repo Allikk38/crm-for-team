@@ -8,11 +8,14 @@
  *   - Категории: Основные, Бизнес, Личное, Инструменты, Управление
  *   - Сохранение состояния сворачивания
  *   - Адаптивное мобильное меню
+ *   - ЧИСТЫЕ ИМПОРТЫ, БЕЗ ГЛОБАЛЬНЫХ ОБЪЕКТОВ
  * 
  * ЗАВИСИМОСТИ:
  *   - js/core/permissions.js (для проверки прав)
  *   - js/utils/helpers.js (escapeHtml)
  *   - js/services/pomodoro.js (виджет помодоро)
+ *   - js/core/supabase-session.js (получение пользователя)
+ *   - js/core/supabase.js (для уведомлений)
  * 
  * ИСТОРИЯ:
  *   - 31.03.2026: Полная переработка, добавлена группировка модулей
@@ -21,12 +24,15 @@
  *   - 08.04.2026: Добавлен модуль Финансы в категорию Личное
  *   - 08.04.2026: Исправлены пути для GitHub Pages (относительные)
  *   - 08.04.2026: Добавлена обработка кликов в свернутом меню
+ *   - 08.04.2026: Убраны глобальные объекты, скрыты недоступные модули
  * ============================================
  */
 
 import { escapeHtml } from './js/utils/helpers.js';
 import { getState, start, pause, subscribe } from './js/services/pomodoro.js';
 import { hasPermission } from './js/core/permissions.js';
+import { getCurrentSupabaseUser } from './js/core/supabase-session.js';
+import { supabase } from './js/core/supabase.js';
 
 let sidebarCollapsed = false;
 let isInitialized = false;
@@ -73,7 +79,7 @@ const MODULE_CATEGORIES = {
         name: 'Бизнес',
         icon: 'fa-briefcase',
         order: 1,
-        modules: ['deals', 'complexes', 'counterparties', 'analytics', 'reports', 'invoices']
+        modules: ['deals', 'complexes', 'counterparties']
     },
     personal: {
         id: 'personal',
@@ -87,7 +93,7 @@ const MODULE_CATEGORIES = {
         name: 'Инструменты',
         icon: 'fa-tools',
         order: 3,
-        modules: ['team', 'marketplace', 'my-modules', 'chat', 'documents']
+        modules: ['team', 'marketplace', 'my-modules']
     },
     admin: {
         id: 'admin',
@@ -103,26 +109,21 @@ const MODULE_CATEGORIES = {
 const MODULE_INFO = {
     navigator: { name: 'Навигатор', icon: 'fa-th-large', page: 'navigator.html', description: 'Обзор всех модулей' },
     dashboard: { name: 'Дашборд', icon: 'fa-home', page: 'dashboard.html', description: 'Главная панель управления' },
-    deals: { name: 'Сделки', icon: 'fa-handshake', page: 'deals.html', description: 'Управление сделками' },
-    complexes: { name: 'Объекты', icon: 'fa-building', page: 'complexes.html', description: 'Управление объектами' },
-    counterparties: { name: 'Контрагенты', icon: 'fa-users', page: 'counterparties.html', description: 'База контрагентов' },
-    analytics: { name: 'Аналитика', icon: 'fa-chart-line', page: 'analytics.html', description: 'Расширенная аналитика' },
-    reports: { name: 'Отчеты', icon: 'fa-file-alt', page: 'reports.html', description: 'Формирование отчетов' },
-    invoices: { name: 'Счета', icon: 'fa-file-invoice', page: 'invoices.html', description: 'Управление счетами' },
-    tasks: { name: 'Задачи', icon: 'fa-tasks', page: 'tasks.html', description: 'Управление задачами' },
-    calendar: { name: 'Календарь', icon: 'fa-calendar-alt', page: 'calendar.html', description: 'Планирование событий' },
-    notes: { name: 'Заметки', icon: 'fa-sticky-note', page: 'notes.html', description: 'Быстрые заметки' },
+    deals: { name: 'Сделки', icon: 'fa-handshake', page: 'deals.html', description: 'Управление сделками', permission: 'view_own_deals' },
+    complexes: { name: 'Объекты', icon: 'fa-building', page: 'complexes.html', description: 'Управление объектами', permission: 'view_complexes' },
+    counterparties: { name: 'Контрагенты', icon: 'fa-users', page: 'counterparties.html', description: 'База контрагентов', permission: 'view_counterparties' },
+    tasks: { name: 'Задачи', icon: 'fa-tasks', page: 'tasks.html', description: 'Управление задачами', permission: 'view_tasks' },
+    calendar: { name: 'Календарь', icon: 'fa-calendar-alt', page: 'calendar.html', description: 'Планирование событий', permission: 'view_calendar' },
+    notes: { name: 'Заметки', icon: 'fa-sticky-note', page: 'notes.html', description: 'Быстрые заметки', permission: 'view_notes' },
     habits: { name: 'Привычки', icon: 'fa-calendar-check', page: 'habits.html', description: 'Отслеживание привычек' },
     pomodoro: { name: 'Помодоро', icon: 'fa-clock', page: 'pomodoro.html', description: 'Таймер продуктивности' },
     finance: { name: 'Финансы', icon: 'fa-money-bill-wave', page: 'finance.html', description: 'Учет доходов и расходов' },
-    team: { name: 'Команда', icon: 'fa-user-friends', page: 'team.html', description: 'Управление командой' },
+    team: { name: 'Команда', icon: 'fa-user-friends', page: 'team.html', description: 'Управление командой', permission: 'view_team' },
     marketplace: { name: 'Маркетплейс', icon: 'fa-store', page: 'marketplace.html', description: 'Магазин модулей' },
     'my-modules': { name: 'Мои модули', icon: 'fa-puzzle-piece', page: 'my-modules.html', description: 'Установленные модули' },
-    chat: { name: 'Чат', icon: 'fa-comments', page: 'chat.html', description: 'Внутренний чат' },
-    documents: { name: 'Документы', icon: 'fa-file-pdf', page: 'documents.html', description: 'Электронный документооборот' },
-    profile: { name: 'Профиль', icon: 'fa-user', page: 'profile.html', description: 'Настройки профиля' },
+    profile: { name: 'Профиль', icon: 'fa-user', page: 'profile.html', description: 'Настройки профиля', permission: 'view_profile' },
     notifications: { name: 'Уведомления', icon: 'fa-bell', page: 'notifications.html', description: 'Центр уведомлений' },
-    admin: { name: 'Администрирование', icon: 'fa-shield-alt', page: 'admin.html', description: 'Управление системой' }
+    admin: { name: 'Администрирование', icon: 'fa-shield-alt', page: 'admin.html', description: 'Управление системой', permission: 'manage_users' }
 };
 
 function getModuleHref(module) {
@@ -134,7 +135,7 @@ function getFullPath(page) {
 }
 
 function getCurrentUser() {
-    return window.currentSupabaseUser || null;
+    return getCurrentSupabaseUser();
 }
 
 function isModuleAvailable(moduleId) {
@@ -143,23 +144,10 @@ function isModuleAvailable(moduleId) {
     
     if (user.role === 'admin') return true;
     
-    const MODULE_PERMISSIONS = {
-        'dashboard': 'view_dashboard',
-        'tasks': 'view_tasks',
-        'calendar': 'view_calendar',
-        'notes': 'view_notes',
-        'profile': 'view_profile',
-        'deals': 'view_own_deals',
-        'complexes': 'view_complexes',
-        'counterparties': 'view_counterparties',
-        'team': 'view_team',
-        'admin': 'manage_users',
-        'analytics': 'view_statistics',
-        'reports': 'view_statistics',
-        'invoices': 'view_statistics'
-    };
+    const moduleInfo = MODULE_INFO[moduleId];
+    if (!moduleInfo) return false;
     
-    const requiredPermission = MODULE_PERMISSIONS[moduleId];
+    const requiredPermission = moduleInfo.permission;
     
     if (!requiredPermission) return true;
     
@@ -235,7 +223,6 @@ function attachCategoryHandlers() {
     const categories = document.querySelectorAll('.sidebar-category');
     
     categories.forEach(category => {
-        const header = category.querySelector('.sidebar-category-header');
         const items = category.querySelector('.sidebar-category-items');
         const toggle = category.querySelector('.category-toggle');
         
@@ -247,13 +234,8 @@ function attachCategoryHandlers() {
             if (toggle) toggle.classList.add('collapsed');
         }
     });
-    
-    // Отдельная настройка обработчиков через setupCollapsedIconHandlers
 }
 
-/**
- * Настройка обработчиков для свернутого меню
- */
 function setupCollapsedIconHandlers() {
     const sidebar = document.getElementById('sidebar');
     if (!sidebar) return;
@@ -261,10 +243,8 @@ function setupCollapsedIconHandlers() {
     const categoryHeaders = sidebar.querySelectorAll('.sidebar-category-header');
     
     categoryHeaders.forEach(header => {
-        // Удаляем старый обработчик
         header.removeEventListener('click', header._clickHandler);
         
-        // Создаем новый обработчик
         const clickHandler = (e) => {
             e.stopPropagation();
             
@@ -279,10 +259,8 @@ function setupCollapsedIconHandlers() {
             const catId = category.dataset.category;
             
             if (isCollapsed) {
-                // Меню свернуто - разворачиваем его
                 toggleSidebar();
                 
-                // Проверяем, была ли категория свернута
                 const wasCollapsed = items?.classList.contains('collapsed') || 
                                     localStorage.getItem(`sidebar_category_${catId}`) === 'true';
                 
@@ -296,7 +274,6 @@ function setupCollapsedIconHandlers() {
                     }, 100);
                 }
             } else {
-                // Меню уже развернуто - просто переключаем категорию
                 if (items) {
                     items.classList.toggle('collapsed');
                     if (toggle) toggle.classList.toggle('collapsed');
@@ -461,19 +438,17 @@ async function updateNotificationBadge() {
     const badge = document.getElementById('notificationBadge');
     if (!badge) return;
     try {
-        if (window.supabase) {
-            const { data: { user } } = await window.supabase.auth.getUser();
-            if (user) {
-                const { count } = await window.supabase
-                    .from('notifications')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('user_id', user.id)
-                    .eq('read', false);
-                if (count > 0) {
-                    badge.textContent = count > 99 ? '99+' : count;
-                    badge.style.display = 'flex';
-                    return;
-                }
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+            const { count } = await supabase
+                .from('notifications')
+                .select('*', { count: 'exact', head: true })
+                .eq('user_id', user.id)
+                .eq('read', false);
+            if (count > 0) {
+                badge.textContent = count > 99 ? '99+' : count;
+                badge.style.display = 'flex';
+                return;
             }
         }
         badge.style.display = 'none';
@@ -506,12 +481,8 @@ export function goToProfile() {
 
 export function logout() {
     if (confirm('Вы уверены, что хотите выйти из системы?')) {
-        if (window.supabaseSession?.logoutFromSupabase) {
-            window.supabaseSession.logoutFromSupabase();
-        } else {
-            localStorage.removeItem('crm_session');
-            window.location.href = BASE_PATH ? `${BASE_PATH}/auth-supabase.html` : 'auth-supabase.html';
-        }
+        localStorage.removeItem('crm_session');
+        window.location.href = BASE_PATH ? `${BASE_PATH}/auth-supabase.html` : 'auth-supabase.html';
     }
 }
 
