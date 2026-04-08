@@ -6,12 +6,13 @@
     
     <!-- 
     ============================================
-    ФАЙЛ: tasks-supabase.html
+    ФАЙЛ: tasks.html
     РОЛЬ: Доска задач (Kanban) с Supabase
     
     ИСТОРИЯ:
       - 27.03.2026: Создание
       - 08.04.2026: Обновлены названия колонок, добавлен Font Awesome
+      - 08.04.2026: Убраны дубли стилей (перенесены в kanban.css)
     ============================================
     -->
     
@@ -30,7 +31,7 @@
         })();
     </script>
     
-    <title>Доска задач - CRM для команды (Supabase)</title>
+    <title>Доска задач - CRM для команды</title>
     
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -47,7 +48,7 @@
     <link rel="stylesheet" href="../css/animations.css">
     
     <style>
-        /* Все стили остаются без изменений */
+        /* Только анимации и уникальные стили (остальное в kanban.css) */
         .kanban-column {
             animation: fadeInUp 0.4s ease backwards;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -73,12 +74,6 @@
             opacity: 0.5;
             transform: scale(0.98);
             cursor: grabbing;
-        }
-        
-        .drag-over {
-            background: rgba(108, 108, 255, 0.1);
-            border: 2px dashed var(--accent);
-            transition: all 0.2s ease;
         }
         
         .private-badge {
@@ -146,11 +141,11 @@
             border-radius: 40px;
             color: white;
             cursor: pointer;
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: all 0.2s;
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            font-weight: 500;
+            font-weight:500;
         }
         
         .add-task-btn-header:hover {
@@ -502,7 +497,7 @@
             color: var(--accent);
             cursor: pointer;
             text-decoration: none;
-            font-weight:500;
+            font-weight: 500;
         }
 
         .mention-link:hover {
@@ -542,7 +537,6 @@
                     <i class="fas fa-chevron-left"></i>
                     <span>Свернуть</span>
                 </button>
-                <!-- Кнопка выхода удалена (дублируется в layout.js) -->
             </div>
         </aside>
         
@@ -572,7 +566,7 @@
                         <input type="text" id="searchInput" placeholder="Поиск по названию...">
                     </div>
                     <div class="quick-filters">
-                        <button class="quick-filter-btn" data-quick="all">Все</button>
+                        <button class="quick-filter-btn active" data-quick="all">Все</button>
                         <button class="quick-filter-btn" data-quick="my">Мои</button>
                         <button class="quick-filter-btn" data-quick="overdue">Просроченные</button>
                         <button class="quick-filter-btn" data-quick="today">Сегодня</button>
@@ -582,7 +576,7 @@
                 
                 <div class="filters-row">
                     <div class="assignee-filters" id="assigneeFilters">
-                        <div class="assignee-filter" data-assignee="all">
+                        <div class="assignee-filter active" data-assignee="all">
                             <div class="assignee-avatar"><i class="fas fa-users"></i></div>
                             <span class="assignee-name">Все</span>
                         </div>
@@ -592,7 +586,7 @@
                 <div class="filters-row">
                     <div class="priority-filters" id="priorityFilters">
                         <div class="priority-filter priority-high" data-priority="high">Высокий</div>
-                        <div class="priority-filter priority-medium" data-priority="medium">Средний</div>
+                        <div class="priority-filter priority-medium active" data-priority="medium">Средний</div>
                         <div class="priority-filter priority-low" data-priority="low">Низкий</div>
                     </div>
                     <div class="complex-filter" id="complexFilter">
@@ -659,7 +653,7 @@
         </main>
     </div>
     
-    <!-- Модальное окно задачи (БЕЗ ИЗМЕНЕНИЙ) -->
+    <!-- Модальное окно задачи -->
     <div id="taskModal" class="modal">
         <div class="modal-content">
             <h3 id="modalTitle"><i class="fas fa-tasks"></i> Создать задачу</h3>
@@ -722,7 +716,6 @@
             const isAuth = await requireSupabaseAuth('../auth-supabase.html');
             if (!isAuth) return;
             
-            const currentUser = getCurrentSupabaseUser();
             updateSupabaseUserInterface();
             
             const { initTasksPage } = await import('../js/pages/tasks.js');
