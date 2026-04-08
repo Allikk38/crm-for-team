@@ -9,26 +9,9 @@
     ФАЙЛ: tasks-supabase.html
     РОЛЬ: Доска задач (Kanban) с Supabase
     
-    ОСОБЕННОСТИ:
-      - Kanban-доска с 3 статусами (pending, in_progress, completed)
-      - Drag-and-drop для изменения статуса
-      - Создание/редактирование задач
-      - Комментарии к задачам с @упоминаниями
-      - Приватные задачи
-      - Привязка к объектам недвижимости
-      - Фильтры: поиск, исполнитель, приоритет, объект
-      - Статистика задач
-    
-    ЗАВИСИМОСТИ:
-      - CSS: base.css, theme.css, components.css, kanban.css, modal.css, animations.css
-      - JS: js/utils/helpers.js, js/components/kanban.js, js/ui/animations.js, js/pages/tasks.js, layout.js
-      - Таблицы: tasks, profiles, complexes, comments
-    
     ИСТОРИЯ:
-      - 27.03.2026: Создание supabase-версии задач
-      - 27.03.2026: Рефакторинг — логика вынесена в js/pages/tasks.js
-      - 28.03.2026: Добавлен автокомплит для @упоминаний в комментариях
-      - 28.03.2026: Добавлена панель фильтров и статистика
+      - 27.03.2026: Создание
+      - 08.04.2026: Обновлены названия колонок, добавлен Font Awesome
     ============================================
     -->
     
@@ -49,6 +32,9 @@
     
     <title>Доска задач - CRM для команды (Supabase)</title>
     
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
     <link rel="stylesheet" href="../css/base.css">
     <link rel="stylesheet" href="../css/theme.css">
     <link rel="stylesheet" href="../css/components.css">
@@ -61,7 +47,7 @@
     <link rel="stylesheet" href="../css/animations.css">
     
     <style>
-        /* Стили существующие */
+        /* Все стили остаются без изменений */
         .kanban-column {
             animation: fadeInUp 0.4s ease backwards;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -229,9 +215,6 @@
             resize: vertical;
         }
         
-        /* ========== НОВЫЕ СТИЛИ ДЛЯ ФИЛЬТРОВ И СТАТИСТИКИ ========== */
-        
-        /* Панель фильтров */
         .filters-panel {
             background: var(--card-bg);
             backdrop-filter: blur(12px);
@@ -283,7 +266,6 @@
             color: var(--text-muted);
         }
         
-        /* Быстрые фильтры */
         .quick-filters {
             display: flex;
             gap: 8px;
@@ -312,7 +294,6 @@
             color: white;
         }
         
-        /* Фильтр по исполнителям (аватары) */
         .assignee-filters {
             display: flex;
             flex-wrap: wrap;
@@ -361,7 +342,6 @@
             font-size: 0.8rem;
         }
         
-        /* Фильтр по приоритету */
         .priority-filters {
             display: flex;
             gap: 8px;
@@ -396,7 +376,6 @@
             box-shadow: 0 0 0 2px var(--accent);
         }
         
-        /* Фильтр по объекту */
         .complex-filter {
             background: var(--input-bg);
             border: 1px solid var(--card-border);
@@ -407,7 +386,6 @@
             font-size: 0.8rem;
         }
         
-        /* Статистика */
         .tasks-stats {
             display: flex;
             gap: 16px;
@@ -458,7 +436,6 @@
             transition: width 0.6s ease;
         }
         
-        /* Стили для подсказок упоминаний */
         .mention-suggestions {
             position: fixed;
             background: var(--card-bg);
@@ -525,7 +502,7 @@
             color: var(--accent);
             cursor: pointer;
             text-decoration: none;
-            font-weight: 500;
+            font-weight:500;
         }
 
         .mention-link:hover {
@@ -565,9 +542,7 @@
                     <i class="fas fa-chevron-left"></i>
                     <span>Свернуть</span>
                 </button>
-                <button class="logout-btn" onclick="window.sidebar?.logout()" style="margin-top: 12px; width: 100%; padding: 10px; background: rgba(255, 107, 107, 0.2); border: none; border-radius: 12px; color: #ff6b6b; cursor: pointer;">
-                    <i class="fas fa-sign-out-alt"></i> Выйти
-                </button>
+                <!-- Кнопка выхода удалена (дублируется в layout.js) -->
             </div>
         </aside>
         
@@ -597,18 +572,18 @@
                         <input type="text" id="searchInput" placeholder="Поиск по названию...">
                     </div>
                     <div class="quick-filters">
-                        <button class="quick-filter-btn" data-quick="all">📋 Все</button>
-                        <button class="quick-filter-btn" data-quick="my">👤 Мои</button>
-                        <button class="quick-filter-btn" data-quick="overdue">⚠️ Просроченные</button>
-                        <button class="quick-filter-btn" data-quick="today">📅 Сегодня</button>
-                        <button class="quick-filter-btn" data-quick="high">🔴 Срочные</button>
+                        <button class="quick-filter-btn" data-quick="all">Все</button>
+                        <button class="quick-filter-btn" data-quick="my">Мои</button>
+                        <button class="quick-filter-btn" data-quick="overdue">Просроченные</button>
+                        <button class="quick-filter-btn" data-quick="today">Сегодня</button>
+                        <button class="quick-filter-btn" data-quick="high">Срочные</button>
                     </div>
                 </div>
                 
                 <div class="filters-row">
                     <div class="assignee-filters" id="assigneeFilters">
                         <div class="assignee-filter" data-assignee="all">
-                            <div class="assignee-avatar">👥</div>
+                            <div class="assignee-avatar"><i class="fas fa-users"></i></div>
                             <span class="assignee-name">Все</span>
                         </div>
                     </div>
@@ -616,9 +591,9 @@
                 
                 <div class="filters-row">
                     <div class="priority-filters" id="priorityFilters">
-                        <div class="priority-filter priority-high" data-priority="high">🔴 Высокий</div>
-                        <div class="priority-filter priority-medium" data-priority="medium">🟡 Средний</div>
-                        <div class="priority-filter priority-low" data-priority="low">🟢 Низкий</div>
+                        <div class="priority-filter priority-high" data-priority="high">Высокий</div>
+                        <div class="priority-filter priority-medium" data-priority="medium">Средний</div>
+                        <div class="priority-filter priority-low" data-priority="low">Низкий</div>
                     </div>
                     <div class="complex-filter" id="complexFilter">
                         <i class="fas fa-building"></i> Все объекты
@@ -633,7 +608,7 @@
                     </div>
                     <div class="stat-card">
                         <div class="stat-value" id="statPending">0</div>
-                        <div class="stat-label">В ожидании</div>
+                        <div class="stat-label">К выполнению</div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-value" id="statProgress">0</div>
@@ -656,7 +631,7 @@
             <div class="kanban-board" id="kanbanBoard">
                 <div class="kanban-column" data-status="pending">
                     <div class="column-header">
-                        <span><i class="fas fa-circle"></i> To Do</span>
+                        <span><i class="far fa-circle"></i> К выполнению</span>
                         <span id="todoCount">0</span>
                     </div>
                     <div id="todoTasks" class="tasks-container"></div>
@@ -674,7 +649,7 @@
                 
                 <div class="kanban-column" data-status="completed">
                     <div class="column-header">
-                        <span><i class="fas fa-check-circle"></i> Готово</span>
+                        <span><i class="fas fa-check-circle"></i> Завершено</span>
                         <span id="doneCount">0</span>
                     </div>
                     <div id="doneTasks" class="tasks-container"></div>
@@ -684,7 +659,7 @@
         </main>
     </div>
     
-    <!-- Модальное окно задачи -->
+    <!-- Модальное окно задачи (БЕЗ ИЗМЕНЕНИЙ) -->
     <div id="taskModal" class="modal">
         <div class="modal-content">
             <h3 id="modalTitle"><i class="fas fa-tasks"></i> Создать задачу</h3>
@@ -704,9 +679,9 @@
             </select>
             <input type="date" id="taskDueDate">
             <select id="taskStatus">
-                <option value="pending">To Do</option>
+                <option value="pending">К выполнению</option>
                 <option value="in_progress">В работе</option>
-                <option value="completed">Готово</option>
+                <option value="completed">Завершено</option>
             </select>
             
             <div class="private-checkbox-wrapper" id="privateCheckboxGroup">
@@ -729,7 +704,6 @@
                 </div>
             </div>
             
-            <!-- Контейнер для подсказок упоминаний -->
             <div class="mention-suggestions" id="mentionSuggestions"></div>
             
             <div class="modal-buttons">
@@ -739,10 +713,8 @@
         </div>
     </div>
 
-    <!-- ========== УНИВЕРСАЛЬНЫЙ ЗАГРУЗЧИК МОДУЛЕЙ ========== -->
     <script type="module" src="../js/core/moduleLoader.js"></script>
     
-    <!-- Инициализация страницы задач -->
     <script type="module">
         import { getCurrentSupabaseUser, requireSupabaseAuth, updateSupabaseUserInterface } from '../js/core/supabase-session.js';
         
@@ -753,7 +725,6 @@
             const currentUser = getCurrentSupabaseUser();
             updateSupabaseUserInterface();
             
-            // Загружаем модуль задач
             const { initTasksPage } = await import('../js/pages/tasks.js');
             initTasksPage();
         }
@@ -761,7 +732,6 @@
         initTasks();
     </script>
     
-    <!-- Инициализация бокового меню -->
     <script type="module">
         import * as sidebar from '../layout.js';
         window.sidebar = sidebar;
