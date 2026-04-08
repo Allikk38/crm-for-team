@@ -153,7 +153,10 @@ function isModuleAvailable(moduleId) {
         'complexes': 'view_complexes',
         'counterparties': 'view_counterparties',
         'team': 'view_team',
-        'admin': 'manage_users'
+        'admin': 'manage_users',
+        'analytics': 'view_statistics',
+        'reports': 'view_statistics',
+        'invoices': 'view_statistics'
     };
     
     const requiredPermission = MODULE_PERMISSIONS[moduleId];
