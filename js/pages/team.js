@@ -186,22 +186,6 @@ export async function initTeamPage() {
     currentUser = getCurrentSupabaseUser();
     updateSupabaseUserInterface();
     
-    // Проверка прав
-    const userRole = currentUser?.role?.toLowerCase();
-    if (userRole !== 'manager' && userRole !== 'admin') {
-        const main = document.querySelector('.main-content');
-        if (main) {
-            main.innerHTML = `
-                <div class="info-panel" style="text-align: center; padding: 60px;">
-                    <i class="fas fa-lock" style="font-size: 3rem; margin-bottom: 20px;"></i>
-                    <h2>Доступ ограничен</h2>
-                    <p>Эта страница доступна только менеджерам и администраторам.</p>
-                    <a href="index-supabase.html" class="nav-btn" style="margin-top: 20px; display: inline-block; padding: 10px 20px; background: var(--accent); border-radius: 40px; color: white; text-decoration: none;">Вернуться на главную</a>
-                </div>
-            `;
-        }
-        return;
-    }
     
     await loadTeamData();
     renderTeamStats();
