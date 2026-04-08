@@ -310,27 +310,41 @@ window.createTeam = async function() {
     }
 };
 
-/**
- * Инициализация страницы команды
- */
 export async function initTeamPage() {
     console.log('[team] Инициализация страницы...');
     
-    const isAuth = await requireSupabaseAuth('auth-supabase.html');
-    if (!isAuth) return;
-    
-    currentUser = getCurrentSupabaseUser();
-    updateSupabaseUserInterface();
-    
-    await loadTeamData();
-    renderTeamStats();
-    renderMembersList();
-    renderInvitesList();
-    
-    const sidebar = document.getElementById('sidebar');
-    if (sidebar && localStorage.getItem('sidebar_collapsed') === 'true') {
-        sidebar.classList.add('collapsed');
+    try {
+        const isAuth = await requireSupabaseAuth('auth-supabase.html');
+        if (!isAuth) {
+            console.log('[team] Не авторизован');
+            return;
+        }
+        
+        currentUser = getCurrentSupabaseUser();
+        console.log('[team] currentUser:', currentUser);
+        
+        updateSupabaseUserInterface();
+        
+        console.log('[team] Загружаем данные...');
+        await loadTeamData();
+        console.log('[team] Данные загружены, companyId:', userCompanyId, 'members:', teamMembers.length);
+        
+        console.log('[team] Рендерим статистику...');
+        renderTeamStats();
+        
+        console.log('[team] Рендерим список участников...');
+        renderMembersList();
+        
+        console.log('[team] Рендерим приглашения...');
+        renderInvitesList();
+        
+        const sidebar = document.getElementById('sidebar');
+        if (sidebar && localStorage.getItem('sidebar_collapsed') === 'true') {
+            sidebar.classList.add('collapsed');
+        }
+        
+        console.log('[team] Инициализация завершена');
+    } catch (error) {
+        console.error('[team] КРИТИЧЕСКАЯ ОШИБКА:', error);
     }
-    
-    console.log('[team] Инициализация завершена, компания:', userCompanyId || 'отсутствует');
 }
