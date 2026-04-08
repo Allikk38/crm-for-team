@@ -32,7 +32,8 @@ const PERMISSION_SETS = {
             'edit_own_profile',
             'view_dashboard',
             'view_statistics',
-            'view_team'
+            'view_team',
+            'view_notes'
         ]
     },
     AGENT: {
