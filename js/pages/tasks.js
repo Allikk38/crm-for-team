@@ -509,7 +509,13 @@ window.closeModal = function() {
     currentTaskComments = [];
     hideMentionSuggestions();
 };
-
+// ========== АККОРДЕОН КОММЕНТАРИЕВ ==========
+window.toggleComments = function() {
+    const section = document.getElementById('commentsSection');
+    if (section) {
+        section.classList.toggle('collapsed');
+    }
+};
 window.saveTask = async function() {
     const taskId = document.getElementById('taskId').value;
     const taskData = {
