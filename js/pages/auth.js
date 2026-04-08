@@ -3,20 +3,14 @@
  * ФАЙЛ: js/pages/auth.js
  * РОЛЬ: Логика страницы авторизации с поддержкой приглашений
  * 
- * ЗАВИСИМОСТИ:
- *   - js/core/supabase.js
- *   - js/services/team-supabase.js
- *   - js/services/email-check.js
- *   - js/utils/helpers.js
- *   - js/services/cache-service.js
- * 
  * ИСТОРИЯ:
  *   - 01.04.2026: Исправлено использование company_id вместо team_id
- *   - 02.04.2026: Добавлена клиентская валидация email, debounce, улучшена обработка ошибок
+ *   - 02.04.2026: Добавлена клиентская валидация email, debounce
  *   - 02.04.2026: ДОБАВЛЕН RATE LIMITING для защиты от 429 ошибок
  *   - 02.04.2026: ДОБАВЛЕНА ОЧИСТКА КЭША EMAIL при успешной регистрации
- *   - 02.04.2026: ДОБАВЛЕНА ОЧИСТКА КЭША ПРОФИЛЯ при успешной регистрации
- *   - 08.04.2026: ИСПРАВЛЕН редирект для GitHub Pages (относительные пути)
+ *   - 08.04.2026: ИСПРАВЛЕН редирект для GitHub Pages
+ *   - 08.04.2026: УДАЛЕНО создание профиля (теперь через Database Trigger)
+ *   - 08.04.2026: ДОБАВЛЕНА обработка подтверждения email (verifyOtp)
  * ============================================
  */
 
@@ -34,31 +28,76 @@ let isRegistering = false;
 // ========== ОПРЕДЕЛЕНИЕ БАЗОВОГО ПУТИ ДЛЯ GITHUB PAGES ==========
 function getBasePath() {
     const fullPath = window.location.pathname;
-    
-    // Ищем паттерн /crm-for-team/ в пути
     const match = fullPath.match(/^(\/crm-for-team)/);
-    if (match) {
-        return match[1];
-    }
-    
-    // Проверяем, есть ли репозиторий в hostname (для GitHub Pages)
+    if (match) return match[1];
     if (window.location.hostname.includes('github.io')) {
         const parts = fullPath.split('/');
-        if (parts.length > 1 && parts[1] && parts[1] !== 'app') {
-            return `/${parts[1]}`;
-        }
+        if (parts.length > 1 && parts[1] && parts[1] !== 'app') return `/${parts[1]}`;
     }
-    
     return '';
 }
 
 const BASE_PATH = getBasePath();
 
 function getRedirectUrl(page) {
-    if (BASE_PATH) {
-        return `${BASE_PATH}/app/${page}`;
+    return BASE_PATH ? `${BASE_PATH}/app/${page}` : `/app/${page}`;
+}
+
+// ========== ОБРАБОТКА ПОДТВЕРЖДЕНИЯ EMAIL (из ссылки в письме) ==========
+async function handleEmailConfirmation() {
+    const hash = window.location.hash;
+    const urlParams = new URLSearchParams(window.location.search);
+    
+    // Проверяем токен в URL (Supabase передаёт в хэше или query)
+    const tokenHash = urlParams.get('token_hash') || 
+                      (hash.includes('access_token') ? hash.split('=')[1]?.split('&')[0] : null);
+    const type = urlParams.get('type') || 'email';
+    
+    if (!tokenHash) return false;
+    
+    console.log('[auth] Обнаружен токен подтверждения, верифицируем...');
+    
+    try {
+        const { error } = await supabase.auth.verifyOtp({
+            token_hash: tokenHash,
+            type: type
+        });
+        
+        if (error) throw error;
+        
+        console.log('[auth] Email подтверждён успешно');
+        
+        // Очищаем URL от токена
+        window.location.hash = '';
+        const newUrl = window.location.pathname + (inviteToken ? `?invite=${inviteToken}` : '');
+        window.history.replaceState({}, document.title, newUrl);
+        
+        // Показываем сообщение об успехе
+        const msgDiv = document.getElementById('message');
+        if (msgDiv) {
+            msgDiv.innerHTML = `
+                <div class="message success">
+                    <i class="fas fa-check-circle"></i> Email подтверждён! Теперь вы можете войти.
+                </div>
+            `;
+        }
+        
+        // Переключаем на форму входа
+        showLogin();
+        
+        return true;
+    } catch (error) {
+        console.error('[auth] Ошибка подтверждения email:', error);
+        const msgDiv = document.getElementById('message');
+        if (msgDiv) {
+            msgDiv.innerHTML = `
+                <div class="message error">
+                    <i class="fas fa-exclamation-circle"></i> Ошибка подтверждения. Возможно, ссылка устарела.
+                </div>
+            `;
+        }
+        return false;
     }
-    return `/app/${page}`;
 }
 
 /**
@@ -71,33 +110,39 @@ export function initAuthPage() {
     inviteToken = urlParams.get('invite');
     referralToken = urlParams.get('referral');
     
-    if (inviteToken) {
-        console.log('[auth] Найден invite-токен:', inviteToken);
-        const msgDiv = document.getElementById('message');
-        if (msgDiv) {
-            msgDiv.innerHTML = `
-                <div class="message info">
-                    <i class="fas fa-users"></i> Вас пригласили в команду!
-                    Зарегистрируйтесь, чтобы присоединиться.
-                </div>
-            `;
+    // Сначала проверяем, не пришёл ли пользователь по ссылке подтверждения
+    handleEmailConfirmation().then(confirmed => {
+        if (confirmed) return;
+        
+        // Обычная инициализация
+        if (inviteToken) {
+            console.log('[auth] Найден invite-токен:', inviteToken);
+            const msgDiv = document.getElementById('message');
+            if (msgDiv) {
+                msgDiv.innerHTML = `
+                    <div class="message info">
+                        <i class="fas fa-users"></i> Вас пригласили в команду!
+                        Зарегистрируйтесь, чтобы присоединиться.
+                    </div>
+                `;
+            }
+            showRegister();
         }
-        showRegister();
-    }
-    
-    if (referralToken) {
-        console.log('[auth] Найден referral-токен:', referralToken);
-        const msgDiv = document.getElementById('message');
-        if (msgDiv) {
-            msgDiv.innerHTML = `
-                <div class="message info">
-                    <i class="fas fa-gift"></i> Вас пригласили по реферальной ссылке!
-                    При регистрации вы получите бонус.
-                </div>
-            `;
+        
+        if (referralToken) {
+            console.log('[auth] Найден referral-токен:', referralToken);
+            const msgDiv = document.getElementById('message');
+            if (msgDiv) {
+                msgDiv.innerHTML = `
+                    <div class="message info">
+                        <i class="fas fa-gift"></i> Вас пригласили по реферальной ссылке!
+                        При регистрации вы получите бонус.
+                    </div>
+                `;
+            }
+            showRegister();
         }
-        showRegister();
-    }
+    });
     
     const regEmailInput = document.getElementById('reg-email');
     if (regEmailInput) {
@@ -182,7 +227,7 @@ async function validateRegisterForm() {
     }
     
     if (!isValidEmail(email)) {
-        return { valid: false, message: 'Введите корректный email (например, name@domain.com)' };
+        return { valid: false, message: 'Введите корректный email' };
     }
     
     const { valid, message } = await validateEmailForRegistration(email);
@@ -252,6 +297,7 @@ async function handleLogin() {
         
         showMessage('Вход выполнен! Перенаправление...', 'success');
         
+        // Если есть inviteToken, принимаем приглашение ПОСЛЕ входа
         if (inviteToken) {
             try {
                 const result = await acceptInvite(inviteToken);
@@ -276,7 +322,7 @@ async function handleLogin() {
 
 async function handleRegister() {
     if (isRegistering) {
-        console.log('[auth] Регистрация уже выполняется, игнорирую повторный клик');
+        console.log('[auth] Регистрация уже выполняется');
         return;
     }
     
@@ -311,71 +357,55 @@ async function handleRegister() {
     setRegisterButtonState(true);
     
     try {
+        // Подготавливаем метаданные
+        const userMetadata = {
+            full_name: name
+        };
+        
+        // Если есть приглашение, сохраняем токен в метаданных
+        if (inviteToken) {
+            userMetadata.invite_token = inviteToken;
+        }
+        if (referralToken) {
+            userMetadata.referral_token = referralToken;
+        }
+        
         const { data: authData, error: signUpError } = await supabase.auth.signUp({
             email,
             password,
             options: {
-                data: {
-                    full_name: name
-                }
+                data: userMetadata
             }
         });
         
         if (signUpError) throw signUpError;
         
+        // Очищаем rate limit и кэш email
         localStorage.removeItem('crm_registration_attempts');
         clearEmailCache(email);
         
-        if (authData.user?.id) {
-            cacheService.invalidate(`user_profile_${authData.user.id}`, 'all');
+        // Профиль НЕ создаём здесь — его создаст Database Trigger при подтверждении email
+        
+        console.log('[auth] Регистрация успешна, ожидается подтверждение email');
+        
+        // Показываем сообщение о необходимости подтверждения
+        const msgDiv = document.getElementById('message');
+        if (msgDiv) {
+            msgDiv.innerHTML = `
+                <div class="message success">
+                    <i class="fas fa-envelope"></i> 
+                    Регистрация успешна! Проверьте почту и перейдите по ссылке для подтверждения email.
+                </div>
+            `;
         }
         
-        if (!authData.user) {
-            throw new Error('Ошибка регистрации');
-        }
+        // Переключаем на форму входа
+        showLogin();
         
-        const { error: profileError } = await supabase
-            .from('profiles')
-            .insert({
-                id: authData.user.id,
-                name: name,
-                email: email,
-                role: 'agent',
-                github_username: email.split('@')[0],
-                permission_sets: ['BASE', 'AGENT']
-            });
-        
-        if (profileError) {
-            console.error('[auth] Ошибка создания профиля:', profileError);
-        }
-        
-        if (inviteToken) {
-            try {
-                const result = await acceptInvite(inviteToken);
-                if (result.success) {
-                    showMessage('Вы добавлены в команду!', 'success');
-                }
-            } catch (e) {
-                console.warn('[auth] Ошибка принятия приглашения:', e);
-            }
-        }
-        
-        if (referralToken) {
-            try {
-                const result = await acceptInvite(referralToken);
-                if (result.success && result.bonus) {
-                    showMessage('Вы получили бонус!', 'success');
-                }
-            } catch (e) {
-                console.warn('[auth] Ошибка активации реферала:', e);
-            }
-        }
-        
-        showMessage('Регистрация успешна! Перенаправление...', 'success');
-        
-        setTimeout(() => {
-            window.location.href = getRedirectUrl('navigator.html');
-        }, 2000);
+        // Очищаем форму регистрации
+        document.getElementById('reg-email').value = '';
+        document.getElementById('reg-name').value = '';
+        document.getElementById('reg-password').value = '';
         
     } catch (error) {
         console.error('[auth] Ошибка регистрации:', error);
@@ -385,8 +415,7 @@ async function handleRegister() {
         
         showMessage(userMessage, 'error');
         
-        if (userMessage.includes('email уже зарегистрирован') || 
-            userMessage.includes('корректный email')) {
+        if (userMessage.includes('email уже зарегистрирован')) {
             const emailInput = document.getElementById('reg-email');
             const emailHint = document.getElementById('email-hint');
             if (emailInput && emailHint) {
