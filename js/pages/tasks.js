@@ -651,51 +651,72 @@ async function handleDrop(e, newStatus) {
 }
 
 function setupDropZones() {
-    const containers = document.querySelectorAll('.tasks-container');
+    const columns = document.querySelectorAll('.kanban-column');
     
-    containers.forEach(container => {
-        // Убираем старые обработчики
-        const newContainer = container.cloneNode(true);
+    columns.forEach(column => {
+        const container = column.querySelector('.tasks-container');
+        const status = column.getAttribute('data-status');
+        
+        if (!container || !status) return;
+        
+        // Удаляем старые обработчики через клонирование
+        const newContainer = container.cloneNode(false);
         container.parentNode.replaceChild(newContainer, container);
-    });
-    
-    // Вешаем новые обработчики
-    document.querySelectorAll('.tasks-container').forEach(container => {
-        container.addEventListener('dragover', (e) => {
+        
+        // Вешаем новые обработчики
+        newContainer.addEventListener('dragover', (e) => {
             e.preventDefault();
-            container.closest('.kanban-column')?.classList.add('drag-over');
+            column.classList.add('drag-over');
         });
         
-        container.addEventListener('dragleave', () => {
-            container.closest('.kanban-column')?.classList.remove('drag-over');
+        newContainer.addEventListener('dragleave', (e) => {
+            // Проверяем, что мышь действительно покинула контейнер
+            const related = e.relatedTarget;
+            if (!related || !newContainer.contains(related)) {
+                column.classList.remove('drag-over');
+            }
         });
         
-        container.addEventListener('drop', async (e) => {
+        newContainer.addEventListener('drop', async (e) => {
             e.preventDefault();
-            const column = container.closest('.kanban-column');
-            column?.classList.remove('drag-over');
+            e.stopPropagation();
+            column.classList.remove('drag-over');
             
             const taskId = e.dataTransfer.getData('text/plain');
-            const newStatus = column?.getAttribute('data-status');
+            console.log('[tasks] Drop event:', { taskId, newStatus: status });
             
-            if (!taskId || !newStatus) return;
+            if (!taskId) {
+                console.warn('[tasks] Нет taskId в drop');
+                return;
+            }
             
             const task = tasks.find(t => t.id == taskId);
-            if (!task || task.status === newStatus) return;
+            if (!task) {
+                console.warn('[tasks] Задача не найдена:', taskId);
+                return;
+            }
             
-            console.log('[tasks] Перемещение:', taskId, task.status, '→', newStatus);
+            if (task.status === status) {
+                console.log('[tasks] Статус не изменился');
+                return;
+            }
             
-            const updated = await updateTaskStatusInDB(taskId, newStatus);
+            console.log('[tasks] Перемещение:', taskId, task.status, '→', status);
+            
+            const updated = await updateTaskStatusInDB(taskId, status);
+            
             if (updated) {
                 await loadTasksData();
                 if (window.showToast) {
                     window.showToast('success', 'Задача перемещена');
                 }
+            } else {
+                alert('Ошибка перемещения задачи');
             }
         });
     });
     
-    console.log('[tasks] Drag-and-drop настроен');
+    console.log('[tasks] Drag-and-drop настроен для', columns.length, 'колонок');
 }
 // ========== НАСТРОЙКА ФИЛЬТРОВ ==========
 
