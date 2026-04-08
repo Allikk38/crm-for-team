@@ -99,20 +99,20 @@ class MyTasksWidget extends Widget {
         
         if (!this.container) return;
         
-        // Загружаем задачи с обработкой ошибок
         await this.loadTasks();
         
         const today = new Date().toISOString().split('T')[0];
+        const isMobile = window.innerWidth <= 768;
         
         const html = `
             <div class="my-tasks-widget" style="height: 100%; display: flex; flex-direction: column; background: var(--card-bg); border-radius: 16px;">
                 <div style="padding: 12px 16px; border-bottom: 1px solid var(--card-border); display: flex; justify-content: space-between; align-items: center;">
                     <div style="display: flex; align-items: center; gap: 8px;">
                         <i class="fas fa-tasks" style="color: var(--accent);"></i>
-                        <span style="font-weight: 600;">Мои задачи</span>
+                        <span style="font-weight: 600; font-size: ${isMobile ? '14px' : '15px'};">Мои задачи</span>
                         ${this.tasks.length > 0 ? `<span style="background: var(--accent); color: white; padding: 2px 6px; border-radius: 12px; font-size: 11px;">${this.tasks.length}</span>` : ''}
                     </div>
-                    <div style="display: flex; gap: 8px;">
+                    <div style="display: flex; gap: 4px;">
                         <button class="refresh-btn" style="background: none; border: none; cursor: pointer; color: var(--text-muted); padding: 4px;" title="Обновить">
                             <i class="fas fa-sync-alt"></i>
                         </button>
@@ -124,8 +124,8 @@ class MyTasksWidget extends Widget {
                         </button>
                     </div>
                 </div>
-                <div style="flex: 1; padding: 16px; overflow-y: auto;">
-                    ${this.renderTasks(today)}
+                <div style="flex: 1; padding: 16px; overflow-y: auto; max-height: 400px;">
+                    ${this.renderTasks(today, isMobile)}
                 </div>
             </div>
         `;
@@ -134,7 +134,7 @@ class MyTasksWidget extends Widget {
         this.attachEvents();
     }
     
-    renderTasks(today) {
+    renderTasks(today, isMobile = false) {
         if (!this.user) {
             return `
                 <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 12px; color: var(--text-muted); text-align: center;">
@@ -150,7 +150,7 @@ class MyTasksWidget extends Widget {
                 <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 12px; color: var(--text-muted); text-align: center;">
                     <i class="fas fa-check-circle" style="font-size: 32px;"></i>
                     <div>Нет активных задач</div>
-                    <small>Отличная работа! 🎉</small>
+                    <small>Отличная работа!</small>
                 </div>
             `;
         }
@@ -159,31 +159,55 @@ class MyTasksWidget extends Widget {
             <div style="display: flex; flex-direction: column; gap: 8px;">
                 ${this.tasks.map(task => {
                     const isOverdue = task.due_date && task.due_date < today && task.status !== 'completed';
+                    const title = task.title || 'Без названия';
+                    const escapedTitle = this.escapeHtml(title);
                     
                     return `
-                        <div class="task-item" data-task-id="${task.id}" style="padding: 10px; background: var(--hover-bg); border-radius: 8px; cursor: pointer; transition: all 0.2s;">
-                            <div style="display: flex; align-items: flex-start; gap: 8px;">
+                        <div class="task-item" data-task-id="${task.id}" style="padding: ${isMobile ? '12px 10px' : '10px 12px'}; background: var(--hover-bg); border-radius: 8px; cursor: pointer; transition: all 0.2s; border-left: 3px solid ${task.priority === 'high' ? '#ff6b6b' : task.priority === 'medium' ? '#ffc107' : '#4caf50'};">
+                            <div style="display: flex; align-items: flex-start; gap: 10px;">
                                 <input type="checkbox" 
                                        class="task-checkbox" 
                                        data-task-id="${task.id}"
                                        ${task.status === 'completed' ? 'checked' : ''}
                                        onclick="event.stopPropagation()"
-                                       style="margin-top: 2px; cursor: pointer;">
-                                <div style="flex: 1;">
-                                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px;">
-                                        <span style="${task.status === 'completed' ? 'text-decoration: line-through; opacity: 0.7;' : ''} font-weight: 500;">
-                                            ${window.escapeHtml ? window.escapeHtml(task.title) : task.title}
+                                       style="margin-top: 3px; cursor: pointer; width: 16px; height: 16px; flex-shrink: 0;">
+                                <div style="flex: 1; min-width: 0;">
+                                    <div style="display: flex; align-items: flex-start; gap: 8px; margin-bottom: 6px;">
+                                        <span style="${task.status === 'completed' ? 'text-decoration: line-through; opacity: 0.7;' : ''} font-weight: 500; font-size: ${isMobile ? '13px' : '14px'}; word-break: break-word; line-height: 1.4;">
+                                            ${escapedTitle}
                                         </span>
-                                        ${task.priority === 'high' ? '<span style="font-size: 10px; padding: 2px 6px; border-radius: 12px; background: rgba(255,107,107,0.2); color: #ff6b6b;">Высокий</span>' : ''}
-                                        ${task.priority === 'medium' ? '<span style="font-size: 10px; padding: 2px 6px; border-radius: 12px; background: rgba(255,193,7,0.2); color: #ffc107;">Средний</span>' : ''}
-                                        ${isOverdue ? '<span style="font-size: 10px; padding: 2px 6px; border-radius: 12px; background: rgba(255,107,107,0.2); color: #ff6b6b;">Просрочена</span>' : ''}
                                     </div>
-                                    <div style="display: flex; gap: 12px; font-size: 11px; color: var(--text-muted);">
-                                        ${task.due_date ? `<span><i class="far fa-calendar-alt"></i> ${task.due_date}</span>` : ''}
-                                        <span><i class="fas fa-tag"></i> ${task.status === 'completed' ? '✅ Завершена' : task.status === 'in_progress' ? '🔄 В работе' : '⏳ Ожидает'}</span>
+                                    <div style="display: flex; flex-wrap: wrap; gap: ${isMobile ? '6px' : '12px'}; font-size: ${isMobile ? '10px' : '11px'}; color: var(--text-muted);">
+                                        ${task.due_date ? `
+                                            <span style="display: flex; align-items: center; gap: 4px; ${isOverdue ? 'color: #ff6b6b;' : ''}">
+                                                <i class="far fa-calendar-alt"></i> 
+                                                ${this.formatDate(task.due_date)}
+                                            </span>
+                                        ` : ''}
+                                        <span style="display: flex; align-items: center; gap: 4px;">
+                                            <i class="fas fa-tag"></i> 
+                                            ${task.status === 'completed' ? 'Завершена' : task.status === 'in_progress' ? 'В работе' : 'Ожидает'}
+                                        </span>
+                                        ${task.priority === 'high' && !isMobile ? `
+                                            <span style="display: flex; align-items: center; gap: 4px; color: #ff6b6b;">
+                                                <i class="fas fa-flag"></i> Высокий
+                                            </span>
+                                        ` : ''}
                                     </div>
                                 </div>
+                                ${isOverdue && !isMobile ? `
+                                    <span style="font-size: 10px; padding: 2px 6px; border-radius: 12px; background: rgba(255,107,107,0.2); color: #ff6b6b; white-space: nowrap; flex-shrink: 0;">
+                                        Просрочена
+                                    </span>
+                                ` : ''}
                             </div>
+                            ${isOverdue && isMobile ? `
+                                <div style="margin-top: 6px; margin-left: 26px;">
+                                    <span style="font-size: 10px; padding: 2px 6px; border-radius: 12px; background: rgba(255,107,107,0.2); color: #ff6b6b; display: inline-block;">
+                                        Просрочена
+                                    </span>
+                                </div>
+                            ` : ''}
                         </div>
                     `;
                 }).join('')}
@@ -191,13 +215,27 @@ class MyTasksWidget extends Widget {
             ${this.tasks.length >= this.settings.limit ? `
                 <div style="margin-top: 12px; text-align: center; padding-top: 8px;">
                     <a href="tasks-supabase.html" style="color: var(--accent); font-size: 12px; text-decoration: none;">
-                        Показать все задачи → 
+                        Показать все задачи →
                     </a>
                 </div>
             ` : ''}
         `;
     }
     
+    escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    formatDate(dateStr) {
+        if (!dateStr) return '';
+        const date = new Date(dateStr);
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        return `${day}.${month}`;
+    }
     attachEvents() {
         // Кнопка обновления
         const refreshBtn = this.container.querySelector('.refresh-btn');
@@ -272,13 +310,4 @@ class MyTasksWidget extends Widget {
         await this.render();
     }
 }
-
-// Регистрируем
-if (typeof window !== 'undefined') {
-    window.CRM = window.CRM || {};
-    window.CRM.Widgets = window.CRM.Widgets || {};
-    window.CRM.Widgets.MyTasksWidget = MyTasksWidget;
-    console.log('[my-tasks-widget] ✅ Зарегистрирован');
-}
-
 export default MyTasksWidget;
