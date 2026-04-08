@@ -17,6 +17,7 @@
  *   - 30.03.2026: Создание универсального загрузчика
  *   - 02.04.2026: ЛЕНИВАЯ ЗАГРУЗКА ВИДЖЕТОВ - виджеты загружаются только при вызове
  *   - 02.04.2026: Убраны глобальные объекты, чистые экспорты/импорты
+ *   - 08.04.2026: Добавлен модуль FINANCE
  * ============================================
  */
 
@@ -200,6 +201,16 @@ const MODULE_METADATA = {
         order: 90,
         mainPage: '/app/invoices.html',
         requiredPermissions: []
+    },
+    
+    // ========== ФИНАНСЫ (ДОБАВЛЕНО 08.04.2026) ==========
+    'finance': {
+        name: 'Финансы',
+        icon: 'fa-money-bill-wave',
+        category: 'business',
+        order: 55,
+        mainPage: '/app/finance.html',
+        requiredPermissions: []
     }
 };
 
@@ -341,7 +352,7 @@ async function loadAndRegisterModules(registry, permissions) {
     }
     
     // Дополнительно загружаем модули из папки modules (если есть)
-    const dynamicModules = ['tasks', 'deals', 'complexes', 'calendar', 'counterparties'];
+    const dynamicModules = ['tasks', 'deals', 'complexes', 'calendar', 'counterparties', 'finance'];
     
     for (const moduleId of dynamicModules) {
         try {
@@ -385,6 +396,7 @@ const PAGE_TO_MODULE = {
     'notes.html': 'notes',
     'habits.html': 'habits',
     'pomodoro.html': 'pomodoro',
+    'finance.html': 'finance',
     'tasks-supabase.html': 'tasks',
     'deals-supabase.html': 'deals',
     'complexes-supabase.html': 'complexes',
@@ -415,7 +427,8 @@ const MODULE_INIT = {
     'my-modules': () => import('../pages/my-modules.js').then(m => m.initMyModulesPage()),
     'notes': () => import('../pages/notes.js').then(m => m.initNotesPage()),
     'habits': () => import('../pages/habits.js').then(m => m.initHabitsPage()),
-    'pomodoro': () => import('../pages/pomodoro.js').then(m => m.initPomodoroPage())
+    'pomodoro': () => import('../pages/pomodoro.js').then(m => m.initPomodoroPage()),
+    'finance': () => import('../pages/finance.js').then(m => m.initFinancePage())
 };
 
 // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
@@ -469,7 +482,8 @@ async function loadCoreModules() {
 async function loadServices() {
     const services = [
         '../services/dashboards-supabase.js',
-        '../services/license-supabase.js'
+        '../services/license-supabase.js',
+        '../services/finance-supabase.js'
     ];
     
     for (const service of services) {
