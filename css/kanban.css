@@ -163,3 +163,29 @@
     background: var(--card-hover);
     transform: scale(1.02);
 }
+.tasks-container {
+    min-height: 200px;
+    transition: background 0.2s ease;
+}
+
+.tasks-container:empty {
+    min-height: 200px;
+}
+
+.tasks-container:empty::before {
+    content: "Перетащите задачу сюда";
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    min-height: 150px;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    opacity: 0.5;
+}
+
+.kanban-column.drag-over {
+    background: rgba(59, 130, 246, 0.08);
+    border-radius: 16px;
+    transition: all 0.2s ease;
+}
