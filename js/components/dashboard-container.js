@@ -325,7 +325,7 @@ class DashboardContainer {
             
             const fullHtml = gridHtml + `
                 <div class="dashboard-promo" style="margin-top: 32px; display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px;">
-                    <div class="promo-card" style="background: linear-gradient(135deg, var(--accent), var(--accent-hover)); border-radius: 20px; padding: 24px; color: white; cursor: pointer;" onclick="window.location.href='marketplace-supabase.html'">
+                    <div class="promo-card" style="background: linear-gradient(135deg, var(--accent), var(--accent-hover)); border-radius: 20px; padding: 24px; color: white; cursor: pointer;" onclick="window.location.href='app/marketplace.html'">
                         <i class="fas fa-store" style="font-size: 32px; margin-bottom: 12px; display: block;"></i>
                         <h3 style="margin-bottom: 8px;">🧩 Маркетплейс модулей</h3>
                         <p style="opacity: 0.9; font-size: 0.85rem;">Расширьте возможности платформы. Добавьте модули для недвижимости, финансов, образования и здоровья.</p>
