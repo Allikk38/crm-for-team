@@ -19,6 +19,7 @@
  * ИСТОРИЯ:
  *   - 08.04.2026: Создание файла
  *   - 08.04.2026: Добавлено управление виджетами (сохранение в localStorage)
+ *   - 08.04.2026: Заменен select периода на кнопки (как на дашборде)
  * ============================================
  */
 
@@ -119,6 +120,82 @@ function getFilterDates() {
     return { startDate: null, endDate: null };
 }
 
+// ========== УПРАВЛЕНИЕ ПЕРИОДОМ И ТИПОМ (НОВЫЕ КНОПКИ) ==========
+
+function initPeriodButtons() {
+    const periodBtns = document.querySelectorAll('.period-btn');
+    periodBtns.forEach(btn => {
+        btn.addEventListener('click', async () => {
+            // Убираем активный класс у всех
+            periodBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            
+            // Устанавливаем период
+            const period = btn.dataset.period;
+            currentFilters.period = period;
+            
+            // Очищаем кастомные даты при выборе предустановленного периода
+            if (period !== 'custom') {
+                const dateFrom = document.getElementById('filterDateFrom');
+                const dateTo = document.getElementById('filterDateTo');
+                if (dateFrom) dateFrom.value = '';
+                if (dateTo) dateTo.value = '';
+                currentFilters.dateFrom = '';
+                currentFilters.dateTo = '';
+            }
+            
+            await loadTransactions();
+        });
+    });
+}
+
+function initTypeButtons() {
+    const typeBtns = document.querySelectorAll('.type-filter-btn');
+    typeBtns.forEach(btn => {
+        btn.addEventListener('click', async () => {
+            // Убираем активный класс у всех
+            typeBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            
+            // Устанавливаем тип
+            const type = btn.dataset.type;
+            currentFilters.type = type;
+            
+            await loadTransactions();
+        });
+    });
+}
+
+function initDatePickers() {
+    const dateFrom = document.getElementById('filterDateFrom');
+    const dateTo = document.getElementById('filterDateTo');
+    
+    if (dateFrom) {
+        dateFrom.addEventListener('change', async () => {
+            currentFilters.dateFrom = dateFrom.value;
+            currentFilters.period = 'custom';
+            
+            // Сбрасываем активный класс у кнопок периода
+            const periodBtns = document.querySelectorAll('.period-btn');
+            periodBtns.forEach(btn => btn.classList.remove('active'));
+            
+            await loadTransactions();
+        });
+    }
+    
+    if (dateTo) {
+        dateTo.addEventListener('change', async () => {
+            currentFilters.dateTo = dateTo.value;
+            currentFilters.period = 'custom';
+            
+            const periodBtns = document.querySelectorAll('.period-btn');
+            periodBtns.forEach(btn => btn.classList.remove('active'));
+            
+            await loadTransactions();
+        });
+    }
+}
+
 // ========== УПРАВЛЕНИЕ ВИДЖЕТАМИ ==========
 
 function loadWidgetSettings() {
@@ -158,7 +235,6 @@ function openWidgetSettingsModal() {
     const modal = document.getElementById('widgetSettingsModal');
     if (!modal) return;
     
-    // Устанавливаем текущие значения
     document.getElementById('widgetIncomeExpense').checked = widgetSettings.incomeExpense;
     document.getElementById('widgetTopExpenses').checked = widgetSettings.topExpenses;
     document.getElementById('widgetTopIncome').checked = widgetSettings.topIncome;
@@ -193,7 +269,7 @@ async function loadTransactions() {
     const { startDate, endDate } = getFilterDates();
     
     const filters = {
-        type: currentFilters.type,
+        type: currentFilters.type === 'all' ? null : currentFilters.type,
         startDate,
         endDate
     };
@@ -206,17 +282,16 @@ async function loadTransactions() {
 async function updateWidgets() {
     if (!currentUser) return;
     
-    const { startDate, endDate } = getFilterDates();
-    
     // Баланс
     const balance = await financeService.getBalance(currentFilters.period);
     const balanceEl = document.getElementById('balanceValue');
     if (balanceEl) {
-        balanceEl.textContent = `${balance.toLocaleString()} ₽`;
+        const absBalance = Math.abs(balance);
+        balanceEl.textContent = `${balance >= 0 ? '+' : '-'} ${absBalance.toLocaleString()} ₽`;
         balanceEl.style.color = balance >= 0 ? '#4caf50' : '#ff6b6b';
     }
     
-    // Сводка доходов/расходов (только если виджет активен)
+    // Сводка доходов/расходов
     if (widgetSettings.incomeExpense) {
         const stats = await financeService.getStats(currentFilters.period);
         const incomeExpenseWidget = document.getElementById('incomeExpenseWidget');
@@ -495,21 +570,16 @@ export async function initFinancePage() {
     // Загружаем настройки виджетов
     loadWidgetSettings();
     
-    // Навешиваем обработчики
+    // Инициализируем новые кнопки
+    initPeriodButtons();
+    initTypeButtons();
+    initDatePickers();
+    
+    // Кнопка добавления транзакции
     const addBtn = document.getElementById('addTransactionBtn');
     if (addBtn) {
         addBtn.onclick = () => openTransactionModal();
     }
-    
-    const filterType = document.getElementById('filterType');
-    const filterPeriod = document.getElementById('filterPeriod');
-    const filterDateFrom = document.getElementById('filterDateFrom');
-    const filterDateTo = document.getElementById('filterDateTo');
-    
-    if (filterType) filterType.onchange = async () => { updateFiltersFromUI(); await loadTransactions(); };
-    if (filterPeriod) filterPeriod.onchange = async () => { updateFiltersFromUI(); await loadTransactions(); };
-    if (filterDateFrom) filterDateFrom.onchange = async () => { updateFiltersFromUI(); await loadTransactions(); };
-    if (filterDateTo) filterDateTo.onchange = async () => { updateFiltersFromUI(); await loadTransactions(); };
     
     // Кнопки управления виджетами
     const widgetSettingsBtn = document.getElementById('widgetSettingsBtn');
