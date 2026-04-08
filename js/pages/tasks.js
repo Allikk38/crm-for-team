@@ -866,41 +866,57 @@ async function loadTasksData() {
 
 async function openModal(taskId) {
     const modal = document.getElementById('taskModal');
-    const modalTitle = document.getElementById('modalTitle');
-    const privateCheckbox = document.getElementById('taskPrivate');
+    const modalTitle = document.getElementById('modalTitleText');
     
     await loadUsers();
-    await loadComplexes();
     
-    const assigneeSelect = document.getElementById('taskAssignee');
-    if (assigneeSelect && users.length) {
-        assigneeSelect.innerHTML = '<option value="">Назначить исполнителя</option>';
-        for (const user of users) {
-            assigneeSelect.innerHTML += `<option value="${user.github_username}">${escapeHtml(user.name)}</option>`;
-        }
+    // Динамически строим дополнительные поля
+    const dynamicContainer = document.getElementById('dynamicFields');
+    dynamicContainer.innerHTML = '';
+    
+    // Проверяем, есть ли компания (для поля "Исполнитель")
+    const { data: profile } = await supabase
+        .from('profiles')
+        .select('company_id')
+        .eq('id', currentUser.id)
+        .single();
+    
+    const hasCompany = profile?.company_id;
+    
+    if (hasCompany && users.length > 1) {
+        // Есть компания и есть коллеги — показываем выбор исполнителя
+        const assigneeHtml = `
+            <div class="form-group">
+                <label><i class="fas fa-user"></i> Исполнитель</label>
+                <select id="taskAssignee">
+                    <option value="">Не назначен</option>
+                    ${users.map(u => `<option value="${u.github_username}">${escapeHtml(u.name)}</option>`).join('')}
+                </select>
+            </div>
+        `;
+        dynamicContainer.innerHTML += assigneeHtml;
     }
     
-    const complexSelect = document.getElementById('taskComplex');
-    if (complexSelect && complexes.length) {
-        complexSelect.innerHTML = '<option value="">Привязать к объекту</option>';
-        for (const complex of complexes) {
-            complexSelect.innerHTML += `<option value="${complex.id}">${escapeHtml(complex.name)}</option>`;
-        }
-    }
-    
+    // Заполняем поля если редактирование
     if (taskId) {
         modalTitle.textContent = 'Редактировать задачу';
         const task = tasks.find(t => t.id == taskId);
         if (task) {
             document.getElementById('taskId').value = task.id;
-            document.getElementById('taskTitle').value = task.title;
+            document.getElementById('taskTitle').value = task.title || '';
             document.getElementById('taskDescription').value = task.description || '';
-            document.getElementById('taskAssignee').value = task.assigned_to || '';
-            document.getElementById('taskComplex').value = task.complex_id || '';
-            document.getElementById('taskPriority').value = task.priority;
+            document.getElementById('taskCategory').value = task.category || 'other';
             document.getElementById('taskDueDate').value = task.due_date || '';
-            document.getElementById('taskStatus').value = task.status;
-            if (privateCheckbox) privateCheckbox.checked = task.is_private;
+            document.getElementById('taskImportant').checked = task.is_important || false;
+            document.getElementById('taskStatus').value = task.status || 'pending';
+            document.getElementById('taskPrivate').checked = task.is_private || false;
+            
+            if (hasCompany) {
+                setTimeout(() => {
+                    const assigneeSelect = document.getElementById('taskAssignee');
+                    if (assigneeSelect) assigneeSelect.value = task.assigned_to || '';
+                }, 50);
+            }
             
             await loadComments(task.id);
         }
@@ -909,15 +925,17 @@ async function openModal(taskId) {
         document.getElementById('taskId').value = '';
         document.getElementById('taskTitle').value = '';
         document.getElementById('taskDescription').value = '';
-        document.getElementById('taskAssignee').value = '';
-        document.getElementById('taskComplex').value = '';
-        document.getElementById('taskPriority').value = 'medium';
+        document.getElementById('taskCategory').value = 'other';
         document.getElementById('taskDueDate').value = '';
+        document.getElementById('taskImportant').checked = false;
         document.getElementById('taskStatus').value = 'pending';
-        if (privateCheckbox) privateCheckbox.checked = false;
+        document.getElementById('taskPrivate').checked = false;
         currentTaskComments = [];
         renderComments();
     }
+    
+    // Сбрасываем аккордеон комментариев
+    document.getElementById('commentsSection')?.classList.remove('collapsed');
     
     modal.classList.add('active');
     console.log('[tasks] Модальное окно открыто, taskId:', taskId || 'новая');
@@ -925,10 +943,6 @@ async function openModal(taskId) {
     setTimeout(() => {
         const commentTextarea = document.getElementById('newComment');
         if (commentTextarea) {
-            commentTextarea.removeEventListener('input', handleCommentInput);
-            commentTextarea.removeEventListener('keydown', handleCommentKeydown);
-            commentTextarea.removeEventListener('blur', handleCommentBlur);
-            
             commentTextarea.addEventListener('input', handleCommentInput);
             commentTextarea.addEventListener('keydown', handleCommentKeydown);
             commentTextarea.addEventListener('blur', handleCommentBlur);
