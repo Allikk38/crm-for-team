@@ -8,6 +8,7 @@
  *   - Фильтрация по типу, периоду, датам
  *   - Добавление/редактирование/удаление транзакций
  *   - Обновление виджетов статистики
+ *   - Управление видимостью виджетов
  *   - Полностью на импортах, без глобальных объектов
  * 
  * ЗАВИСИМОСТИ:
@@ -17,6 +18,7 @@
  * 
  * ИСТОРИЯ:
  *   - 08.04.2026: Создание файла
+ *   - 08.04.2026: Добавлено управление виджетами (сохранение в localStorage)
  * ============================================
  */
 
@@ -39,7 +41,14 @@ let currentFilters = {
 };
 let isInitialized = false;
 
-// Иконки для категорий (простое соответствие)
+// Настройки виджетов
+let widgetSettings = {
+    incomeExpense: true,
+    topExpenses: true,
+    topIncome: true
+};
+
+// Иконки для категорий
 const categoryIcons = {
     'Еда': 'fa-utensils',
     'Транспорт': 'fa-car',
@@ -57,24 +66,10 @@ const categoryIcons = {
 
 // ========== ВСПОМОГАТЕЛЬНЫЕ ==========
 
-/**
- * Получить иконку для категории
- */
 function getCategoryIcon(category) {
     return categoryIcons[category] || 'fa-tag';
 }
 
-/**
- * Форматировать сумму
- */
-function formatAmount(amount, type) {
-    const sign = type === 'income' ? '+' : '-';
-    return `${sign} ${amount.toLocaleString()} ₽`;
-}
-
-/**
- * Обновить фильтры из UI
- */
 function updateFiltersFromUI() {
     currentFilters.type = document.getElementById('filterType')?.value || 'all';
     currentFilters.period = document.getElementById('filterPeriod')?.value || 'month';
@@ -82,9 +77,6 @@ function updateFiltersFromUI() {
     currentFilters.dateTo = document.getElementById('filterDateTo')?.value || '';
 }
 
-/**
- * Получить даты для фильтрации
- */
 function getFilterDates() {
     const now = new Date();
     const today = now.toISOString().split('T')[0];
@@ -127,11 +119,74 @@ function getFilterDates() {
     return { startDate: null, endDate: null };
 }
 
+// ========== УПРАВЛЕНИЕ ВИДЖЕТАМИ ==========
+
+function loadWidgetSettings() {
+    const saved = localStorage.getItem('finance_widget_settings');
+    if (saved) {
+        try {
+            widgetSettings = JSON.parse(saved);
+        } catch (e) {
+            console.warn('[finance] Ошибка загрузки настроек виджетов');
+        }
+    }
+    applyWidgetVisibility();
+}
+
+function saveWidgetSettings() {
+    localStorage.setItem('finance_widget_settings', JSON.stringify(widgetSettings));
+    applyWidgetVisibility();
+}
+
+function applyWidgetVisibility() {
+    const incomeExpenseWidget = document.querySelector('[data-widget="income-expense"]');
+    const topExpensesWidget = document.querySelector('[data-widget="top-expenses"]');
+    const topIncomeWidget = document.querySelector('[data-widget="top-income"]');
+    
+    if (incomeExpenseWidget) {
+        incomeExpenseWidget.style.display = widgetSettings.incomeExpense ? 'block' : 'none';
+    }
+    if (topExpensesWidget) {
+        topExpensesWidget.style.display = widgetSettings.topExpenses ? 'block' : 'none';
+    }
+    if (topIncomeWidget) {
+        topIncomeWidget.style.display = widgetSettings.topIncome ? 'block' : 'none';
+    }
+}
+
+function openWidgetSettingsModal() {
+    const modal = document.getElementById('widgetSettingsModal');
+    if (!modal) return;
+    
+    // Устанавливаем текущие значения
+    document.getElementById('widgetIncomeExpense').checked = widgetSettings.incomeExpense;
+    document.getElementById('widgetTopExpenses').checked = widgetSettings.topExpenses;
+    document.getElementById('widgetTopIncome').checked = widgetSettings.topIncome;
+    
+    modal.style.display = 'flex';
+    modal.classList.add('active');
+}
+
+function closeWidgetSettingsModal() {
+    const modal = document.getElementById('widgetSettingsModal');
+    if (modal) {
+        modal.style.display = 'none';
+        modal.classList.remove('active');
+    }
+}
+
+function saveWidgetSettingsFromModal() {
+    widgetSettings.incomeExpense = document.getElementById('widgetIncomeExpense').checked;
+    widgetSettings.topExpenses = document.getElementById('widgetTopExpenses').checked;
+    widgetSettings.topIncome = document.getElementById('widgetTopIncome').checked;
+    
+    saveWidgetSettings();
+    closeWidgetSettingsModal();
+    showToast('success', 'Настройки виджетов сохранены');
+}
+
 // ========== ЗАГРУЗКА ДАННЫХ ==========
 
-/**
- * Загрузить транзакции
- */
 async function loadTransactions() {
     if (!currentUser) return;
     
@@ -148,9 +203,6 @@ async function loadTransactions() {
     await updateWidgets();
 }
 
-/**
- * Обновить виджеты
- */
 async function updateWidgets() {
     if (!currentUser) return;
     
@@ -164,82 +216,85 @@ async function updateWidgets() {
         balanceEl.style.color = balance >= 0 ? '#4caf50' : '#ff6b6b';
     }
     
-    // Сводка доходов/расходов
-    const stats = await financeService.getStats(currentFilters.period);
-    const incomeExpenseWidget = document.getElementById('incomeExpenseWidget');
-    if (incomeExpenseWidget) {
-        incomeExpenseWidget.innerHTML = `
-            <div style="display: flex; justify-content: space-between; margin-bottom: 16px;">
-                <div>
-                    <div style="font-size: 0.7rem; color: var(--text-muted);">Доходы</div>
-                    <div style="font-size: 1.3rem; font-weight: 600; color: #4caf50;">+${stats.totalIncome.toLocaleString()} ₽</div>
+    // Сводка доходов/расходов (только если виджет активен)
+    if (widgetSettings.incomeExpense) {
+        const stats = await financeService.getStats(currentFilters.period);
+        const incomeExpenseWidget = document.getElementById('incomeExpenseWidget');
+        if (incomeExpenseWidget) {
+            incomeExpenseWidget.innerHTML = `
+                <div style="display: flex; justify-content: space-between; margin-bottom: 16px;">
+                    <div>
+                        <div style="font-size: 0.7rem; color: var(--text-muted);">Доходы</div>
+                        <div style="font-size: 1.3rem; font-weight: 600; color: #4caf50;">+${stats.totalIncome.toLocaleString()} ₽</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 0.7rem; color: var(--text-muted);">Расходы</div>
+                        <div style="font-size: 1.3rem; font-weight: 600; color: #ff6b6b;">-${stats.totalExpense.toLocaleString()} ₽</div>
+                    </div>
                 </div>
-                <div>
-                    <div style="font-size: 0.7rem; color: var(--text-muted);">Расходы</div>
-                    <div style="font-size: 1.3rem; font-weight: 600; color: #ff6b6b;">-${stats.totalExpense.toLocaleString()} ₽</div>
+                <div class="progress-bar-container" style="margin-top: 8px;">
+                    <div class="progress-bar-fill" style="width: ${stats.totalExpense > 0 ? Math.min(100, (stats.totalExpense / (stats.totalIncome || 1)) * 100) : 0}%; background: linear-gradient(90deg, #4caf50, #ff6b6b);"></div>
                 </div>
-            </div>
-            <div class="progress-bar-container" style="margin-top: 8px;">
-                <div class="progress-bar-fill" style="width: ${stats.totalExpense > 0 ? Math.min(100, (stats.totalExpense / (stats.totalIncome || 1)) * 100) : 0}%; background: linear-gradient(90deg, #4caf50, #ff6b6b);"></div>
-            </div>
-            <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 8px;">
-                Расходы составляют ${stats.totalIncome > 0 ? Math.round((stats.totalExpense / stats.totalIncome) * 100) : 0}% от доходов
-            </div>
-        `;
-    }
-    
-    // Топ расходов по категориям
-    const topExpenses = await financeService.getStatsByCategory(currentFilters.period, 'expense');
-    const topExpensesWidget = document.getElementById('topExpensesWidget');
-    if (topExpensesWidget) {
-        if (topExpenses.length === 0) {
-            topExpensesWidget.innerHTML = '<div class="empty-state" style="padding: 20px;">Нет расходов</div>';
-        } else {
-            topExpensesWidget.innerHTML = `
-                <div class="category-stats-list">
-                    ${topExpenses.slice(0, 5).map(cat => `
-                        <div class="category-stat-item">
-                            <div class="category-stat-name">
-                                <i class="fas ${getCategoryIcon(cat.category)}" style="width: 20px;"></i>
-                                ${escapeHtml(cat.category)}
-                            </div>
-                            <div class="category-stat-amount">-${cat.total.toLocaleString()} ₽</div>
-                        </div>
-                    `).join('')}
+                <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 8px;">
+                    Расходы составляют ${stats.totalIncome > 0 ? Math.round((stats.totalExpense / stats.totalIncome) * 100) : 0}% от доходов
                 </div>
             `;
         }
     }
     
-    // Топ доходов по категориям
-    const topIncome = await financeService.getStatsByCategory(currentFilters.period, 'income');
-    const topIncomeWidget = document.getElementById('topIncomeWidget');
-    if (topIncomeWidget) {
-        if (topIncome.length === 0) {
-            topIncomeWidget.innerHTML = '<div class="empty-state" style="padding: 20px;">Нет доходов</div>';
-        } else {
-            topIncomeWidget.innerHTML = `
-                <div class="category-stats-list">
-                    ${topIncome.slice(0, 5).map(cat => `
-                        <div class="category-stat-item">
-                            <div class="category-stat-name">
-                                <i class="fas ${getCategoryIcon(cat.category)}" style="width: 20px;"></i>
-                                ${escapeHtml(cat.category)}
+    // Топ расходов
+    if (widgetSettings.topExpenses) {
+        const topExpenses = await financeService.getStatsByCategory(currentFilters.period, 'expense');
+        const topExpensesWidget = document.getElementById('topExpensesWidget');
+        if (topExpensesWidget) {
+            if (topExpenses.length === 0) {
+                topExpensesWidget.innerHTML = '<div class="empty-state" style="padding: 20px;">Нет расходов</div>';
+            } else {
+                topExpensesWidget.innerHTML = `
+                    <div class="category-stats-list">
+                        ${topExpenses.slice(0, 5).map(cat => `
+                            <div class="category-stat-item">
+                                <div class="category-stat-name">
+                                    <i class="fas ${getCategoryIcon(cat.category)}" style="width: 20px;"></i>
+                                    ${escapeHtml(cat.category)}
+                                </div>
+                                <div class="category-stat-amount">-${cat.total.toLocaleString()} ₽</div>
                             </div>
-                            <div class="category-stat-amount" style="color: #4caf50;">+${cat.total.toLocaleString()} ₽</div>
-                        </div>
-                    `).join('')}
-                </div>
-            `;
+                        `).join('')}
+                    </div>
+                `;
+            }
+        }
+    }
+    
+    // Топ доходов
+    if (widgetSettings.topIncome) {
+        const topIncome = await financeService.getStatsByCategory(currentFilters.period, 'income');
+        const topIncomeWidget = document.getElementById('topIncomeWidget');
+        if (topIncomeWidget) {
+            if (topIncome.length === 0) {
+                topIncomeWidget.innerHTML = '<div class="empty-state" style="padding: 20px;">Нет доходов</div>';
+            } else {
+                topIncomeWidget.innerHTML = `
+                    <div class="category-stats-list">
+                        ${topIncome.slice(0, 5).map(cat => `
+                            <div class="category-stat-item">
+                                <div class="category-stat-name">
+                                    <i class="fas ${getCategoryIcon(cat.category)}" style="width: 20px;"></i>
+                                    ${escapeHtml(cat.category)}
+                                </div>
+                                <div class="category-stat-amount" style="color: #4caf50;">+${cat.total.toLocaleString()} ₽</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
         }
     }
 }
 
 // ========== РЕНДЕРИНГ ==========
 
-/**
- * Рендер списка транзакций
- */
 function renderTransactions() {
     const container = document.getElementById('transactionsList');
     if (!container) return;
@@ -287,7 +342,6 @@ function renderTransactions() {
         </div>
     `).join('');
     
-    // Обработчики удаления
     document.querySelectorAll('.delete-transaction').forEach(btn => {
         btn.addEventListener('click', async (e) => {
             e.stopPropagation();
@@ -305,11 +359,8 @@ function renderTransactions() {
     });
 }
 
-// ========== МОДАЛЬНОЕ ОКНО ==========
+// ========== МОДАЛЬНОЕ ОКНО ТРАНЗАКЦИИ ==========
 
-/**
- * Открыть модальное окно добавления транзакции
- */
 async function openTransactionModal(transaction = null) {
     const modal = document.getElementById('transactionModal');
     if (!modal) return;
@@ -322,10 +373,8 @@ async function openTransactionModal(transaction = null) {
     const dateInput = document.getElementById('transactionDate');
     const saveBtn = document.getElementById('saveTransactionBtn');
     
-    // Загружаем категории
     const categories = await financeService.getCategories();
     
-    // Очищаем и заполняем select категорий
     categorySelect.innerHTML = '<option value="">Выберите категорию</option>';
     const currentType = typeSelect?.value || 'expense';
     const categoryList = categories[currentType] || [];
@@ -336,10 +385,7 @@ async function openTransactionModal(transaction = null) {
         categorySelect.appendChild(option);
     });
     
-    // Устанавливаем дату по умолчанию
     dateInput.value = new Date().toISOString().split('T')[0];
-    
-    // Сбрасываем форму
     amountInput.value = '';
     descInput.value = '';
     
@@ -351,7 +397,6 @@ async function openTransactionModal(transaction = null) {
         descInput.value = transaction.description || '';
         dateInput.value = transaction.transaction_date;
         
-        // Обновляем категории при смене типа
         const updateCategories = async () => {
             const newCategories = await financeService.getCategories();
             const newList = newCategories[typeSelect.value] || [];
@@ -383,7 +428,6 @@ async function openTransactionModal(transaction = null) {
     modal.style.display = 'flex';
     modal.classList.add('active');
     
-    // Сохранение
     const saveHandler = async () => {
         const type = typeSelect.value;
         const amount = parseFloat(amountInput.value);
@@ -423,9 +467,6 @@ async function openTransactionModal(transaction = null) {
     saveBtn.onclick = saveHandler;
 }
 
-/**
- * Закрыть модальное окно
- */
 function closeModal() {
     const modal = document.getElementById('transactionModal');
     if (modal) {
@@ -436,9 +477,6 @@ function closeModal() {
 
 // ========== ИНИЦИАЛИЗАЦИЯ ==========
 
-/**
- * Инициализация страницы финансов
- */
 export async function initFinancePage() {
     if (isInitialized) {
         console.log('[finance] Страница уже инициализирована');
@@ -453,6 +491,9 @@ export async function initFinancePage() {
     currentUser = getCurrentSupabaseUser();
     updateSupabaseUserInterface();
     console.log('[finance] Текущий пользователь:', currentUser?.name);
+    
+    // Загружаем настройки виджетов
+    loadWidgetSettings();
     
     // Навешиваем обработчики
     const addBtn = document.getElementById('addTransactionBtn');
@@ -470,11 +511,42 @@ export async function initFinancePage() {
     if (filterDateFrom) filterDateFrom.onchange = async () => { updateFiltersFromUI(); await loadTransactions(); };
     if (filterDateTo) filterDateTo.onchange = async () => { updateFiltersFromUI(); await loadTransactions(); };
     
-    // Закрытие модалки по клику вне
+    // Кнопки управления виджетами
+    const widgetSettingsBtn = document.getElementById('widgetSettingsBtn');
+    if (widgetSettingsBtn) {
+        widgetSettingsBtn.onclick = () => openWidgetSettingsModal();
+    }
+    
+    const closeWidgetSettingsBtn = document.getElementById('closeWidgetSettingsBtn');
+    if (closeWidgetSettingsBtn) {
+        closeWidgetSettingsBtn.onclick = () => closeWidgetSettingsModal();
+    }
+    
+    const saveWidgetSettingsBtn = document.getElementById('saveWidgetSettingsBtn');
+    if (saveWidgetSettingsBtn) {
+        saveWidgetSettingsBtn.onclick = () => saveWidgetSettingsFromModal();
+    }
+    
+    // Кнопки настроек каждого виджета
+    document.querySelectorAll('.widget-settings-btn').forEach(btn => {
+        btn.onclick = (e) => {
+            e.stopPropagation();
+            openWidgetSettingsModal();
+        };
+    });
+    
+    // Закрытие модалок по клику вне
     const modal = document.getElementById('transactionModal');
     if (modal) {
         modal.onclick = (e) => {
             if (e.target === modal) closeModal();
+        };
+    }
+    
+    const widgetModal = document.getElementById('widgetSettingsModal');
+    if (widgetModal) {
+        widgetModal.onclick = (e) => {
+            if (e.target === widgetModal) closeWidgetSettingsModal();
         };
     }
     
