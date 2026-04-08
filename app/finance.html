@@ -24,6 +24,8 @@
     
     ИСТОРИЯ:
       - 08.04.2026: Создание страницы финансов
+      - 08.04.2026: Добавлены стили для select в темной теме
+      - 08.04.2026: Добавлена кнопка управления виджетами
     ============================================
     -->
     
@@ -88,6 +90,7 @@
             border: 1px solid var(--card-border);
             padding: 20px;
             margin-bottom: 20px;
+            position: relative;
         }
         
         .finance-widget:last-child {
@@ -102,7 +105,71 @@
             margin-bottom: 16px;
             display: flex;
             align-items: center;
+            justify-content: space-between;
             gap: 8px;
+        }
+        
+        /* Кнопка управления виджетами */
+        .widget-settings-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 8px;
+            transition: all 0.2s;
+            font-size: 0.8rem;
+        }
+        
+        .widget-settings-btn:hover {
+            background: rgba(108, 108, 255, 0.1);
+            color: var(--accent);
+        }
+        
+        /* Стили для select в темной теме */
+        select, .filter-select, .modal-select {
+            background: var(--input-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 40px;
+            padding: 10px 16px;
+            color: var(--text-primary);
+            font-size: 0.85rem;
+            cursor: pointer;
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            background-size: 16px;
+            padding-right: 40px;
+        }
+        
+        /* Стили для select в модальном окне */
+        .modal-select {
+            width: 100%;
+            margin-bottom: 16px;
+            border-radius: 12px;
+        }
+        
+        /* Стили для input date */
+        input[type="date"] {
+            background: var(--input-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 40px;
+            padding: 10px 16px;
+            color: var(--text-primary);
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+        
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(0.5);
+            cursor: pointer;
+        }
+        
+        /* Темная тема для календаря */
+        .theme-dark input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(1);
         }
         
         /* Баланс */
@@ -152,6 +219,7 @@
             flex-wrap: wrap;
             gap: 12px;
             margin-bottom: 24px;
+            align-items: center;
         }
         
         .filter-select, .filter-date {
@@ -323,6 +391,12 @@
             .transaction-actions {
                 opacity: 1;
             }
+            
+            /* На телефоне select остаются красивыми */
+            select, .filter-select, .modal-select {
+                background-size: 14px;
+                padding-right: 32px;
+            }
         }
         
         /* Анимации */
@@ -352,6 +426,33 @@
         @keyframes skeletonLoading {
             0% { background-position: 200% 0; }
             100% { background-position: -200% 0; }
+        }
+        
+        /* Кнопка настроек виджетов (глобальная) */
+        .widgets-global-settings {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 16px;
+        }
+        
+        .settings-icon-btn {
+            background: none;
+            border: 1px solid var(--card-border);
+            border-radius: 40px;
+            padding: 8px 16px;
+            color: var(--text-muted);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.8rem;
+            transition: all 0.2s;
+        }
+        
+        .settings-icon-btn:hover {
+            background: rgba(108, 108, 255, 0.1);
+            border-color: var(--accent);
+            color: var(--accent);
         }
     </style>
 </head>
@@ -403,6 +504,13 @@
                         <i class="fas fa-plus"></i> Добавить операцию
                     </button>
                     
+                    <!-- Кнопка управления виджетами -->
+                    <div class="widgets-global-settings">
+                        <button class="settings-icon-btn" id="widgetSettingsBtn">
+                            <i class="fas fa-sliders-h"></i> Настроить виджеты
+                        </button>
+                    </div>
+                    
                     <!-- Фильтры -->
                     <div class="filters-row">
                         <select id="filterType" class="filter-select">
@@ -434,9 +542,12 @@
                 <!-- Виджеты справа -->
                 <div class="finance-sidebar">
                     <!-- Виджет: Доходы/Расходы -->
-                    <div class="finance-widget">
+                    <div class="finance-widget" data-widget="income-expense">
                         <div class="finance-widget-title">
-                            <i class="fas fa-chart-pie"></i> Сводка за период
+                            <span><i class="fas fa-chart-pie"></i> Сводка за период</span>
+                            <button class="widget-settings-btn" data-widget="income-expense" title="Настройки виджета">
+                                <i class="fas fa-cog"></i>
+                            </button>
                         </div>
                         <div id="incomeExpenseWidget">
                             <div class="skeleton" style="height: 80px;"></div>
@@ -444,9 +555,12 @@
                     </div>
                     
                     <!-- Виджет: Топ расходов по категориям -->
-                    <div class="finance-widget">
+                    <div class="finance-widget" data-widget="top-expenses">
                         <div class="finance-widget-title">
-                            <i class="fas fa-tags"></i> Топ расходов
+                            <span><i class="fas fa-tags"></i> Топ расходов</span>
+                            <button class="widget-settings-btn" data-widget="top-expenses" title="Настройки виджета">
+                                <i class="fas fa-cog"></i>
+                            </button>
                         </div>
                         <div id="topExpensesWidget">
                             <div class="skeleton" style="height: 150px;"></div>
@@ -454,9 +568,12 @@
                     </div>
                     
                     <!-- Виджет: Топ доходов по категориям -->
-                    <div class="finance-widget">
+                    <div class="finance-widget" data-widget="top-income">
                         <div class="finance-widget-title">
-                            <i class="fas fa-tags"></i> Топ доходов
+                            <span><i class="fas fa-tags"></i> Топ доходов</span>
+                            <button class="widget-settings-btn" data-widget="top-income" title="Настройки виджета">
+                                <i class="fas fa-cog"></i>
+                            </button>
                         </div>
                         <div id="topIncomeWidget">
                             <div class="skeleton" style="height: 150px;"></div>
@@ -490,6 +607,31 @@
             <div class="modal-buttons">
                 <button id="cancelModalBtn">Отмена</button>
                 <button id="saveTransactionBtn" class="primary">Сохранить</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Модальное окно настроек виджетов -->
+    <div id="widgetSettingsModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h3><i class="fas fa-sliders-h"></i> Настройка виджетов</h3>
+            <p style="margin-bottom: 16px; color: var(--text-muted);">Выберите виджеты для отображения:</p>
+            
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                <label style="display: flex; align-items: center; gap: 12px; cursor: pointer;">
+                    <input type="checkbox" id="widgetIncomeExpense" checked> Сводка за период
+                </label>
+                <label style="display: flex; align-items: center; gap: 12px; cursor: pointer;">
+                    <input type="checkbox" id="widgetTopExpenses" checked> Топ расходов
+                </label>
+                <label style="display: flex; align-items: center; gap: 12px; cursor: pointer;">
+                    <input type="checkbox" id="widgetTopIncome" checked> Топ доходов
+                </label>
+            </div>
+            
+            <div class="modal-buttons" style="margin-top: 24px;">
+                <button id="closeWidgetSettingsBtn">Отмена</button>
+                <button id="saveWidgetSettingsBtn" class="primary">Сохранить</button>
             </div>
         </div>
     </div>
