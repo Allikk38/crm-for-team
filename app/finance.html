@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    
+    <!-- 
+    ============================================
+    ФАЙЛ: app/finance.html
+    РОЛЬ: Страница управления финансами (доходы/расходы)
+    
+    ОСОБЕННОСТИ:
+      - Добавление доходов и расходов
+      - Просмотр списка транзакций
+      - Фильтрация по дате, типу, категории
+      - Статистика по периодам
+      - Адаптивный дизайн для мобильных устройств
+      - Виджеты справа (стационарные)
+    
+    ЗАВИСИМОСТИ:
+      - js/pages/finance.js
+      - js/services/finance-supabase.js
+      - js/core/supabase-session.js
+    
+    ИСТОРИЯ:
+      - 08.04.2026: Создание страницы финансов
+    ============================================
+    -->
+    
+    <script>
+        (function() {
+            try {
+                const savedTheme = localStorage.getItem('crm_theme');
+                if (savedTheme === 'light') {
+                    if (document.documentElement) document.documentElement.classList.add('theme-light');
+                    if (document.body) document.body.classList.add('theme-light');
+                } else if (savedTheme === 'dark') {
+                    if (document.documentElement) document.documentElement.classList.add('theme-dark');
+                    if (document.body) document.body.classList.add('theme-dark');
+                }
+            } catch(e) {}
+        })();
+    </script>
+    
+    <title>Финансы - CRM</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="../css/base.css">
+    <link rel="stylesheet" href="../css/theme.css">
+    <link rel="stylesheet" href="../css/components.css">
+    <link rel="stylesheet" href="../css/dashboard.css">
+    <link rel="stylesheet" href="../css/modal.css">
+    <link rel="stylesheet" href="../css/responsive.css">
+    <link rel="stylesheet" href="../css/animations.css">
+    
+    <style>
+        /* Стили для страницы финансов */
+        .finance-layout {
+            display: flex;
+            gap: 24px;
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        /* Основной контент */
+        .finance-main {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        /* Виджеты справа (стационарные) */
+        .finance-sidebar {
+            width: 320px;
+            flex-shrink: 0;
+            position: sticky;
+            top: 20px;
+            height: fit-content;
+            max-height: calc(100vh - 40px);
+            overflow-y: auto;
+        }
+        
+        /* Карточки виджетов */
+        .finance-widget {
+            background: var(--card-bg);
+            border-radius: 20px;
+            border: 1px solid var(--card-border);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .finance-widget:last-child {
+            margin-bottom: 0;
+        }
+        
+        .finance-widget-title {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        /* Баланс */
+        .balance-card {
+            background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+            border-radius: 20px;
+            padding: 24px;
+            margin-bottom: 24px;
+            color: white;
+        }
+        
+        .balance-label {
+            font-size: 0.8rem;
+            opacity: 0.8;
+            margin-bottom: 8px;
+        }
+        
+        .balance-value {
+            font-size: 2.2rem;
+            font-weight: 700;
+        }
+        
+        /* Кнопка добавления */
+        .add-transaction-btn {
+            background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+            border: none;
+            padding: 14px 24px;
+            border-radius: 40px;
+            color: white;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+            transition: all 0.2s;
+            margin-bottom: 24px;
+        }
+        
+        .add-transaction-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(108, 108, 255, 0.4);
+        }
+        
+        /* Фильтры */
+        .filters-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+        
+        .filter-select, .filter-date {
+            background: var(--input-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 40px;
+            padding: 10px 16px;
+            color: var(--text-primary);
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+        
+        /* Таблица транзакций */
+        .transactions-list {
+            background: var(--card-bg);
+            border-radius: 20px;
+            border: 1px solid var(--card-border);
+            overflow: hidden;
+        }
+        
+        .transaction-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--card-border);
+            transition: all 0.2s;
+        }
+        
+        .transaction-item:hover {
+            background: rgba(108, 108, 255, 0.05);
+        }
+        
+        .transaction-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex: 1;
+        }
+        
+        .transaction-category-icon {
+            width: 40px;
+            height: 40px;
+            background: rgba(108, 108, 255, 0.1);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--accent);
+        }
+        
+        .transaction-details {
+            flex: 1;
+        }
+        
+        .transaction-category {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        
+        .transaction-description {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+        
+        .transaction-date {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            min-width: 80px;
+            text-align: right;
+        }
+        
+        .transaction-amount {
+            font-weight: 700;
+            min-width: 100px;
+            text-align: right;
+        }
+        
+        .transaction-amount.income {
+            color: #4caf50;
+        }
+        
+        .transaction-amount.expense {
+            color: #ff6b6b;
+        }
+        
+        .transaction-actions {
+            display: flex;
+            gap: 8px;
+            margin-left: 12px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        
+        .transaction-item:hover .transaction-actions {
+            opacity: 1;
+        }
+        
+        .transaction-action-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 6px;
+        }
+        
+        .transaction-action-btn:hover {
+            background: rgba(255, 107, 107, 0.2);
+            color: #ff6b6b;
+        }
+        
+        /* Пустое состояние */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-muted);
+        }
+        
+        /* Категории в виджете */
+        .category-stats-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .category-stat-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.85rem;
+        }
+        
+        .category-stat-name {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .category-stat-amount {
+            font-weight: 600;
+            color: #ff6b6b;
+        }
+        
+        /* Мобильная адаптация */
+        @media (max-width: 768px) {
+            .finance-layout {
+                flex-direction: column;
+                padding: 16px;
+            }
+            
+            .finance-sidebar {
+                width: 100%;
+                position: static;
+                order: -1;
+            }
+            
+            .transaction-item {
+                flex-wrap: wrap;
+            }
+            
+            .transaction-date {
+                width: 100%;
+                text-align: left;
+                margin-top: 8px;
+                margin-left: 52px;
+            }
+            
+            .transaction-actions {
+                opacity: 1;
+            }
+        }
+        
+        /* Анимации */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .finance-main, .finance-sidebar {
+            animation: fadeInUp 0.3s ease;
+        }
+        
+        /* Скелетон загрузки */
+        .skeleton {
+            background: linear-gradient(90deg, var(--card-border) 25%, var(--card-hover) 50%, var(--card-border) 75%);
+            background-size: 200% 100%;
+            animation: skeletonLoading 1.5s infinite;
+            border-radius: 8px;
+        }
+        
+        @keyframes skeletonLoading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-layout">
+        <!-- Боковая панель навигации -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-logo">
+                <i class="fas fa-chart-line"></i>
+                <span>CRM Team</span>
+            </div>
+            <nav class="sidebar-nav" id="sidebar-nav"></nav>
+            <div class="sidebar-footer">
+                <button class="collapse-btn" onclick="window.sidebar?.toggleSidebar()">
+                    <i class="fas fa-chevron-left"></i>
+                    <span>Свернуть</span>
+                </button>
+                <button class="logout-btn" onclick="window.sidebar?.logout()" style="margin-top: 12px; width: 100%; padding: 10px; background: rgba(255, 107, 107, 0.2); border: none; border-radius: 12px; color: #ff6b6b; cursor: pointer;">
+                    <i class="fas fa-sign-out-alt"></i> Выйти
+                </button>
+            </div>
+        </aside>
+        
+        <!-- Основной контент -->
+        <main class="main-content">
+            <div class="top-bar">
+                <div class="user-profile" onclick="window.sidebar?.goToProfile()">
+                    <div class="user-info">
+                        <div class="user-name" id="userName">Загрузка...</div>
+                        <div class="user-role" id="userRole">—</div>
+                    </div>
+                    <div class="user-avatar" id="userAvatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="finance-layout">
+                <!-- Основной контент -->
+                <div class="finance-main">
+                    <!-- Баланс -->
+                    <div class="balance-card" id="balanceCard">
+                        <div class="balance-label">Общий баланс</div>
+                        <div class="balance-value" id="balanceValue">0 ₽</div>
+                    </div>
+                    
+                    <!-- Кнопка добавления -->
+                    <button class="add-transaction-btn" id="addTransactionBtn">
+                        <i class="fas fa-plus"></i> Добавить операцию
+                    </button>
+                    
+                    <!-- Фильтры -->
+                    <div class="filters-row">
+                        <select id="filterType" class="filter-select">
+                            <option value="all">Все операции</option>
+                            <option value="income">Доходы</option>
+                            <option value="expense">Расходы</option>
+                        </select>
+                        
+                        <select id="filterPeriod" class="filter-select">
+                            <option value="week">Неделя</option>
+                            <option value="month" selected>Месяц</option>
+                            <option value="year">Год</option>
+                            <option value="all">Всё время</option>
+                        </select>
+                        
+                        <input type="date" id="filterDateFrom" class="filter-date" placeholder="С">
+                        <input type="date" id="filterDateTo" class="filter-date" placeholder="По">
+                    </div>
+                    
+                    <!-- Список транзакций -->
+                    <div class="transactions-list" id="transactionsList">
+                        <div class="loading-state">
+                            <i class="fas fa-spinner fa-pulse"></i>
+                            <p>Загрузка транзакций...</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Виджеты справа -->
+                <div class="finance-sidebar">
+                    <!-- Виджет: Доходы/Расходы -->
+                    <div class="finance-widget">
+                        <div class="finance-widget-title">
+                            <i class="fas fa-chart-pie"></i> Сводка за период
+                        </div>
+                        <div id="incomeExpenseWidget">
+                            <div class="skeleton" style="height: 80px;"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Виджет: Топ расходов по категориям -->
+                    <div class="finance-widget">
+                        <div class="finance-widget-title">
+                            <i class="fas fa-tags"></i> Топ расходов
+                        </div>
+                        <div id="topExpensesWidget">
+                            <div class="skeleton" style="height: 150px;"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Виджет: Топ доходов по категориям -->
+                    <div class="finance-widget">
+                        <div class="finance-widget-title">
+                            <i class="fas fa-tags"></i> Топ доходов
+                        </div>
+                        <div id="topIncomeWidget">
+                            <div class="skeleton" style="height: 150px;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <!-- Модальное окно добавления транзакции -->
+    <div id="transactionModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h3 id="modalTitle"><i class="fas fa-plus-circle"></i> Новая операция</h3>
+            
+            <select id="transactionType" class="modal-select">
+                <option value="expense">Расход</option>
+                <option value="income">Доход</option>
+            </select>
+            
+            <input type="number" id="transactionAmount" placeholder="Сумма" step="0.01" required>
+            
+            <select id="transactionCategory" class="modal-select" required>
+                <option value="">Выберите категорию</option>
+            </select>
+            
+            <input type="text" id="transactionDescription" placeholder="Описание (необязательно)">
+            
+            <input type="date" id="transactionDate" required>
+            
+            <div class="modal-buttons">
+                <button id="cancelModalBtn">Отмена</button>
+                <button id="saveTransactionBtn" class="primary">Сохранить</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Универсальный загрузчик модулей -->
+    <script type="module" src="../js/core/moduleLoader.js"></script>
+    
+    <!-- Инициализация страницы финансов -->
+    <script type="module">
+        import { initFinancePage } from '../js/pages/finance.js';
+        initFinancePage();
+    </script>
+    
+    <!-- Инициализация бокового меню -->
+    <script type="module">
+        import * as sidebar from '../layout.js';
+        window.sidebar = sidebar;
+        sidebar.initSidebar();
+    </script>
+</body>
+</html>
