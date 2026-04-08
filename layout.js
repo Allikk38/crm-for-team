@@ -156,11 +156,36 @@ function isModuleAvailable(moduleId) {
     const user = getCurrentUser();
     if (!user) return false;
     
-    if (moduleId === 'admin') {
-        return hasPermission('manage_users', user);
+    // Если реестр загружен — используем его логику
+    if (window.CRM?.Registry?.isModuleAvailable) {
+        // Но реестр ожидает, что модуль зарегистрирован
+        // Проверяем через права напрямую
     }
     
-    return true;
+    // Администратор имеет доступ ко всему
+    if (user.role === 'admin') return true;
+    
+    // Маппинг модулей на разрешения
+    const MODULE_PERMISSIONS = {
+        'dashboard': 'view_dashboard',
+        'tasks': 'view_tasks',
+        'calendar': 'view_calendar',
+        'notes': 'view_notes',
+        'profile': 'view_profile',
+        'deals': 'view_own_deals',
+        'complexes': 'view_complexes',
+        'counterparties': 'view_counterparties',
+        'team': 'view_team',
+        'admin': 'manage_users'
+    };
+    
+    const requiredPermission = MODULE_PERMISSIONS[moduleId];
+    
+    // Если права не указаны — модуль доступен всем
+    if (!requiredPermission) return true;
+    
+    // Проверяем наличие права
+    return hasPermission(requiredPermission, user);
 }
 
 function renderSidebarMenu() {
