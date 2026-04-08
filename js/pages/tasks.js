@@ -521,12 +521,18 @@ window.saveTask = async function() {
     const taskData = {
         title: document.getElementById('taskTitle').value,
         description: document.getElementById('taskDescription').value,
-        assigned_to: document.getElementById('taskAssignee').value || null,
-        priority: document.getElementById('taskPriority').value,
+        category: document.getElementById('taskCategory').value,
         due_date: document.getElementById('taskDueDate').value || null,
+        is_important: document.getElementById('taskImportant').checked,
         status: document.getElementById('taskStatus').value,
         is_private: document.getElementById('taskPrivate').checked
     };
+    
+    // Исполнитель (если есть)
+    const assigneeSelect = document.getElementById('taskAssignee');
+    if (assigneeSelect) {
+        taskData.assigned_to = assigneeSelect.value || null;
+    }
     
     if (!taskData.title) {
         alert('Введите название задачи');
