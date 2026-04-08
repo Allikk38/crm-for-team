@@ -6,7 +6,6 @@
  * ОСОБЕННОСТИ:
  *   - Автоматическая группировка модулей из реестра
  *   - Категории: Основные, Бизнес, Личное, Инструменты, Управление
- *   - Вложенные подгруппы для бизнес-модулей
  *   - Сохранение состояния сворачивания
  *   - Адаптивное мобильное меню
  * 
@@ -17,11 +16,10 @@
  * 
  * ИСТОРИЯ:
  *   - 31.03.2026: Полная переработка, добавлена группировка модулей
- *   - 31.03.2026: Исправлены ошибки с неопределенными функциями
- *   - 02.04.2026: Исправлена ошибка getCurrentUserRole, добавлена проверка прав для админ-модуля
+ *   - 02.04.2026: Исправлена проверка прав для админ-модуля
  *   - 06.04.2026: Добавлена поддержка GitHub Pages через определение базового пути
- *   - 06.04.2026: Полный переход на импорты, убраны глобальные объекты
  *   - 08.04.2026: Добавлен модуль Финансы в категорию Личное
+ *   - 08.04.2026: Исправлены пути для GitHub Pages (относительные)
  * ============================================
  */
 
@@ -32,18 +30,28 @@ import { hasPermission } from './js/core/permissions.js';
 let sidebarCollapsed = false;
 let isInitialized = false;
 
-// ========== ОПРЕДЕЛЕНИЕ БАЗОВОГО ПУТИ ДЛЯ GITHUB PAGES ==========
+// ========== ОПРЕДЕЛЕНИЕ БАЗОВОГО ПУТИ ==========
 function getBasePath() {
     const currentPath = window.location.pathname;
     
+    // GitHub Pages: /crm-for-team/app/navigator.html
     if (currentPath.includes('/crm-for-team/')) {
         return '/crm-for-team';
     }
     
+    // Локальная разработка: /app/navigator.html
     return '';
 }
 
 const BASE_PATH = getBasePath();
+
+// ========== ФУНКЦИЯ ПОЛУЧЕНИЯ ПУТИ К СТРАНИЦЕ ==========
+function getPageUrl(page) {
+    if (BASE_PATH) {
+        return `${BASE_PATH}/app/${page}`;
+    }
+    return `app/${page}`;
+}
 
 // ========== КАТЕГОРИИ МОДУЛЕЙ ==========
 const MODULE_CATEGORIES = {
@@ -86,46 +94,48 @@ const MODULE_CATEGORIES = {
 };
 
 // ========== ОПИСАНИЯ МОДУЛЕЙ ==========
-function getModulePath(page) {
-    return `${BASE_PATH}/app/${page}`;
-}
-
 const MODULE_INFO = {
     // Основные
-    navigator: { name: 'Навигатор', icon: 'fa-th-large', get href() { return getModulePath('navigator.html'); }, description: 'Обзор всех модулей' },
-    dashboard: { name: 'Дашборд', icon: 'fa-home', get href() { return getModulePath('dashboard.html'); }, description: 'Главная панель управления' },
+    navigator: { name: 'Навигатор', icon: 'fa-th-large', page: 'navigator.html', description: 'Обзор всех модулей' },
+    dashboard: { name: 'Дашборд', icon: 'fa-home', page: 'dashboard.html', description: 'Главная панель управления' },
     
     // Бизнес
-    deals: { name: 'Сделки', icon: 'fa-handshake', get href() { return getModulePath('deals.html'); }, description: 'Управление сделками' },
-    complexes: { name: 'Объекты', icon: 'fa-building', get href() { return getModulePath('complexes.html'); }, description: 'Управление объектами' },
-    counterparties: { name: 'Контрагенты', icon: 'fa-users', get href() { return getModulePath('counterparties.html'); }, description: 'База контрагентов' },
-    analytics: { name: 'Аналитика', icon: 'fa-chart-line', get href() { return getModulePath('analytics.html'); }, description: 'Расширенная аналитика' },
-    reports: { name: 'Отчеты', icon: 'fa-file-alt', get href() { return getModulePath('reports.html'); }, description: 'Формирование отчетов' },
-    invoices: { name: 'Счета', icon: 'fa-file-invoice', get href() { return getModulePath('invoices.html'); }, description: 'Управление счетами' },
+    deals: { name: 'Сделки', icon: 'fa-handshake', page: 'deals.html', description: 'Управление сделками' },
+    complexes: { name: 'Объекты', icon: 'fa-building', page: 'complexes.html', description: 'Управление объектами' },
+    counterparties: { name: 'Контрагенты', icon: 'fa-users', page: 'counterparties.html', description: 'База контрагентов' },
+    analytics: { name: 'Аналитика', icon: 'fa-chart-line', page: 'analytics.html', description: 'Расширенная аналитика' },
+    reports: { name: 'Отчеты', icon: 'fa-file-alt', page: 'reports.html', description: 'Формирование отчетов' },
+    invoices: { name: 'Счета', icon: 'fa-file-invoice', page: 'invoices.html', description: 'Управление счетами' },
     
     // Личное
-    tasks: { name: 'Задачи', icon: 'fa-tasks', get href() { return getModulePath('tasks.html'); }, description: 'Управление задачами' },
-    calendar: { name: 'Календарь', icon: 'fa-calendar-alt', get href() { return getModulePath('calendar.html'); }, description: 'Планирование событий' },
-    notes: { name: 'Заметки', icon: 'fa-sticky-note', get href() { return getModulePath('notes.html'); }, description: 'Быстрые заметки' },
-    habits: { name: 'Привычки', icon: 'fa-calendar-check', get href() { return getModulePath('habits.html'); }, description: 'Отслеживание привычек' },
-    pomodoro: { name: 'Помодоро', icon: 'fa-clock', get href() { return getModulePath('pomodoro.html'); }, description: 'Таймер продуктивности' },
-    finance: { name: 'Финансы', icon: 'fa-money-bill-wave', get href() { return getModulePath('finance.html'); }, description: 'Учет доходов и расходов' },
+    tasks: { name: 'Задачи', icon: 'fa-tasks', page: 'tasks.html', description: 'Управление задачами' },
+    calendar: { name: 'Календарь', icon: 'fa-calendar-alt', page: 'calendar.html', description: 'Планирование событий' },
+    notes: { name: 'Заметки', icon: 'fa-sticky-note', page: 'notes.html', description: 'Быстрые заметки' },
+    habits: { name: 'Привычки', icon: 'fa-calendar-check', page: 'habits.html', description: 'Отслеживание привычек' },
+    pomodoro: { name: 'Помодоро', icon: 'fa-clock', page: 'pomodoro.html', description: 'Таймер продуктивности' },
+    finance: { name: 'Финансы', icon: 'fa-money-bill-wave', page: 'finance.html', description: 'Учет доходов и расходов' },
     
     // Инструменты
-    team: { name: 'Команда', icon: 'fa-user-friends', get href() { return getModulePath('team.html'); }, description: 'Управление командой' },
-    marketplace: { name: 'Маркетплейс', icon: 'fa-store', get href() { return getModulePath('marketplace.html'); }, description: 'Магазин модулей' },
-    'my-modules': { name: 'Мои модули', icon: 'fa-puzzle-piece', get href() { return getModulePath('my-modules.html'); }, description: 'Установленные модули' },
-    chat: { name: 'Чат', icon: 'fa-comments', get href() { return getModulePath('chat.html'); }, description: 'Внутренний чат' },
-    documents: { name: 'Документы', icon: 'fa-file-pdf', get href() { return getModulePath('documents.html'); }, description: 'Электронный документооборот' },
+    team: { name: 'Команда', icon: 'fa-user-friends', page: 'team.html', description: 'Управление командой' },
+    marketplace: { name: 'Маркетплейс', icon: 'fa-store', page: 'marketplace.html', description: 'Магазин модулей' },
+    'my-modules': { name: 'Мои модули', icon: 'fa-puzzle-piece', page: 'my-modules.html', description: 'Установленные модули' },
+    chat: { name: 'Чат', icon: 'fa-comments', page: 'chat.html', description: 'Внутренний чат' },
+    documents: { name: 'Документы', icon: 'fa-file-pdf', page: 'documents.html', description: 'Электронный документооборот' },
     
     // Управление
-    profile: { name: 'Профиль', icon: 'fa-user', get href() { return getModulePath('profile.html'); }, description: 'Настройки профиля' },
-    notifications: { name: 'Уведомления', icon: 'fa-bell', get href() { return getModulePath('notifications.html'); }, description: 'Центр уведомлений' },
-    admin: { name: 'Администрирование', icon: 'fa-shield-alt', get href() { return getModulePath('admin.html'); }, description: 'Управление системой' }
+    profile: { name: 'Профиль', icon: 'fa-user', page: 'profile.html', description: 'Настройки профиля' },
+    notifications: { name: 'Уведомления', icon: 'fa-bell', page: 'notifications.html', description: 'Центр уведомлений' },
+    admin: { name: 'Администрирование', icon: 'fa-shield-alt', page: 'admin.html', description: 'Управление системой' }
 };
 
+// Получаем URL для страницы
+function getModuleHref(module) {
+    return getPageUrl(module.page);
+}
+
+// Функция для получения пути (для использования в других местах)
 function getFullPath(page) {
-    return `${BASE_PATH}/app/${page}`;
+    return getPageUrl(page);
 }
 
 function getCurrentUser() {
@@ -186,10 +196,11 @@ function renderSidebarMenu() {
             const module = MODULE_INFO[moduleId];
             if (!module) continue;
             
-            const isActive = module.href === currentPath;
+            const href = getModuleHref(module);
+            const isActive = href === currentPath || currentPath.endsWith(module.page);
             
             html += `
-                <a href="${module.href}" class="sidebar-menu-item ${isActive ? 'active' : ''}" 
+                <a href="${href}" class="sidebar-menu-item ${isActive ? 'active' : ''}" 
                    data-module="${moduleId}" title="${escapeHtml(module.name)}">
                     <i class="fas ${module.icon}"></i>
                     <span class="menu-item-label">${escapeHtml(module.name)}</span>
@@ -436,7 +447,7 @@ export function logout() {
             window.supabaseSession.logoutFromSupabase();
         } else {
             localStorage.removeItem('crm_session');
-            window.location.href = `${BASE_PATH}/auth-supabase.html`;
+            window.location.href = BASE_PATH ? `${BASE_PATH}/auth-supabase.html` : 'auth-supabase.html';
         }
     }
 }
