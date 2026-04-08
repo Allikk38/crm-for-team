@@ -397,15 +397,74 @@ function initMobileMenu() {
     const toggleBtn = document.createElement('div');
     toggleBtn.className = 'mobile-menu-toggle';
     toggleBtn.innerHTML = '<i class="fas fa-bars"></i>';
-    toggleBtn.onclick = () => {
+    toggleBtn.style.cssText = `
+        position: fixed;
+        top: 12px;
+        left: 12px;
+        width: 44px;
+        height: 44px;
+        background: var(--card-bg);
+        border-radius: 12px;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        color: var(--text-primary);
+        cursor: pointer;
+        z-index: 1001;
+        border: 1px solid var(--card-border);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    `;
+    
+    toggleBtn.onclick = (e) => {
+        e.stopPropagation();
         const sidebar = document.getElementById('sidebar');
-        sidebar?.classList.toggle('mobile-open');
+        if (sidebar) {
+            sidebar.classList.toggle('mobile-open');
+        }
     };
+    
     document.body.appendChild(toggleBtn);
     
+    // Добавляем стили для мобильной версии
+    const style = document.createElement('style');
+    style.textContent = `
+        @media (max-width: 768px) {
+            .mobile-menu-toggle {
+                display: flex !important;
+            }
+            
+            .sidebar {
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+                position: fixed;
+                top: 0;
+                left: 0;
+                height: 100vh;
+                z-index: 1000;
+            }
+            
+            .sidebar.mobile-open {
+                transform: translateX(0);
+            }
+            
+            .main-content {
+                margin-left: 0 !important;
+                width: 100% !important;
+            }
+            
+            .top-bar {
+                padding-left: 60px !important;
+            }
+        }
+    `;
+    document.head.appendChild(style);
+    
+    // Закрытие по клику вне меню
     document.addEventListener('click', (e) => {
         const sidebar = document.getElementById('sidebar');
         const toggle = document.querySelector('.mobile-menu-toggle');
+        
         if (window.innerWidth <= 768 && sidebar?.classList.contains('mobile-open')) {
             if (!sidebar.contains(e.target) && !toggle?.contains(e.target)) {
                 sidebar.classList.remove('mobile-open');

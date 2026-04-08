@@ -151,79 +151,61 @@ function populateModalSelects() {
 function renderCreditInfo() {
     const container = document.getElementById('creditInfo');
     const nameEl = document.getElementById('creditName');
+    const isCard = credit.credit_type === 'card';
     
     if (nameEl) {
-        nameEl.textContent = credit.name;
+        if (credit.bank) {
+            nameEl.innerHTML = `${escapeHtml(credit.name)} <span style="font-size:0.9rem;color:var(--text-muted);">${escapeHtml(credit.bank)}</span>`;
+        } else {
+            nameEl.textContent = credit.name;
+        }
     }
     
     if (!container) return;
     
-    const paidAmount = credit.amount - credit.balance;
-    const paidPercent = (paidAmount / credit.amount) * 100;
-    const isActive = credit.balance > 0;
-    const startDate = new Date(credit.start_date).toLocaleDateString('ru');
-    const endDate = calculateEndDate();
-    
-    container.innerHTML = `
-        <div class="credit-info-grid">
-            <div class="info-item">
-                <div class="info-label">
-                    <i class="fas fa-coins"></i>
-                    Сумма кредита
-                </div>
-                <div class="info-value">${credit.amount.toLocaleString()} ₽</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">
-                    <i class="fas fa-wallet"></i>
-                    Остаток
-                </div>
-                <div class="info-value highlight">${credit.balance.toLocaleString()} ₽</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">
-                    <i class="fas fa-percent"></i>
-                    Ставка
-                </div>
-                <div class="info-value">${credit.rate}%</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">
-                    <i class="fas fa-calendar-alt"></i>
-                    Ежемесячный платёж
-                </div>
-                <div class="info-value">${credit.payment.toLocaleString()} ₽</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">
-                    <i class="fas fa-calendar"></i>
-                    Дата начала
-                </div>
-                <div class="info-value" style="font-size: 1rem;">${startDate}</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">
-                    <i class="fas fa-calendar-check"></i>
-                    Дата окончания
-                </div>
-                <div class="info-value" style="font-size: 1rem;">${endDate}</div>
-            </div>
-        </div>
+    if (isCard) {
+        // Кредитная карта
+        const limit = credit.credit_limit || 0;
+        const balance = credit.card_balance || 0;
+        const available = limit - balance;
+        const minPayment = credit.min_payment || 0;
+        const planned = credit.planned_payment || minPayment;
+        const graceEnd = credit.grace_period_end ? new Date(credit.grace_period_end).toLocaleDateString('ru') : '—';
         
-        <div class="progress-section">
-            <div class="progress-header">
-                <span>Прогресс погашения</span>
-                <span>${paidAmount.toLocaleString()} ₽ / ${credit.amount.toLocaleString()} ₽</span>
+        container.innerHTML = `
+            <div class="credit-info-grid">
+                <div class="info-item"><div class="info-label"><i class="fas fa-credit-card"></i> Тип</div><div class="info-value">💳 Кредитная карта</div></div>
+                <div class="info-item"><div class="info-label"><i class="fas fa-chart-line"></i> Лимит</div><div class="info-value">${limit.toLocaleString()} ₽</div></div>
+                <div class="info-item"><div class="info-label"><i class="fas fa-wallet"></i> Задолженность</div><div class="info-value highlight">${balance.toLocaleString()} ₽</div></div>
+                <div class="info-item"><div class="info-label"><i class="fas fa-piggy-bank"></i> Доступно</div><div class="info-value">${available.toLocaleString()} ₽</div></div>
+                <div class="info-item"><div class="info-label"><i class="fas fa-calendar-alt"></i> Мин. платёж</div><div class="info-value">${minPayment.toLocaleString()} ₽</div></div>
+                <div class="info-item"><div class="info-label"><i class="fas fa-calendar-check"></i> Планирую</div><div class="info-value">${planned.toLocaleString()} ₽</div></div>
+                ${credit.rate ? `<div class="info-item"><div class="info-label"><i class="fas fa-percent"></i> Ставка</div><div class="info-value">${credit.rate}%</div></div>` : ''}
+                <div class="info-item"><div class="info-label"><i class="fas fa-calendar"></i> Льготный период до</div><div class="info-value">${graceEnd}</div></div>
             </div>
-            <div class="progress-bar-large">
-                <div class="progress-fill-large" style="width: ${paidPercent}%"></div>
+            <div class="progress-section">
+                <div class="progress-header"><span>Использовано лимита</span><span>${balance.toLocaleString()} / ${limit.toLocaleString()} ₽</span></div>
+                <div class="progress-bar-large"><div class="progress-fill-large" style="width:${limit > 0 ? (balance / limit) * 100 : 0}%"></div></div>
             </div>
-            <div style="display: flex; justify-content: space-between; margin-top: 8px; font-size: 0.8rem; color: var(--text-muted);">
-                <span>Погашено: ${paidPercent.toFixed(1)}%</span>
-                <span>Осталось: ${(100 - paidPercent).toFixed(1)}%</span>
+        `;
+    } else {
+        // Обычный кредит
+        const balance = credit.balance || 0;
+        const payment = credit.payment || 0;
+        const rate = credit.rate || 0;
+        const nextDate = credit.next_payment_date ? new Date(credit.next_payment_date).toLocaleDateString('ru') : '—';
+        
+        container.innerHTML = `
+            <div class="credit-info-grid">
+                <div class="info-item"><div class="info-label"><i class="fas fa-hand-holding-usd"></i> Тип</div><div class="info-value">💰 Кредит</div></div>
+                <div class="info-item"><div class="info-label"><i class="fas fa-wallet"></i> Остаток</div><div class="info-value highlight">${balance.toLocaleString()} ₽</div></div>
+                <div class="info-item"><div class="info-label"><i class="fas fa-calendar-alt"></i> Платёж</div><div class="info-value">${payment.toLocaleString()} ₽</div></div>
+                ${rate ? `<div class="info-item"><div class="info-label"><i class="fas fa-percent"></i> Ставка</div><div class="info-value">${rate}%</div></div>` : ''}
+                <div class="info-item"><div class="info-label"><i class="fas fa-calendar"></i> След. платёж</div><div class="info-value">${nextDate}</div></div>
+                ${credit.remaining_payments ? `<div class="info-item"><div class="info-label"><i class="fas fa-list"></i> Осталось платежей</div><div class="info-value">${credit.remaining_payments} мес.</div></div>` : ''}
             </div>
-        </div>
-    `;
+        `;
+    }
 }
 
 function calculateEndDate() {
@@ -465,7 +447,14 @@ function bindEvents() {
         }
     });
 }
+// ========== ВСПОМОГАТЕЛЬНЫЕ ==========
 
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
 // ========== ЭКСПОРТ ==========
 
 export default { initCreditDetailPage };

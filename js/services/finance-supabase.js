@@ -618,28 +618,109 @@ export function calculateAnnuityPayment(amount, rate, termMonths) {
 }
 
 /**
+ * Рассчитать простой прогноз без ставки
+ * @param {number} balance - остаток долга
+ * @param {number} payment - ежемесячный платёж
+ * @param {string} nextPaymentDate - дата следующего платежа
+ * @returns {Object} { monthsLeft, yearsLeft, monthsRemainder, endDate }
+ */
+export function calculateSimpleForecast(balance, payment, nextPaymentDate) {
+    if (!balance || !payment || payment <= 0 || !nextPaymentDate) {
+        return { monthsLeft: 0, yearsLeft: 0, monthsRemainder: 0, endDate: null };
+    }
+    
+    const monthsLeft = Math.ceil(balance / payment);
+    const yearsLeft = Math.floor(monthsLeft / 12);
+    const monthsRemainder = monthsLeft % 12;
+    
+    const startDate = new Date(nextPaymentDate);
+    const endDate = new Date(startDate);
+    endDate.setMonth(endDate.getMonth() + monthsLeft - 1);
+    
+    return {
+        monthsLeft,
+        yearsLeft,
+        monthsRemainder,
+        endDate: endDate.toISOString().split('T')[0]
+    };
+}
+
+/**
+ * Рассчитать точный график платежей (если указана ставка)
+ * @param {Object} credit - объект кредита
+ * @returns {Array} Массив платежей
+ */
+export function calculatePaymentSchedule(credit) {
+    if (!credit.rate || !credit.next_payment_date) return [];
+    
+    const monthlyRate = credit.rate / 100 / 12;
+    const schedule = [];
+    
+    let balance = credit.balance;
+    const payment = credit.payment;
+    const startDate = new Date(credit.next_payment_date);
+    
+    let month = 0;
+    while (balance > 0 && month < 600) {
+        const interest = balance * monthlyRate;
+        const principal = Math.min(payment - interest, balance);
+        
+        const paymentDate = new Date(startDate);
+        paymentDate.setMonth(paymentDate.getMonth() + month);
+        
+        schedule.push({
+            month: month + 1,
+            date: paymentDate.toISOString().split('T')[0],
+            payment: Math.round(payment * 100) / 100,
+            interest: Math.round(interest * 100) / 100,
+            principal: Math.round(principal * 100) / 100,
+            balanceBefore: Math.round(balance * 100) / 100,
+            balanceAfter: Math.round((balance - principal) * 100) / 100
+        });
+        
+        balance -= principal;
+        month++;
+        
+        if (balance < 0) balance = 0;
+    }
+    
+    return schedule;
+}
+
+/**
  * Создать новый кредит
- * @param {Object} credit - { name, amount, rate, term_months, start_date }
+ * @param {Object} credit - все поля кредита
  * @returns {Promise<Object>}
  */
 export async function createCredit(credit) {
     const user = getCurrentSupabaseUser();
     if (!user) throw new Error('Пользователь не авторизован');
 
-    const payment = calculateAnnuityPayment(credit.amount, credit.rate, credit.term_months);
+    const insertData = {
+        user_id: user.id,
+        name: credit.name,
+        bank: credit.bank || null,
+        credit_type: credit.credit_type || 'loan',
+        rate: credit.rate || null,
+        remaining_payments: credit.remaining_payments || null,
+        last_payment_amount: credit.last_payment_amount || null
+    };
+    
+    if (credit.credit_type === 'card') {
+        insertData.credit_limit = credit.credit_limit || null;
+        insertData.card_balance = credit.card_balance || 0;
+        insertData.min_payment = credit.min_payment || null;
+        insertData.planned_payment = credit.planned_payment || null;
+        insertData.grace_period_end = credit.grace_period_end || null;
+    } else {
+        insertData.balance = credit.balance || 0;
+        insertData.payment = credit.payment || 0;
+        insertData.next_payment_date = credit.next_payment_date || null;
+    }
 
     const { data, error } = await supabase
         .from('finance_credits')
-        .insert([{
-            user_id: user.id,
-            name: credit.name,
-            amount: credit.amount,
-            rate: credit.rate,
-            term_months: credit.term_months,
-            payment: payment,
-            start_date: credit.start_date,
-            balance: credit.amount
-        }])
+        .insert([insertData])
         .select()
         .single();
 
@@ -656,15 +737,6 @@ export async function createCredit(credit) {
 export async function updateCredit(id, updates) {
     const user = getCurrentSupabaseUser();
     if (!user) throw new Error('Пользователь не авторизован');
-
-    // Если меняются сумма, ставка или срок, пересчитываем платёж
-    if (updates.amount !== undefined || updates.rate !== undefined || updates.term_months !== undefined) {
-        const credit = await getCreditById(id);
-        const amount = updates.amount !== undefined ? updates.amount : credit.amount;
-        const rate = updates.rate !== undefined ? updates.rate : credit.rate;
-        const termMonths = updates.term_months !== undefined ? updates.term_months : credit.term_months;
-        updates.payment = calculateAnnuityPayment(amount, rate, termMonths);
-    }
 
     const { data, error } = await supabase
         .from('finance_credits')
@@ -696,45 +768,6 @@ export async function deleteCredit(id) {
     if (error) throw error;
     return true;
 }
-
-/**
- * Рассчитать график платежей по кредиту
- * @param {Object} credit - объект кредита
- * @returns {Array} Массив платежей
- */
-export function calculatePaymentSchedule(credit) {
-    const monthlyRate = credit.rate / 100 / 12;
-    const schedule = [];
-    
-    let balance = credit.amount;
-    const payment = credit.payment;
-    const startDate = new Date(credit.start_date);
-    
-    for (let i = 0; i < credit.term_months; i++) {
-        const interest = balance * monthlyRate;
-        const principal = payment - interest;
-        
-        const paymentDate = new Date(startDate);
-        paymentDate.setMonth(paymentDate.getMonth() + i);
-        
-        schedule.push({
-            month: i + 1,
-            date: paymentDate.toISOString().split('T')[0],
-            payment: Math.round(payment * 100) / 100,
-            interest: Math.round(interest * 100) / 100,
-            principal: Math.round(principal * 100) / 100,
-            balanceBefore: Math.round(balance * 100) / 100,
-            balanceAfter: Math.round((balance - principal) * 100) / 100
-        });
-        
-        balance -= principal;
-        
-        if (balance < 0) balance = 0;
-    }
-    
-    return schedule;
-}
-
 /**
  * Рассчитать досрочное погашение
  * @param {Object} credit - объект кредита
@@ -742,14 +775,16 @@ export function calculatePaymentSchedule(credit) {
  * @returns {Object} Результаты расчёта
  */
 export function calculatePrepayment(credit, prepaymentAmount) {
-    const monthlyRate = credit.rate / 100 / 12;
-    const currentBalance = credit.balance;
+    const rate = credit.rate || 0;
+    const monthlyRate = rate / 100 / 12;
+    const currentBalance = credit.balance || 0;
+    const payment = credit.payment || 0;
     
     if (prepaymentAmount >= currentBalance) {
         return {
             newBalance: 0,
             interestSaved: 0,
-            monthsReduced: credit.term_months,
+            monthsReduced: 0,
             newTerm: 0,
             totalSaved: 0
         };
@@ -757,37 +792,30 @@ export function calculatePrepayment(credit, prepaymentAmount) {
     
     const newBalance = currentBalance - prepaymentAmount;
     
-    // Рассчитываем оставшиеся платежи по старому графику
     let oldMonthsLeft = 0;
     let tempBalance = currentBalance;
-    while (tempBalance > 0 && oldMonthsLeft < credit.term_months * 2) {
+    let totalInterestOld = 0;
+    
+    while (tempBalance > 0 && oldMonthsLeft < 600) {
         const interest = tempBalance * monthlyRate;
-        const principal = Math.min(credit.payment - interest, tempBalance);
+        const principal = Math.min(payment - interest, tempBalance);
+        if (principal <= 0) break;
+        totalInterestOld += interest;
         tempBalance -= principal;
         oldMonthsLeft++;
     }
     
-    // Рассчитываем платежи по новому графику (с тем же ежемесячным платежом)
     let newMonthsLeft = 0;
     tempBalance = newBalance;
-    let totalInterestOld = 0;
     let totalInterestNew = 0;
     
-    while (tempBalance > 0 && newMonthsLeft < credit.term_months * 2) {
+    while (tempBalance > 0 && newMonthsLeft < 600) {
         const interest = tempBalance * monthlyRate;
-        const principal = Math.min(credit.payment - interest, tempBalance);
+        const principal = Math.min(payment - interest, tempBalance);
+        if (principal <= 0) break;
         totalInterestNew += interest;
         tempBalance -= principal;
         newMonthsLeft++;
-    }
-    
-    // Переплата по старому графику
-    tempBalance = currentBalance;
-    for (let i = 0; i < oldMonthsLeft; i++) {
-        const interest = tempBalance * monthlyRate;
-        totalInterestOld += interest;
-        const principal = Math.min(credit.payment - interest, tempBalance);
-        tempBalance -= principal;
     }
     
     const interestSaved = totalInterestOld - totalInterestNew;
@@ -798,12 +826,10 @@ export function calculatePrepayment(credit, prepaymentAmount) {
         interestSaved: Math.round(interestSaved * 100) / 100,
         monthsReduced: monthsReduced,
         newTerm: newMonthsLeft,
-        totalSaved: Math.round((prepaymentAmount + interestSaved) * 100) / 100,
-        oldMonthsLeft,
-        newMonthsLeft
+        totalSaved: Math.round((prepaymentAmount + interestSaved) * 100) / 100
     };
 }
-
+    
 /**
  * Внести досрочное погашение
  * @param {string} creditId - ID кредита
@@ -1081,7 +1107,7 @@ export default {
     getCreditById,
     createCredit,
     updateCredit,
-    deleteCredit,
+    deleteCredit,  // ← УБЕДИТЬСЯ, ЧТО ЭТА СТРОКА ЕСТЬ
     calculateAnnuityPayment,
     calculatePaymentSchedule,
     calculatePrepayment,
