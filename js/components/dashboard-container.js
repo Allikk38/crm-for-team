@@ -11,7 +11,7 @@
  *   - 30.03.2026: Добавлен виджет TeamAnalyticsWidget
  *   - 08.04.2026: Интеграция с planManager, добавлены тарифные ограничения
  *   - 08.04.2026: Добавлен виджет QuickTaskWidget (быстрая задача)
- *   - 08.04.2026: Исправлена инициализация PlanManager
+ *   - 08.04.2026: Исправлена инициализация PlanManager и синтаксис класса
  * ============================================
  */
 
@@ -50,33 +50,44 @@ class DashboardContainer {
         this.initialized = false;
         this.renderInProgress = false;
         
-        // Ждем инициализации planManager
+        // Инициализация PlanManager
         this.planManager = null;
         this.initPlanManager();
         
         console.log('[dashboard-container] Создан');
     }
     
+    /**
+     * Инициализация менеджера тарифных планов
+     */
     initPlanManager() {
-        // Проверяем наличие planManager
+        // Проверяем наличие PlanManager в глобальной области
         if (window.CRM?.PlanManager) {
             this.planManager = window.CRM.PlanManager;
-            console.log('[dashboard-container] PlanManager найден');
+            console.log('[dashboard-container] PlanManager найден в window.CRM');
         } else {
-            console.warn('[dashboard-container] PlanManager не найден, используем FREE для всех');
-            // Создаем заглушку - все виджеты доступны
+            console.warn('[dashboard-container] PlanManager не найден, используем ENTERPRISE (все виджеты доступны)');
+            // Создаем заглушку для тестирования (все виджеты доступны)
             this.planManager = {
                 getUserPlan: () => ({ id: 'enterprise', name: 'Корпоративный' })
             };
         }
     }
-
-export default DashboardContainer;
     
+    /**
+     * Получить тариф виджета
+     * @param {string} widgetId 
+     * @returns {string} 'FREE'|'PRO'|'BUSINESS'|'ENTERPRISE'
+     */
     getWidgetTier(widgetId) {
         return WIDGET_TIERS[widgetId] || 'FREE';
     }
     
+    /**
+     * Проверить доступность виджета в текущем тарифе
+     * @param {string} widgetId 
+     * @returns {boolean}
+     */
     isWidgetAvailable(widgetId) {
         if (!this.planManager) {
             console.warn('[dashboard-container] PlanManager недоступен, разрешаем все виджеты');
@@ -111,6 +122,11 @@ export default DashboardContainer;
         return available;
     }
     
+    /**
+     * Получить отображаемое название тарифа
+     * @param {string} tier 
+     * @returns {string}
+     */
     getTierDisplayName(tier) {
         const names = {
             'FREE': 'Бесплатный',
@@ -121,6 +137,11 @@ export default DashboardContainer;
         return names[tier] || tier;
     }
     
+    /**
+     * Получить цвет бейджа для тарифа
+     * @param {string} tier 
+     * @returns {string}
+     */
     getTierBadgeColor(tier) {
         const colors = {
             'FREE': '#4caf50',
@@ -131,6 +152,9 @@ export default DashboardContainer;
         return colors[tier] || '#757575';
     }
     
+    /**
+     * Инициализация дашборда
+     */
     async init() {
         console.log('[dashboard-container] Инициализация...');
         
@@ -154,6 +178,11 @@ export default DashboardContainer;
         }
     }
     
+    /**
+     * Ожидание загрузки пользователя
+     * @param {number} maxWaitMs 
+     * @returns {Promise<boolean>}
+     */
     waitForUser(maxWaitMs = 5000) {
         return new Promise((resolve) => {
             const startTime = Date.now();
@@ -179,6 +208,9 @@ export default DashboardContainer;
         });
     }
     
+    /**
+     * Показать пустое состояние дашборда
+     */
     showEmptyState() {
         if (!this.container) return;
         this.container.innerHTML = `
@@ -198,6 +230,10 @@ export default DashboardContainer;
         }
     }
     
+    /**
+     * Показать состояние ошибки
+     * @param {string} message 
+     */
     showErrorState(message) {
         if (!this.container) return;
         this.container.innerHTML = `
@@ -217,6 +253,9 @@ export default DashboardContainer;
         }
     }
     
+    /**
+     * Основной рендеринг дашборда
+     */
     async render() {
         if (!this.container || this.renderInProgress) return;
         
@@ -228,6 +267,7 @@ export default DashboardContainer;
                 return;
             }
             
+            // Удаляем существующие виджеты
             this.widgets.forEach((widget, id) => {
                 if (widget && widget.destroy) {
                     widget.destroy();
@@ -237,6 +277,7 @@ export default DashboardContainer;
             
             const widgets = this.dashboard.layout.widgets || [];
             
+            // Фильтруем виджеты по доступности
             const availableWidgets = widgets.filter(widget => {
                 const isAvailable = this.isWidgetAvailable(widget.id);
                 if (!isAvailable) {
@@ -250,6 +291,7 @@ export default DashboardContainer;
                 return;
             }
             
+            // Удаляем дубликаты по id
             const uniqueWidgets = [];
             const seenIds = new Set();
             for (const widget of availableWidgets) {
@@ -261,6 +303,7 @@ export default DashboardContainer;
                 }
             }
             
+            // Если были изменения, обновляем дашборд
             if (uniqueWidgets.length !== availableWidgets.length || availableWidgets.length !== widgets.length) {
                 this.dashboard.layout.widgets = uniqueWidgets;
                 await saveDashboardLayout(this.dashboard.id, this.dashboard.layout);
@@ -310,6 +353,7 @@ export default DashboardContainer;
 
             this.container.innerHTML = fullHtml;
             
+            // Загружаем виджеты
             for (const widgetConfig of uniqueWidgets) {
                 await this.loadWidget(widgetConfig);
             }
@@ -321,6 +365,12 @@ export default DashboardContainer;
         }
     }
     
+    /**
+     * Рендеринг плейсхолдера виджета
+     * @param {Object} widgetConfig 
+     * @param {number} index 
+     * @returns {string}
+     */
     renderWidgetPlaceholder(widgetConfig, index) {
         const widgetTitle = this.getWidgetTitle(widgetConfig.id);
         const widgetIcon = this.getWidgetIcon(widgetConfig.id);
@@ -356,6 +406,11 @@ export default DashboardContainer;
         `;
     }
     
+    /**
+     * Получить заголовок виджета
+     * @param {string} widgetId 
+     * @returns {string}
+     */
     getWidgetTitle(widgetId) {
         const titles = {
             'my-tasks': 'Мои задачи',
@@ -369,6 +424,11 @@ export default DashboardContainer;
         return titles[widgetId] || widgetId;
     }
     
+    /**
+     * Получить иконку виджета
+     * @param {string} widgetId 
+     * @returns {string}
+     */
     getWidgetIcon(widgetId) {
         const icons = {
             'my-tasks': 'fa-tasks',
@@ -382,6 +442,10 @@ export default DashboardContainer;
         return icons[widgetId] || 'fa-puzzle-piece';
     }
     
+    /**
+     * Загрузить виджет
+     * @param {Object} widgetConfig 
+     */
     async loadWidget(widgetConfig) {
         const contentContainer = this.container.querySelector(`[data-widget-content="${widgetConfig.id}"]`);
         if (!contentContainer) return;
@@ -438,6 +502,11 @@ export default DashboardContainer;
         }
     }
     
+    /**
+     * Получить класс виджета по ID
+     * @param {string} widgetId 
+     * @returns {class|null}
+     */
     getWidgetClass(widgetId) {
         const widgetsMap = {
             'my-tasks': MyTasksWidget,
@@ -451,6 +520,9 @@ export default DashboardContainer;
         return widgetsMap[widgetId];
     }
     
+    /**
+     * Привязать обработчики событий
+     */
     bindEvents() {
         const refreshBtn = this.container.querySelector('#refreshDashboard');
         if (refreshBtn) {
@@ -488,11 +560,18 @@ export default DashboardContainer;
         }
     }
     
+    /**
+     * Переключить режим редактирования
+     */
     async toggleEditMode() {
         this.editMode = !this.editMode;
         await this.render();
     }
     
+    /**
+     * Удалить виджет
+     * @param {string} widgetId 
+     */
     async removeWidget(widgetId) {
         if (!this.dashboard || !this.dashboard.layout) return;
         
@@ -512,6 +591,9 @@ export default DashboardContainer;
         }
     }
     
+    /**
+     * Показать палитру доступных виджетов
+     */
     async showWidgetPalette() {
         const availableWidgets = [
             {
@@ -605,7 +687,7 @@ export default DashboardContainer;
             
             const tierColor = this.getTierBadgeColor(tier);
             const tierName = this.getTierDisplayName(tier);
-            const isTierAvailable = this.isWidgetAvailable(widgets[0].id);
+            const isTierAvailable = this.isWidgetAvailable(widgets[0]?.id || '');
             
             widgetsHtml += `
                 <div class="widget-palette-section" style="margin-bottom: 20px;">
@@ -716,12 +798,15 @@ export default DashboardContainer;
         upgradeBtns.forEach(btn => {
             btn.onclick = (e) => {
                 e.stopPropagation();
-                const tier = btn.dataset.tier;
                 window.location.href = 'settings.html#billing';
             };
         });
     }
     
+    /**
+     * Обновить конкретный виджет
+     * @param {string} widgetId 
+     */
     async refreshWidget(widgetId) {
         const widget = this.widgets.get(widgetId);
         if (widget && widget.refresh) {
@@ -729,6 +814,9 @@ export default DashboardContainer;
         }
     }
     
+    /**
+     * Обновить все виджеты
+     */
     async refreshAllWidgets() {
         for (const [widgetId, widget] of this.widgets) {
             if (widget.refresh) {
@@ -737,6 +825,9 @@ export default DashboardContainer;
         }
     }
     
+    /**
+     * Подписаться на события шины событий
+     */
     subscribeEvents() {
         if (!window.CRM?.EventBus) return;
         
@@ -762,6 +853,7 @@ export default DashboardContainer;
     }
 }
 
+// Добавляем стили для спиннера
 if (!document.querySelector('#widget-spinner-style')) {
     const style = document.createElement('style');
     style.id = 'widget-spinner-style';
@@ -773,6 +865,7 @@ if (!document.querySelector('#widget-spinner-style')) {
     document.head.appendChild(style);
 }
 
+// Экспортируем в глобальную область
 if (typeof window !== 'undefined') {
     window.CRM = window.CRM || {};
     window.CRM.DashboardContainer = DashboardContainer;
