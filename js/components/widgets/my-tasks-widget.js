@@ -50,8 +50,11 @@ class MyTasksWidget extends Widget {
         try {
             const allTasks = await getTasks();
             
+            // Фильтруем задачи: назначенные пользователю ИЛИ созданные им
             let filtered = allTasks.filter(task => 
-                task.assigned_to === this.user.github_username
+                task.assigned_to === this.user.github_username ||
+                task.user_id === this.user.id ||
+                (!task.assigned_to && task.user_id === this.user.id)
             );
             
             if (this.settings.statusFilter) {
@@ -80,6 +83,7 @@ class MyTasksWidget extends Widget {
             }
             
             this.tasks = filtered;
+            console.log(`[my-tasks-widget] Загружено ${filtered.length} задач из ${allTasks.length}`);
             return this.tasks;
             
         } catch (error) {
