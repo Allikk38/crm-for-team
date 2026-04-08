@@ -661,25 +661,47 @@ function setupDropZones() {
         
         container.addEventListener('dragover', (e) => {
             e.preventDefault();
-            container.classList.add('drag-over');
+            column.classList.add('drag-over');
         });
         
         container.addEventListener('dragleave', () => {
-            container.classList.remove('drag-over');
+            column.classList.remove('drag-over');
         });
         
         container.addEventListener('drop', async (e) => {
             e.preventDefault();
-            container.classList.remove('drag-over');
+            column.classList.remove('drag-over');
             
             const taskId = e.dataTransfer.getData('text/plain');
-            if (taskId) {
-                const task = tasks.find(t => t.id == taskId);
-                if (task && task.status !== status) {
-                    console.log('[tasks] Drag-and-drop: задача', taskId, '→', status);
-                    await updateTaskStatusInDB(taskId, status);
-                    await loadTasksData();
+            if (!taskId) return;
+            
+            const task = tasks.find(t => t.id == taskId);
+            if (!task || task.status === status) return;
+            
+            // Находим карточку
+            const card = document.querySelector(`.task-card[data-task-id="${taskId}"]`);
+            
+            // Используем существующие классы анимации
+            if (card) {
+                card.classList.add('status-updating');
+            }
+            
+            console.log('[tasks] Перемещение задачи:', taskId, '→', status);
+            
+            const updated = await updateTaskStatusInDB(taskId, status);
+            
+            if (updated) {
+                task.status = status;
+                renderKanbanBoard();
+                
+                if (window.showToast) {
+                    window.showToast('success', 'Задача перемещена');
                 }
+            } else {
+                if (card) {
+                    card.classList.remove('status-updating');
+                }
+                alert('Ошибка перемещения задачи');
             }
         });
     });
