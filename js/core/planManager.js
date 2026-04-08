@@ -24,7 +24,7 @@
  */
 
 import { getCurrentSupabaseUser } from './supabase-session.js';
-import eventBus from './eventBus.js';
+import eventBus from './eventBus.js';  // Теперь работает с export default
 
 console.log('[planManager] Загрузка...');
 
