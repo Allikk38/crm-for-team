@@ -405,7 +405,6 @@ function initMobileMenu() {
         height: 44px;
         background: var(--card-bg);
         border-radius: 12px;
-        display: none;
         align-items: center;
         justify-content: center;
         font-size: 1.5rem;
@@ -415,6 +414,13 @@ function initMobileMenu() {
         border: 1px solid var(--card-border);
         box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     `;
+    
+    // Применяем display в зависимости от ширины экрана
+    const updateVisibility = () => {
+        toggleBtn.style.display = window.innerWidth <= 768 ? 'flex' : 'none';
+    };
+    updateVisibility();
+    window.addEventListener('resize', updateVisibility);
     
     toggleBtn.onclick = (e) => {
         e.stopPropagation();
@@ -427,38 +433,40 @@ function initMobileMenu() {
     document.body.appendChild(toggleBtn);
     
     // Добавляем стили для мобильной версии
-    const style = document.createElement('style');
-    style.textContent = `
-        @media (max-width: 768px) {
-            .mobile-menu-toggle {
-                display: flex !important;
+    const styleId = 'mobile-menu-styles';
+    if (!document.getElementById(styleId)) {
+        const style = document.createElement('style');
+        style.id = styleId;
+        style.textContent = `
+            @media (max-width: 768px) {
+                .sidebar {
+                    transform: translateX(-100%);
+                    transition: transform 0.3s ease;
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    height: 100vh;
+                    z-index: 1000;
+                    width: 280px;
+                }
+                
+                .sidebar.mobile-open {
+                    transform: translateX(0);
+                    box-shadow: 4px 0 20px rgba(0,0,0,0.2);
+                }
+                
+                .main-content {
+                    margin-left: 0 !important;
+                    width: 100% !important;
+                }
+                
+                .top-bar {
+                    padding-left: 60px !important;
+                }
             }
-            
-            .sidebar {
-                transform: translateX(-100%);
-                transition: transform 0.3s ease;
-                position: fixed;
-                top: 0;
-                left: 0;
-                height: 100vh;
-                z-index: 1000;
-            }
-            
-            .sidebar.mobile-open {
-                transform: translateX(0);
-            }
-            
-            .main-content {
-                margin-left: 0 !important;
-                width: 100% !important;
-            }
-            
-            .top-bar {
-                padding-left: 60px !important;
-            }
-        }
-    `;
-    document.head.appendChild(style);
+        `;
+        document.head.appendChild(style);
+    }
     
     // Закрытие по клику вне меню
     document.addEventListener('click', (e) => {
