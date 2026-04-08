@@ -74,14 +74,21 @@
     background-position: right 12px center;
     background-size: 20px;
 }
-
+.modal-content select option {
+    background: var(--card-bg);
+    color: var(--text-primary);
+    padding: 10px;
+}
 .modal-buttons {
     display: flex;
     gap: 12px;
     justify-content: flex-end;
     margin-top: 24px;
 }
-
+body.theme-light .modal-content select option {
+    background: white;
+    color: #1a1a2e;
+}
 .modal-buttons button {
     padding: 12px 28px;
     border: none;
