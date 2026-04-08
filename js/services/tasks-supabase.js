@@ -4,19 +4,25 @@
  * РОЛЬ: Сервис для работы с задачами через Supabase
  * ЗАВИСИМОСТИ:
  *   - js/core/supabase.js
- * ============================================
  * 
- * ВНИМАНИЕ: Этот файл НЕ заменяет существующий tasks.js
- * Он создан как альтернативный слой для будущего перехода.
- * 
- * ИСПРАВЛЕНИЯ:
- *   - Используется поле due_date вместо deadline
- *   - Добавлена фильтрация по user_id
- *   - Статусы: pending, in_progress, completed
+ * ИСТОРИЯ:
+ *   - 27.03.2026: Создание файла
+ *   - 08.04.2026: Добавлены поля category и is_important
+ *   - 08.04.2026: Упрощена структура для личного планировщика
  * ============================================
  */
 
 import { supabase } from '../core/supabase.js';
+
+// Категории задач
+export const TASK_CATEGORIES = {
+    work: { label: '💼 Работа', icon: 'fa-briefcase' },
+    home: { label: '🏠 Дом', icon: 'fa-home' },
+    health: { label: '💪 Здоровье', icon: 'fa-heart' },
+    study: { label: '📚 Обучение', icon: 'fa-graduation-cap' },
+    finance: { label: '💰 Финансы', icon: 'fa-dollar-sign' },
+    other: { label: '📋 Другое', icon: 'fa-list' }
+};
 
 /**
  * Получить все задачи текущего пользователя
@@ -35,7 +41,9 @@ export async function getTasks() {
             .from('tasks')
             .select('*')
             .eq('user_id', user.id)
-            .order('due_date', { ascending: true, nullsLast: true });
+            .order('is_important', { ascending: false })
+            .order('due_date', { ascending: true, nullsLast: true })
+            .order('created_at', { ascending: false });
         
         if (error) {
             console.error('[tasks-supabase] Ошибка загрузки задач:', error);
@@ -89,13 +97,13 @@ export async function createTask(taskData) {
                 user_id: user.id,
                 title: taskData.title,
                 description: taskData.description || '',
-                assigned_to: taskData.assigned_to || null,
-                created_by: taskData.created_by || user.email,
                 status: taskData.status || 'pending',
                 priority: taskData.priority || 'medium',
                 due_date: taskData.due_date || null,
-                complex_id: taskData.complex_id || null,
-                is_private: taskData.is_private || false
+                category: taskData.category || 'other',
+                is_important: taskData.is_important || false,
+                is_private: taskData.is_private !== false, // По умолчанию приватные
+                created_by: user.email
             }])
             .select();
         
@@ -158,6 +166,13 @@ export async function updateTaskStatus(id, status) {
     }
     
     return await updateTask(id, updates);
+}
+
+/**
+ * Переключить "Важное"
+ */
+export async function toggleImportant(id, currentValue) {
+    return await updateTask(id, { is_important: !currentValue });
 }
 
 /**
