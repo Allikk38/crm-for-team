@@ -1,79 +1,282 @@
 /**
  * ============================================
  * ФАЙЛ: js/services/finance-supabase.js
- * РОЛЬ: Сервис для работы с транзакциями (доходы/расходы)
+ * РОЛЬ: Сервис для работы с модулем «Финансы»
  * 
  * ФУНКЦИОНАЛ:
- *   - CRUD операции с транзакциями
- *   - Получение статистики (баланс, доходы, расходы)
- *   - Получение отчетов по периодам
- *   - Управление категориями
+ *   - Управление счетами (finance_accounts)
+ *   - Управление категориями (finance_categories)
+ *   - Управление транзакциями (finance_transactions)
+ *   - Управление бюджетом (finance_budget)
+ *   - Управление кредитами (finance_credits)
+ *   - Кредитный калькулятор
  * 
  * ЗАВИСИМОСТИ:
  *   - js/core/supabase.js
  *   - js/core/supabase-session.js
  * 
  * ИСТОРИЯ:
- *   - 08.04.2026: Создание сервиса
+ *   2026-04-08: Полное пересоздание сервиса для новых таблиц finance_*
  * ============================================
  */
 
 import { supabase } from '../core/supabase.js';
 import { getCurrentSupabaseUser } from '../core/supabase-session.js';
-import cacheService from './cache-service.js';
 
-// ========== КОНСТАНТЫ ==========
-
-const CACHE_KEYS = {
-    TRANSACTIONS: 'finance_transactions',
-    BALANCE: 'finance_balance',
-    STATS: 'finance_stats',
-    CATEGORIES: 'finance_categories'
-};
-
-// Категории по умолчанию
-const DEFAULT_CATEGORIES = {
-    income: ['Зарплата', 'Фриланс', 'Подарок', 'Кэшбэк', 'Другое'],
-    expense: ['Еда', 'Транспорт', 'Подписки', 'Развлечения', 'Здоровье', 'Дом', 'Обучение', 'Другое']
-};
-
-// ========== ТРАНЗАКЦИИ (CRUD) ==========
+// ============================================
+// СЧЕТА (finance_accounts)
+// ============================================
 
 /**
- * Получить список транзакций пользователя
- * @param {Object} filters - фильтры { startDate, endDate, type, category }
- * @param {boolean} forceRefresh - принудительно обновить кэш
- * @returns {Promise<Array>}
+ * Получить все счета пользователя
+ * @returns {Promise<Array>} Массив счетов
  */
-export async function getTransactions(filters = {}, forceRefresh = false) {
+export async function getAccounts() {
     const user = getCurrentSupabaseUser();
     if (!user) return [];
 
-    const cacheKey = `${CACHE_KEYS.TRANSACTIONS}_${user.id}_${JSON.stringify(filters)}`;
-
-    if (!forceRefresh) {
-        const cached = cacheService.get(cacheKey, 'session');
-        if (cached) return cached;
-    }
-
-    let query = supabase
-        .from('transactions')
+    const { data, error } = await supabase
+        .from('finance_accounts')
         .select('*')
         .eq('user_id', user.id)
-        .order('transaction_date', { ascending: false })
+        .order('created_at', { ascending: true });
+
+    if (error) {
+        console.error('[finance] Ошибка загрузки счетов:', error);
+        return [];
+    }
+
+    return data;
+}
+
+/**
+ * Получить счёт по ID
+ * @param {string} id - ID счёта
+ * @returns {Promise<Object|null>}
+ */
+export async function getAccountById(id) {
+    const user = getCurrentSupabaseUser();
+    if (!user) return null;
+
+    const { data, error } = await supabase
+        .from('finance_accounts')
+        .select('*')
+        .eq('id', id)
+        .eq('user_id', user.id)
+        .single();
+
+    if (error) {
+        console.error('[finance] Ошибка загрузки счёта:', error);
+        return null;
+    }
+
+    return data;
+}
+
+/**
+ * Создать новый счёт
+ * @param {Object} account - { name, type, balance }
+ * @returns {Promise<Object>}
+ */
+export async function createAccount(account) {
+    const user = getCurrentSupabaseUser();
+    if (!user) throw new Error('Пользователь не авторизован');
+
+    const { data, error } = await supabase
+        .from('finance_accounts')
+        .insert([{
+            user_id: user.id,
+            name: account.name,
+            type: account.type,
+            balance: account.balance || 0
+        }])
+        .select()
+        .single();
+
+    if (error) throw error;
+    return data;
+}
+
+/**
+ * Обновить счёт
+ * @param {string} id - ID счёта
+ * @param {Object} updates - { name, type, balance }
+ * @returns {Promise<Object>}
+ */
+export async function updateAccount(id, updates) {
+    const user = getCurrentSupabaseUser();
+    if (!user) throw new Error('Пользователь не авторизован');
+
+    const { data, error } = await supabase
+        .from('finance_accounts')
+        .update(updates)
+        .eq('id', id)
+        .eq('user_id', user.id)
+        .select()
+        .single();
+
+    if (error) throw error;
+    return data;
+}
+
+/**
+ * Удалить счёт
+ * @param {string} id - ID счёта
+ * @returns {Promise<boolean>}
+ */
+export async function deleteAccount(id) {
+    const user = getCurrentSupabaseUser();
+    if (!user) throw new Error('Пользователь не авторизован');
+
+    const { error } = await supabase
+        .from('finance_accounts')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', user.id);
+
+    if (error) throw error;
+    return true;
+}
+
+// ============================================
+// КАТЕГОРИИ (finance_categories)
+// ============================================
+
+/**
+ * Получить категории пользователя
+ * @param {string} type - 'expense', 'income', или 'all'
+ * @returns {Promise<Array>}
+ */
+export async function getCategories(type = 'all') {
+    const user = getCurrentSupabaseUser();
+    if (!user) return [];
+
+    let query = supabase
+        .from('finance_categories')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('name', { ascending: true });
+
+    if (type !== 'all') {
+        query = query.eq('type', type);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+        console.error('[finance] Ошибка загрузки категорий:', error);
+        return [];
+    }
+
+    return data;
+}
+
+/**
+ * Получить категорию по ID
+ * @param {string} id - ID категории
+ * @returns {Promise<Object|null>}
+ */
+export async function getCategoryById(id) {
+    const user = getCurrentSupabaseUser();
+    if (!user) return null;
+
+    const { data, error } = await supabase
+        .from('finance_categories')
+        .select('*')
+        .eq('id', id)
+        .eq('user_id', user.id)
+        .single();
+
+    if (error) {
+        console.error('[finance] Ошибка загрузки категории:', error);
+        return null;
+    }
+
+    return data;
+}
+
+/**
+ * Создать пользовательскую категорию
+ * @param {Object} category - { name, type }
+ * @returns {Promise<Object>}
+ */
+export async function createCategory(category) {
+    const user = getCurrentSupabaseUser();
+    if (!user) throw new Error('Пользователь не авторизован');
+
+    const { data, error } = await supabase
+        .from('finance_categories')
+        .insert([{
+            user_id: user.id,
+            name: category.name,
+            type: category.type,
+            is_custom: true
+        }])
+        .select()
+        .single();
+
+    if (error) throw error;
+    return data;
+}
+
+/**
+ * Удалить пользовательскую категорию
+ * @param {string} id - ID категории
+ * @returns {Promise<boolean>}
+ */
+export async function deleteCategory(id) {
+    const user = getCurrentSupabaseUser();
+    if (!user) throw new Error('Пользователь не авторизован');
+
+    const { error } = await supabase
+        .from('finance_categories')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', user.id)
+        .eq('is_custom', true);
+
+    if (error) throw error;
+    return true;
+}
+
+// ============================================
+// ТРАНЗАКЦИИ (finance_transactions)
+// ============================================
+
+/**
+ * Получить транзакции с фильтрацией
+ * @param {Object} filters - { startDate, endDate, type, categoryId, accountId }
+ * @returns {Promise<Array>}
+ */
+export async function getTransactions(filters = {}) {
+    const user = getCurrentSupabaseUser();
+    if (!user) return [];
+
+    let query = supabase
+        .from('finance_transactions')
+        .select(`
+            *,
+            category:category_id(id, name, type),
+            account:account_id(id, name, type)
+        `)
+        .eq('user_id', user.id)
+        .order('date', { ascending: false })
         .order('created_at', { ascending: false });
 
     if (filters.startDate) {
-        query = query.gte('transaction_date', filters.startDate);
+        query = query.gte('date', filters.startDate);
     }
     if (filters.endDate) {
-        query = query.lte('transaction_date', filters.endDate);
+        query = query.lte('date', filters.endDate);
     }
-    if (filters.type && filters.type !== 'all') {
+    if (filters.type) {
         query = query.eq('type', filters.type);
     }
-    if (filters.category && filters.category !== 'all') {
-        query = query.eq('category', filters.category);
+    if (filters.categoryId) {
+        query = query.eq('category_id', filters.categoryId);
+    }
+    if (filters.accountId) {
+        query = query.eq('account_id', filters.accountId);
     }
 
     const { data, error } = await query;
@@ -83,42 +286,76 @@ export async function getTransactions(filters = {}, forceRefresh = false) {
         return [];
     }
 
-    cacheService.set(cacheKey, data, { ttl: 60, storage: 'session' }); // 1 минута
     return data;
 }
 
 /**
- * Добавить новую транзакцию
- * @param {Object} transaction - { type, amount, category, description, transaction_date }
+ * Получить транзакцию по ID
+ * @param {string} id - ID транзакции
+ * @returns {Promise<Object|null>}
+ */
+export async function getTransactionById(id) {
+    const user = getCurrentSupabaseUser();
+    if (!user) return null;
+
+    const { data, error } = await supabase
+        .from('finance_transactions')
+        .select(`
+            *,
+            category:category_id(id, name, type),
+            account:account_id(id, name, type)
+        `)
+        .eq('id', id)
+        .eq('user_id', user.id)
+        .single();
+
+    if (error) {
+        console.error('[finance] Ошибка загрузки транзакции:', error);
+        return null;
+    }
+
+    return data;
+}
+
+/**
+ * Добавить транзакцию с обновлением баланса счёта и бюджета
+ * @param {Object} transaction - { type, amount, category_id, account_id, date, comment }
  * @returns {Promise<Object>}
  */
 export async function addTransaction(transaction) {
     const user = getCurrentSupabaseUser();
     if (!user) throw new Error('Пользователь не авторизован');
 
+    // 1. Создаём транзакцию
     const { data, error } = await supabase
-        .from('transactions')
+        .from('finance_transactions')
         .insert([{
             user_id: user.id,
             type: transaction.type,
             amount: transaction.amount,
-            category: transaction.category,
-            description: transaction.description || null,
-            transaction_date: transaction.transaction_date || new Date().toISOString().split('T')[0]
+            category_id: transaction.category_id,
+            account_id: transaction.account_id,
+            date: transaction.date || new Date().toISOString().split('T')[0],
+            comment: transaction.comment || null
         }])
         .select()
         .single();
 
     if (error) throw error;
 
-    // Очищаем кэш
-    clearFinanceCache(user.id);
-    
+    // 2. Обновляем баланс счёта
+    await updateAccountBalance(transaction.account_id, transaction.type, transaction.amount);
+
+    // 3. Если это расход, обновляем факт в бюджете
+    if (transaction.type === 'expense') {
+        await updateBudgetFact(transaction.category_id, transaction.date, transaction.amount);
+    }
+
     return data;
 }
 
 /**
- * Обновить транзакцию
+ * Обновить транзакцию с пересчётом баланса и бюджета
  * @param {string} id - ID транзакции
  * @param {Object} updates - обновляемые поля
  * @returns {Promise<Object>}
@@ -127,8 +364,13 @@ export async function updateTransaction(id, updates) {
     const user = getCurrentSupabaseUser();
     if (!user) throw new Error('Пользователь не авторизован');
 
+    // 1. Получаем старую транзакцию
+    const oldTransaction = await getTransactionById(id);
+    if (!oldTransaction) throw new Error('Транзакция не найдена');
+
+    // 2. Обновляем транзакцию
     const { data, error } = await supabase
-        .from('transactions')
+        .from('finance_transactions')
         .update(updates)
         .eq('id', id)
         .eq('user_id', user.id)
@@ -137,12 +379,43 @@ export async function updateTransaction(id, updates) {
 
     if (error) throw error;
 
-    clearFinanceCache(user.id);
+    // 3. Корректируем баланс счёта
+    const accountChanged = updates.account_id && updates.account_id !== oldTransaction.account_id;
+    const amountChanged = updates.amount && updates.amount !== oldTransaction.amount;
+    const typeChanged = updates.type && updates.type !== oldTransaction.type;
+
+    if (accountChanged || amountChanged || typeChanged) {
+        // Возвращаем старую сумму на старый счёт
+        await revertAccountBalance(oldTransaction.account_id, oldTransaction.type, oldTransaction.amount);
+        // Применяем новую сумму к новому счёту
+        const newAccountId = updates.account_id || oldTransaction.account_id;
+        const newType = updates.type || oldTransaction.type;
+        const newAmount = updates.amount !== undefined ? updates.amount : oldTransaction.amount;
+        await updateAccountBalance(newAccountId, newType, newAmount);
+    }
+
+    // 4. Корректируем бюджет (только для расходов)
+    const oldType = oldTransaction.type;
+    const newType = updates.type !== undefined ? updates.type : oldType;
+    const categoryChanged = updates.category_id && updates.category_id !== oldTransaction.category_id;
+    const dateChanged = updates.date && updates.date !== oldTransaction.date;
+    const oldDate = oldTransaction.date;
+    const newDate = updates.date || oldDate;
+
+    if (oldType === 'expense') {
+        await revertBudgetFact(oldTransaction.category_id, oldDate, oldTransaction.amount);
+    }
+    if (newType === 'expense') {
+        const newCategoryId = updates.category_id || oldTransaction.category_id;
+        const newAmount = updates.amount !== undefined ? updates.amount : oldTransaction.amount;
+        await updateBudgetFact(newCategoryId, newDate, newAmount);
+    }
+
     return data;
 }
 
 /**
- * Удалить транзакцию
+ * Удалить транзакцию с возвратом баланса и бюджета
  * @param {string} id - ID транзакции
  * @returns {Promise<boolean>}
  */
@@ -150,256 +423,670 @@ export async function deleteTransaction(id) {
     const user = getCurrentSupabaseUser();
     if (!user) throw new Error('Пользователь не авторизован');
 
+    // 1. Получаем транзакцию перед удалением
+    const transaction = await getTransactionById(id);
+    if (!transaction) throw new Error('Транзакция не найдена');
+
+    // 2. Удаляем транзакцию
     const { error } = await supabase
-        .from('transactions')
+        .from('finance_transactions')
         .delete()
         .eq('id', id)
         .eq('user_id', user.id);
 
     if (error) throw error;
 
-    clearFinanceCache(user.id);
+    // 3. Возвращаем баланс счёта
+    await revertAccountBalance(transaction.account_id, transaction.type, transaction.amount);
+
+    // 4. Возвращаем факт в бюджете (только для расходов)
+    if (transaction.type === 'expense') {
+        await revertBudgetFact(transaction.category_id, transaction.date, transaction.amount);
+    }
+
     return true;
 }
 
-// ========== СТАТИСТИКА ==========
+// ============================================
+// БЮДЖЕТ (finance_budget)
+// ============================================
 
 /**
- * Получить баланс (доходы - расходы)
- * @param {string} period - 'day', 'week', 'month', 'year', 'all'
- * @returns {Promise<number>}
- */
-export async function getBalance(period = 'month') {
-    const user = getCurrentSupabaseUser();
-    if (!user) return 0;
-
-    const { startDate, endDate } = getDateRange(period);
-    const transactions = await getTransactions({ startDate, endDate });
-
-    const totalIncome = transactions
-        .filter(t => t.type === 'income')
-        .reduce((sum, t) => sum + t.amount, 0);
-
-    const totalExpense = transactions
-        .filter(t => t.type === 'expense')
-        .reduce((sum, t) => sum + t.amount, 0);
-
-    return totalIncome - totalExpense;
-}
-
-/**
- * Получить статистику по доходам/расходам
- * @param {string} period - 'day', 'week', 'month', 'year', 'all'
- * @returns {Promise<Object>}
- */
-export async function getStats(period = 'month') {
-    const user = getCurrentSupabaseUser();
-    if (!user) return { totalIncome: 0, totalExpense: 0, balance: 0 };
-
-    const { startDate, endDate } = getDateRange(period);
-    const cacheKey = `${CACHE_KEYS.STATS}_${user.id}_${period}`;
-    
-    const cached = cacheService.get(cacheKey, 'session');
-    if (cached) return cached;
-
-    const transactions = await getTransactions({ startDate, endDate });
-
-    const totalIncome = transactions
-        .filter(t => t.type === 'income')
-        .reduce((sum, t) => sum + t.amount, 0);
-
-    const totalExpense = transactions
-        .filter(t => t.type === 'expense')
-        .reduce((sum, t) => sum + t.amount, 0);
-
-    const stats = {
-        totalIncome,
-        totalExpense,
-        balance: totalIncome - totalExpense,
-        transactionCount: transactions.length,
-        incomeCount: transactions.filter(t => t.type === 'income').length,
-        expenseCount: transactions.filter(t => t.type === 'expense').length
-    };
-
-    cacheService.set(cacheKey, stats, { ttl: 60, storage: 'session' });
-    return stats;
-}
-
-/**
- * Получить статистику по категориям
- * @param {string} period - период
- * @param {string} type - 'income' или 'expense'
+ * Получить бюджет на указанный месяц
+ * @param {string} month - дата в формате YYYY-MM-DD (используется YYYY-MM-01)
  * @returns {Promise<Array>}
  */
-export async function getStatsByCategory(period = 'month', type = 'expense') {
+export async function getBudget(month) {
     const user = getCurrentSupabaseUser();
     if (!user) return [];
 
-    const { startDate, endDate } = getDateRange(period);
-    const transactions = await getTransactions({ startDate, endDate, type });
+    const monthDate = `${month.slice(0, 7)}-01`;
 
-    const categoryStats = {};
-    transactions.forEach(t => {
-        if (!categoryStats[t.category]) {
-            categoryStats[t.category] = 0;
-        }
-        categoryStats[t.category] += t.amount;
-    });
-
-    return Object.entries(categoryStats)
-        .map(([category, total]) => ({ category, total }))
-        .sort((a, b) => b.total - a.total);
-}
-
-// ========== КАТЕГОРИИ ==========
-
-/**
- * Получить категории пользователя
- * @param {string} type - 'income', 'expense', или 'all'
- * @returns {Promise<Object>}
- */
-export async function getCategories(type = 'all') {
-    const user = getCurrentSupabaseUser();
-    if (!user) return type === 'all' ? DEFAULT_CATEGORIES : DEFAULT_CATEGORIES[type];
-
-    const cacheKey = `${CACHE_KEYS.CATEGORIES}_${user.id}`;
-    const cached = cacheService.get(cacheKey, 'local');
-    if (cached) return cached;
-
-    let query = supabase
-        .from('transaction_categories')
-        .select('*')
+    const { data, error } = await supabase
+        .from('finance_budget')
+        .select(`
+            *,
+            category:category_id(id, name, type)
+        `)
         .eq('user_id', user.id)
-        .eq('is_active', true);
+        .eq('month', monthDate)
+        .order('planned', { ascending: false });
 
-    const { data, error } = await query;
-
-    let userCategories = { income: [], expense: [] };
-    
-    if (!error && data) {
-        data.forEach(cat => {
-            userCategories[cat.type].push(cat.name);
-        });
+    if (error) {
+        console.error('[finance] Ошибка загрузки бюджета:', error);
+        return [];
     }
 
-    // Если у пользователя нет категорий, создаем стандартные
-    const hasIncomeCategories = userCategories.income.length > 0;
-    const hasExpenseCategories = userCategories.expense.length > 0;
-
-    if (!hasIncomeCategories) {
-        userCategories.income = DEFAULT_CATEGORIES.income;
-    }
-    if (!hasExpenseCategories) {
-        userCategories.expense = DEFAULT_CATEGORIES.expense;
-    }
-
-    cacheService.set(cacheKey, userCategories, { ttl: 3600, storage: 'local' }); // 1 час
-    return userCategories;
+    return data;
 }
 
 /**
- * Добавить новую категорию
- * @param {string} name - название категории
- * @param {string} type - 'income' или 'expense'
+ * Установить план бюджета для категории на месяц
+ * @param {string} categoryId - ID категории
+ * @param {string} month - месяц в формате YYYY-MM
+ * @param {number} planned - плановая сумма
  * @returns {Promise<Object>}
  */
-export async function addCategory(name, type) {
+export async function setBudgetPlan(categoryId, month, planned) {
     const user = getCurrentSupabaseUser();
     if (!user) throw new Error('Пользователь не авторизован');
 
+    const monthDate = `${month}-01`;
+
     const { data, error } = await supabase
-        .from('transaction_categories')
+        .from('finance_budget')
+        .upsert({
+            user_id: user.id,
+            category_id: categoryId,
+            month: monthDate,
+            planned: planned,
+            fact: 0
+        }, {
+            onConflict: 'user_id, category_id, month'
+        })
+        .select()
+        .single();
+
+    if (error) throw error;
+    return data;
+}
+
+/**
+ * Получить сводку по бюджету (план/факт/остаток) за месяц
+ * @param {string} month - месяц в формате YYYY-MM
+ * @returns {Promise<Object>}
+ */
+export async function getBudgetSummary(month) {
+    const budgetData = await getBudget(month);
+    
+    const totalPlanned = budgetData.reduce((sum, item) => sum + (item.planned || 0), 0);
+    const totalFact = budgetData.reduce((sum, item) => sum + (item.fact || 0), 0);
+    const remaining = totalPlanned - totalFact;
+    
+    // Топ-5 категорий по расходам
+    const topCategories = budgetData
+        .filter(item => item.fact > 0)
+        .sort((a, b) => b.fact - a.fact)
+        .slice(0, 5)
+        .map(item => ({
+            categoryId: item.category_id,
+            categoryName: item.category?.name || 'Без категории',
+            planned: item.planned,
+            fact: item.fact,
+            remaining: item.planned - item.fact,
+            percentage: item.planned > 0 ? (item.fact / item.planned) * 100 : 0
+        }));
+
+    return {
+        month,
+        totalPlanned,
+        totalFact,
+        remaining,
+        categories: budgetData,
+        topCategories
+    };
+}
+
+// ============================================
+// КРЕДИТЫ (finance_credits)
+// ============================================
+
+/**
+ * Получить все кредиты пользователя
+ * @returns {Promise<Array>}
+ */
+export async function getCredits() {
+    const user = getCurrentSupabaseUser();
+    if (!user) return [];
+
+    const { data, error } = await supabase
+        .from('finance_credits')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        console.error('[finance] Ошибка загрузки кредитов:', error);
+        return [];
+    }
+
+    return data;
+}
+
+/**
+ * Получить кредит по ID
+ * @param {string} id - ID кредита
+ * @returns {Promise<Object|null>}
+ */
+export async function getCreditById(id) {
+    const user = getCurrentSupabaseUser();
+    if (!user) return null;
+
+    const { data, error } = await supabase
+        .from('finance_credits')
+        .select('*')
+        .eq('id', id)
+        .eq('user_id', user.id)
+        .single();
+
+    if (error) {
+        console.error('[finance] Ошибка загрузки кредита:', error);
+        return null;
+    }
+
+    return data;
+}
+
+/**
+ * Рассчитать аннуитетный платёж
+ * @param {number} amount - сумма кредита
+ * @param {number} rate - годовая ставка (%)
+ * @param {number} termMonths - срок в месяцах
+ * @returns {number} Ежемесячный платёж
+ */
+export function calculateAnnuityPayment(amount, rate, termMonths) {
+    const monthlyRate = rate / 100 / 12;
+    
+    if (monthlyRate === 0) {
+        return amount / termMonths;
+    }
+    
+    const payment = amount * monthlyRate * Math.pow(1 + monthlyRate, termMonths) 
+        / (Math.pow(1 + monthlyRate, termMonths) - 1);
+    
+    return Math.round(payment * 100) / 100;
+}
+
+/**
+ * Создать новый кредит
+ * @param {Object} credit - { name, amount, rate, term_months, start_date }
+ * @returns {Promise<Object>}
+ */
+export async function createCredit(credit) {
+    const user = getCurrentSupabaseUser();
+    if (!user) throw new Error('Пользователь не авторизован');
+
+    const payment = calculateAnnuityPayment(credit.amount, credit.rate, credit.term_months);
+
+    const { data, error } = await supabase
+        .from('finance_credits')
         .insert([{
             user_id: user.id,
-            name,
-            type,
-            is_active: true
+            name: credit.name,
+            amount: credit.amount,
+            rate: credit.rate,
+            term_months: credit.term_months,
+            payment: payment,
+            start_date: credit.start_date,
+            balance: credit.amount
         }])
         .select()
         .single();
 
     if (error) throw error;
-
-    // Очищаем кэш категорий
-    cacheService.invalidate(`${CACHE_KEYS.CATEGORIES}_${user.id}`, 'all');
-    
     return data;
 }
 
-// ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
-
 /**
- * Получить диапазон дат для периода
- * @param {string} period - 'day', 'week', 'month', 'year', 'all'
- * @returns {Object}
+ * Обновить кредит
+ * @param {string} id - ID кредита
+ * @param {Object} updates - обновляемые поля
+ * @returns {Promise<Object>}
  */
-function getDateRange(period) {
-    const now = new Date();
-    const today = now.toISOString().split('T')[0];
-    
-    if (period === 'day') {
-        return { startDate: today, endDate: today };
+export async function updateCredit(id, updates) {
+    const user = getCurrentSupabaseUser();
+    if (!user) throw new Error('Пользователь не авторизован');
+
+    // Если меняются сумма, ставка или срок, пересчитываем платёж
+    if (updates.amount !== undefined || updates.rate !== undefined || updates.term_months !== undefined) {
+        const credit = await getCreditById(id);
+        const amount = updates.amount !== undefined ? updates.amount : credit.amount;
+        const rate = updates.rate !== undefined ? updates.rate : credit.rate;
+        const termMonths = updates.term_months !== undefined ? updates.term_months : credit.term_months;
+        updates.payment = calculateAnnuityPayment(amount, rate, termMonths);
     }
-    
-    if (period === 'week') {
-        const startOfWeek = new Date(now);
-        const day = now.getDay();
-        const diff = day === 0 ? 6 : day - 1;
-        startOfWeek.setDate(now.getDate() - diff);
-        return {
-            startDate: startOfWeek.toISOString().split('T')[0],
-            endDate: today
-        };
-    }
-    
-    if (period === 'month') {
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-        return {
-            startDate: startOfMonth.toISOString().split('T')[0],
-            endDate: today
-        };
-    }
-    
-    if (period === 'year') {
-        const startOfYear = new Date(now.getFullYear(), 0, 1);
-        return {
-            startDate: startOfYear.toISOString().split('T')[0],
-            endDate: today
-        };
-    }
-    
-    return { startDate: null, endDate: null };
+
+    const { data, error } = await supabase
+        .from('finance_credits')
+        .update(updates)
+        .eq('id', id)
+        .eq('user_id', user.id)
+        .select()
+        .single();
+
+    if (error) throw error;
+    return data;
 }
 
 /**
- * Очистить кэш финансов
- * @param {string} userId - ID пользователя
+ * Удалить кредит
+ * @param {string} id - ID кредита
+ * @returns {Promise<boolean>}
  */
-function clearFinanceCache(userId) {
-    // Очищаем все кэши по паттерну
-    const keys = [
-        CACHE_KEYS.TRANSACTIONS,
-        CACHE_KEYS.BALANCE,
-        CACHE_KEYS.STATS
-    ];
+export async function deleteCredit(id) {
+    const user = getCurrentSupabaseUser();
+    if (!user) throw new Error('Пользователь не авторизован');
+
+    const { error } = await supabase
+        .from('finance_credits')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', user.id);
+
+    if (error) throw error;
+    return true;
+}
+
+/**
+ * Рассчитать график платежей по кредиту
+ * @param {Object} credit - объект кредита
+ * @returns {Array} Массив платежей
+ */
+export function calculatePaymentSchedule(credit) {
+    const monthlyRate = credit.rate / 100 / 12;
+    const schedule = [];
     
-    keys.forEach(key => {
-        cacheService.invalidate(`${key}_${userId}`, 'session');
+    let balance = credit.amount;
+    const payment = credit.payment;
+    const startDate = new Date(credit.start_date);
+    
+    for (let i = 0; i < credit.term_months; i++) {
+        const interest = balance * monthlyRate;
+        const principal = payment - interest;
+        
+        const paymentDate = new Date(startDate);
+        paymentDate.setMonth(paymentDate.getMonth() + i);
+        
+        schedule.push({
+            month: i + 1,
+            date: paymentDate.toISOString().split('T')[0],
+            payment: Math.round(payment * 100) / 100,
+            interest: Math.round(interest * 100) / 100,
+            principal: Math.round(principal * 100) / 100,
+            balanceBefore: Math.round(balance * 100) / 100,
+            balanceAfter: Math.round((balance - principal) * 100) / 100
+        });
+        
+        balance -= principal;
+        
+        if (balance < 0) balance = 0;
+    }
+    
+    return schedule;
+}
+
+/**
+ * Рассчитать досрочное погашение
+ * @param {Object} credit - объект кредита
+ * @param {number} prepaymentAmount - сумма досрочного погашения
+ * @returns {Object} Результаты расчёта
+ */
+export function calculatePrepayment(credit, prepaymentAmount) {
+    const monthlyRate = credit.rate / 100 / 12;
+    const currentBalance = credit.balance;
+    
+    if (prepaymentAmount >= currentBalance) {
+        return {
+            newBalance: 0,
+            interestSaved: 0,
+            monthsReduced: credit.term_months,
+            newTerm: 0,
+            totalSaved: 0
+        };
+    }
+    
+    const newBalance = currentBalance - prepaymentAmount;
+    
+    // Рассчитываем оставшиеся платежи по старому графику
+    let oldMonthsLeft = 0;
+    let tempBalance = currentBalance;
+    while (tempBalance > 0 && oldMonthsLeft < credit.term_months * 2) {
+        const interest = tempBalance * monthlyRate;
+        const principal = Math.min(credit.payment - interest, tempBalance);
+        tempBalance -= principal;
+        oldMonthsLeft++;
+    }
+    
+    // Рассчитываем платежи по новому графику (с тем же ежемесячным платежом)
+    let newMonthsLeft = 0;
+    tempBalance = newBalance;
+    let totalInterestOld = 0;
+    let totalInterestNew = 0;
+    
+    while (tempBalance > 0 && newMonthsLeft < credit.term_months * 2) {
+        const interest = tempBalance * monthlyRate;
+        const principal = Math.min(credit.payment - interest, tempBalance);
+        totalInterestNew += interest;
+        tempBalance -= principal;
+        newMonthsLeft++;
+    }
+    
+    // Переплата по старому графику
+    tempBalance = currentBalance;
+    for (let i = 0; i < oldMonthsLeft; i++) {
+        const interest = tempBalance * monthlyRate;
+        totalInterestOld += interest;
+        const principal = Math.min(credit.payment - interest, tempBalance);
+        tempBalance -= principal;
+    }
+    
+    const interestSaved = totalInterestOld - totalInterestNew;
+    const monthsReduced = oldMonthsLeft - newMonthsLeft;
+    
+    return {
+        newBalance: Math.round(newBalance * 100) / 100,
+        interestSaved: Math.round(interestSaved * 100) / 100,
+        monthsReduced: monthsReduced,
+        newTerm: newMonthsLeft,
+        totalSaved: Math.round((prepaymentAmount + interestSaved) * 100) / 100,
+        oldMonthsLeft,
+        newMonthsLeft
+    };
+}
+
+/**
+ * Внести досрочное погашение
+ * @param {string} creditId - ID кредита
+ * @param {number} amount - сумма погашения
+ * @param {string} categoryId - ID категории для списания
+ * @param {string} accountId - ID счёта для списания
+ * @returns {Promise<Object>}
+ */
+export async function makePrepayment(creditId, amount, categoryId, accountId) {
+    const user = getCurrentSupabaseUser();
+    if (!user) throw new Error('Пользователь не авторизован');
+
+    const credit = await getCreditById(creditId);
+    if (!credit) throw new Error('Кредит не найден');
+
+    const newBalance = credit.balance - amount;
+    
+    if (newBalance < 0) {
+        throw new Error('Сумма погашения превышает остаток по кредиту');
+    }
+
+    // Обновляем остаток кредита
+    await updateCredit(creditId, { balance: newBalance });
+
+    // Создаём транзакцию расхода
+    await addTransaction({
+        type: 'expense',
+        amount: amount,
+        category_id: categoryId,
+        account_id: accountId,
+        date: new Date().toISOString().split('T')[0],
+        comment: `Досрочное погашение кредита: ${credit.name}`
     });
-    
-    cacheService.invalidate(`${CACHE_KEYS.CATEGORIES}_${userId}`, 'all');
+
+    return {
+        credit: await getCreditById(creditId),
+        newBalance,
+        prepaid: amount
+    };
 }
 
-// ========== ЭКСПОРТЫ ==========
+// ============================================
+// СВОДНАЯ ИНФОРМАЦИЯ
+// ============================================
+
+/**
+ * Получить сводку по финансам для дашборда
+ * @returns {Promise<Object>}
+ */
+export async function getFinanceSummary() {
+    const user = getCurrentSupabaseUser();
+    if (!user) return null;
+
+    // Счета
+    const accounts = await getAccounts();
+    const totalBalance = accounts.reduce((sum, acc) => sum + (acc.balance || 0), 0);
+
+    // Текущий месяц
+    const today = new Date();
+    const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+    const monthStart = `${currentMonth}-01`;
+    const monthEnd = today.toISOString().split('T')[0];
+
+    // Транзакции за месяц
+    const monthTransactions = await getTransactions({
+        startDate: monthStart,
+        endDate: monthEnd
+    });
+
+    const monthIncome = monthTransactions
+        .filter(t => t.type === 'income')
+        .reduce((sum, t) => sum + t.amount, 0);
+
+    const monthExpense = monthTransactions
+        .filter(t => t.type === 'expense')
+        .reduce((sum, t) => sum + t.amount, 0);
+
+    // Кредиты
+    const credits = await getCredits();
+    const totalCreditBalance = credits.reduce((sum, c) => sum + (c.balance || 0), 0);
+    
+    // Ближайший платёж по кредиту
+    let nextPayment = null;
+    if (credits.length > 0) {
+        const today = new Date();
+        const futurePayments = credits
+            .filter(c => c.balance > 0)
+            .map(c => {
+                const startDate = new Date(c.start_date);
+                let nextPaymentDate = new Date(startDate);
+                while (nextPaymentDate < today) {
+                    nextPaymentDate.setMonth(nextPaymentDate.getMonth() + 1);
+                }
+                return {
+                    creditName: c.name,
+                    creditId: c.id,
+                    date: nextPaymentDate.toISOString().split('T')[0],
+                    amount: c.payment
+                };
+            })
+            .sort((a, b) => a.date.localeCompare(b.date));
+        
+        nextPayment = futurePayments[0] || null;
+    }
+
+    // Бюджет
+    const budgetSummary = await getBudgetSummary(currentMonth);
+
+    return {
+        accounts,
+        totalBalance,
+        monthIncome,
+        monthExpense,
+        monthBalance: monthIncome - monthExpense,
+        credits,
+        totalCreditBalance,
+        creditCount: credits.length,
+        nextPayment,
+        budget: budgetSummary,
+        currentMonth
+    };
+}
+
+// ============================================
+// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ (приватные)
+// ============================================
+
+/**
+ * Обновить баланс счёта при добавлении транзакции
+ * @param {string} accountId - ID счёта
+ * @param {string} type - тип транзакции
+ * @param {number} amount - сумма
+ */
+async function updateAccountBalance(accountId, type, amount) {
+    const account = await getAccountById(accountId);
+    if (!account) return;
+
+    let newBalance = account.balance;
+    if (type === 'income') {
+        newBalance += amount;
+    } else {
+        newBalance -= amount;
+    }
+
+    await supabase
+        .from('finance_accounts')
+        .update({ balance: newBalance })
+        .eq('id', accountId);
+}
+
+/**
+ * Откатить баланс счёта (при удалении или изменении транзакции)
+ * @param {string} accountId - ID счёта
+ * @param {string} type - тип транзакции
+ * @param {number} amount - сумма
+ */
+async function revertAccountBalance(accountId, type, amount) {
+    const account = await getAccountById(accountId);
+    if (!account) return;
+
+    let newBalance = account.balance;
+    if (type === 'income') {
+        newBalance -= amount;
+    } else {
+        newBalance += amount;
+    }
+
+    await supabase
+        .from('finance_accounts')
+        .update({ balance: newBalance })
+        .eq('id', accountId);
+}
+
+/**
+ * Обновить факт в бюджете
+ * @param {string} categoryId - ID категории
+ * @param {string} date - дата транзакции
+ * @param {number} amount - сумма
+ */
+async function updateBudgetFact(categoryId, date, amount) {
+    const user = getCurrentSupabaseUser();
+    if (!user) return;
+
+    const month = date.slice(0, 7) + '-01';
+
+    // Проверяем, есть ли запись в бюджете
+    const { data: existingBudget } = await supabase
+        .from('finance_budget')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('category_id', categoryId)
+        .eq('month', month)
+        .single();
+
+    if (existingBudget) {
+        await supabase
+            .from('finance_budget')
+            .update({ fact: existingBudget.fact + amount })
+            .eq('id', existingBudget.id);
+    } else {
+        // Создаём запись бюджета с планом 0
+        await supabase
+            .from('finance_budget')
+            .insert([{
+                user_id: user.id,
+                category_id: categoryId,
+                month: month,
+                planned: 0,
+                fact: amount
+            }]);
+    }
+}
+
+/**
+ * Откатить факт в бюджете
+ * @param {string} categoryId - ID категории
+ * @param {string} date - дата транзакции
+ * @param {number} amount - сумма
+ */
+async function revertBudgetFact(categoryId, date, amount) {
+    const user = getCurrentSupabaseUser();
+    if (!user) return;
+
+    const month = date.slice(0, 7) + '-01';
+
+    const { data: existingBudget } = await supabase
+        .from('finance_budget')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('category_id', categoryId)
+        .eq('month', month)
+        .single();
+
+    if (existingBudget) {
+        const newFact = Math.max(0, existingBudget.fact - amount);
+        await supabase
+            .from('finance_budget')
+            .update({ fact: newFact })
+            .eq('id', existingBudget.id);
+    }
+}
+
+// ============================================
+// ЭКСПОРТ ПО УМОЛЧАНИЮ
+// ============================================
+
 export default {
+    // Счета
+    getAccounts,
+    getAccountById,
+    createAccount,
+    updateAccount,
+    deleteAccount,
+    
+    // Категории
+    getCategories,
+    getCategoryById,
+    createCategory,
+    deleteCategory,
+    
+    // Транзакции
     getTransactions,
+    getTransactionById,
     addTransaction,
     updateTransaction,
     deleteTransaction,
-    getBalance,
-    getStats,
-    getStatsByCategory,
-    getCategories,
-    addCategory,
-    DEFAULT_CATEGORIES
+    
+    // Бюджет
+    getBudget,
+    setBudgetPlan,
+    getBudgetSummary,
+    
+    // Кредиты
+    getCredits,
+    getCreditById,
+    createCredit,
+    updateCredit,
+    deleteCredit,
+    calculateAnnuityPayment,
+    calculatePaymentSchedule,
+    calculatePrepayment,
+    makePrepayment,
+    
+    // Сводка
+    getFinanceSummary
 };

@@ -1,25 +1,22 @@
 /**
  * ============================================
  * ФАЙЛ: js/pages/finance.js
- * РОЛЬ: Логика страницы управления финансами
+ * РОЛЬ: Логика страницы управления финансами (дашборд)
  * 
  * ОСОБЕННОСТИ:
- *   - Загрузка и отображение транзакций
- *   - Фильтрация по типу, периоду, датам
- *   - Добавление/редактирование/удаление транзакций
- *   - Обновление виджетов статистики
- *   - Управление видимостью виджетов
- *   - Полностью на импортах, без глобальных объектов
+ *   - Загрузка и отображение виджетов
+ *   - Виджеты: остатки по счетам, бюджет, сводка по кредитам, совет дня
+ *   - Drag-and-drop виджетов (как на главном дашборде)
+ *   - Переходы на связанные страницы
+ *   - Полностью на импортах ES6
  * 
  * ЗАВИСИМОСТИ:
  *   - js/core/supabase-session.js
  *   - js/services/finance-supabase.js
- *   - js/utils/helpers.js
+ *   - js/components/dashboard-container.js
  * 
  * ИСТОРИЯ:
- *   - 08.04.2026: Создание файла
- *   - 08.04.2026: Добавлено управление виджетами (сохранение в localStorage)
- *   - 08.04.2026: Заменен select периода на кнопки (как на дашборде)
+ *   2026-04-08: Создание файла для новой структуры finance_*
  * ============================================
  */
 
@@ -29,528 +26,530 @@ import {
     updateSupabaseUserInterface 
 } from '../core/supabase-session.js';
 import financeService from '../services/finance-supabase.js';
-import { escapeHtml, showToast, formatDate } from '../utils/helpers.js';
+import { eventBus } from '../core/eventBus.js';
 
 // ========== СОСТОЯНИЕ ==========
 let currentUser = null;
-let transactions = [];
-let currentFilters = {
-    type: 'all',
-    period: 'month',
-    dateFrom: '',
-    dateTo: ''
-};
 let isInitialized = false;
+let dashboardContainer = null;
 
-// Настройки виджетов
-let widgetSettings = {
-    incomeExpense: true,
-    topExpenses: true,
-    topIncome: true
-};
+// Текущий месяц для отображения
+let currentMonth = new Date().toISOString().slice(0, 7);
 
-// Иконки для категорий
-const categoryIcons = {
-    'Еда': 'fa-utensils',
-    'Транспорт': 'fa-car',
-    'Подписки': 'fa-tv',
-    'Развлечения': 'fa-gamepad',
-    'Здоровье': 'fa-heartbeat',
-    'Дом': 'fa-home',
-    'Обучение': 'fa-graduation-cap',
-    'Зарплата': 'fa-money-bill-wave',
-    'Фриланс': 'fa-laptop-code',
-    'Подарок': 'fa-gift',
-    'Кэшбэк': 'fa-percent',
-    'Другое': 'fa-tag'
-};
+// ========== ИНИЦИАЛИЗАЦИЯ ВИДЖЕТОВ ==========
 
-// ========== ВСПОМОГАТЕЛЬНЫЕ ==========
-
-function getCategoryIcon(category) {
-    return categoryIcons[category] || 'fa-tag';
-}
-
-function updateFiltersFromUI() {
-    currentFilters.type = document.getElementById('filterType')?.value || 'all';
-    currentFilters.period = document.getElementById('filterPeriod')?.value || 'month';
-    currentFilters.dateFrom = document.getElementById('filterDateFrom')?.value || '';
-    currentFilters.dateTo = document.getElementById('filterDateTo')?.value || '';
-}
-
-function getFilterDates() {
-    const now = new Date();
-    const today = now.toISOString().split('T')[0];
-    
-    if (currentFilters.dateFrom && currentFilters.dateTo) {
-        return { startDate: currentFilters.dateFrom, endDate: currentFilters.dateTo };
-    }
-    
-    if (currentFilters.period === 'day') {
-        return { startDate: today, endDate: today };
-    }
-    
-    if (currentFilters.period === 'week') {
-        const startOfWeek = new Date(now);
-        const day = now.getDay();
-        const diff = day === 0 ? 6 : day - 1;
-        startOfWeek.setDate(now.getDate() - diff);
-        return {
-            startDate: startOfWeek.toISOString().split('T')[0],
-            endDate: today
-        };
-    }
-    
-    if (currentFilters.period === 'month') {
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-        return {
-            startDate: startOfMonth.toISOString().split('T')[0],
-            endDate: today
-        };
-    }
-    
-    if (currentFilters.period === 'year') {
-        const startOfYear = new Date(now.getFullYear(), 0, 1);
-        return {
-            startDate: startOfYear.toISOString().split('T')[0],
-            endDate: today
-        };
-    }
-    
-    return { startDate: null, endDate: null };
-}
-
-// ========== УПРАВЛЕНИЕ ПЕРИОДОМ И ТИПОМ (НОВЫЕ КНОПКИ) ==========
-
-function initPeriodButtons() {
-    const periodBtns = document.querySelectorAll('.period-btn');
-    periodBtns.forEach(btn => {
-        btn.addEventListener('click', async () => {
-            // Убираем активный класс у всех
-            periodBtns.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            
-            // Устанавливаем период
-            const period = btn.dataset.period;
-            currentFilters.period = period;
-            
-            // Очищаем кастомные даты при выборе предустановленного периода
-            if (period !== 'custom') {
-                const dateFrom = document.getElementById('filterDateFrom');
-                const dateTo = document.getElementById('filterDateTo');
-                if (dateFrom) dateFrom.value = '';
-                if (dateTo) dateTo.value = '';
-                currentFilters.dateFrom = '';
-                currentFilters.dateTo = '';
-            }
-            
-            await loadTransactions();
+/**
+ * Загрузить виджет «Остатки по счетам»
+ */
+async function loadAccountsWidget(container) {
+    try {
+        const summary = await financeService.getFinanceSummary();
+        const accounts = summary.accounts || [];
+        const totalBalance = summary.totalBalance || 0;
+        
+        const accountsListHtml = accounts.length === 0
+            ? '<div class="finance-widget-empty">Нет счетов. <a href="#" class="finance-add-account-link">Добавить счёт</a></div>'
+            : accounts.map(acc => `
+                <div class="finance-account-item" data-account-id="${acc.id}">
+                    <div class="finance-account-icon">
+                        <i class="fas fa-${acc.type === 'cash' ? 'wallet' : 'credit-card'}"></i>
+                    </div>
+                    <div class="finance-account-info">
+                        <div class="finance-account-name">${escapeHtml(acc.name)}</div>
+                        <div class="finance-account-type">${acc.type === 'cash' ? 'Наличные' : 'Карта'}</div>
+                    </div>
+                    <div class="finance-account-balance ${acc.balance >= 0 ? 'positive' : 'negative'}">
+                        ${acc.balance.toLocaleString()} ₽
+                    </div>
+                </div>
+            `).join('');
+        
+        container.innerHTML = `
+            <div class="finance-widget-header">
+                <h3 class="finance-widget-title">
+                    <i class="fas fa-wallet"></i> Остатки по счетам
+                </h3>
+                <button class="finance-widget-add-btn" id="addAccountBtn" title="Добавить счёт">
+                    <i class="fas fa-plus"></i>
+                </button>
+            </div>
+            <div class="finance-accounts-list">
+                ${accountsListHtml}
+            </div>
+            <div class="finance-widget-footer">
+                <div class="finance-total-balance">
+                    <span>Всего:</span>
+                    <strong class="${totalBalance >= 0 ? 'positive' : 'negative'}">
+                        ${totalBalance.toLocaleString()} ₽
+                    </strong>
+                </div>
+            </div>
+        `;
+        
+        container.querySelectorAll('.finance-account-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const accountId = item.dataset.accountId;
+                window.location.href = `./transactions.html?account=${accountId}`;
+            });
         });
-    });
-}
-
-function initTypeButtons() {
-    const typeBtns = document.querySelectorAll('.type-filter-btn');
-    typeBtns.forEach(btn => {
-        btn.addEventListener('click', async () => {
-            // Убираем активный класс у всех
-            typeBtns.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            
-            // Устанавливаем тип
-            const type = btn.dataset.type;
-            currentFilters.type = type;
-            
-            await loadTransactions();
-        });
-    });
-}
-
-function initDatePickers() {
-    const dateFrom = document.getElementById('filterDateFrom');
-    const dateTo = document.getElementById('filterDateTo');
-    
-    if (dateFrom) {
-        dateFrom.addEventListener('change', async () => {
-            currentFilters.dateFrom = dateFrom.value;
-            currentFilters.period = 'custom';
-            
-            // Сбрасываем активный класс у кнопок периода
-            const periodBtns = document.querySelectorAll('.period-btn');
-            periodBtns.forEach(btn => btn.classList.remove('active'));
-            
-            await loadTransactions();
-        });
-    }
-    
-    if (dateTo) {
-        dateTo.addEventListener('change', async () => {
-            currentFilters.dateTo = dateTo.value;
-            currentFilters.period = 'custom';
-            
-            const periodBtns = document.querySelectorAll('.period-btn');
-            periodBtns.forEach(btn => btn.classList.remove('active'));
-            
-            await loadTransactions();
-        });
-    }
-}
-
-// ========== УПРАВЛЕНИЕ ВИДЖЕТАМИ ==========
-
-function loadWidgetSettings() {
-    const saved = localStorage.getItem('finance_widget_settings');
-    if (saved) {
-        try {
-            widgetSettings = JSON.parse(saved);
-        } catch (e) {
-            console.warn('[finance] Ошибка загрузки настроек виджетов');
+        
+        const addBtn = container.querySelector('#addAccountBtn');
+        if (addBtn) {
+            addBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openAccountModal();
+            });
         }
-    }
-    applyWidgetVisibility();
-}
-
-function saveWidgetSettings() {
-    localStorage.setItem('finance_widget_settings', JSON.stringify(widgetSettings));
-    applyWidgetVisibility();
-}
-
-function applyWidgetVisibility() {
-    const incomeExpenseWidget = document.querySelector('[data-widget="income-expense"]');
-    const topExpensesWidget = document.querySelector('[data-widget="top-expenses"]');
-    const topIncomeWidget = document.querySelector('[data-widget="top-income"]');
-    
-    if (incomeExpenseWidget) {
-        incomeExpenseWidget.style.display = widgetSettings.incomeExpense ? 'block' : 'none';
-    }
-    if (topExpensesWidget) {
-        topExpensesWidget.style.display = widgetSettings.topExpenses ? 'block' : 'none';
-    }
-    if (topIncomeWidget) {
-        topIncomeWidget.style.display = widgetSettings.topIncome ? 'block' : 'none';
+        
+        const addLink = container.querySelector('.finance-add-account-link');
+        if (addLink) {
+            addLink.addEventListener('click', (e) => {
+                e.preventDefault();
+                openAccountModal();
+            });
+        }
+    } catch (error) {
+        console.error('[finance] Ошибка загрузки виджета счетов:', error);
+        container.innerHTML = '<div class="finance-widget-error">Ошибка загрузки</div>';
     }
 }
 
-function openWidgetSettingsModal() {
-    const modal = document.getElementById('widgetSettingsModal');
-    if (!modal) return;
-    
-    document.getElementById('widgetIncomeExpense').checked = widgetSettings.incomeExpense;
-    document.getElementById('widgetTopExpenses').checked = widgetSettings.topExpenses;
-    document.getElementById('widgetTopIncome').checked = widgetSettings.topIncome;
-    
-    modal.style.display = 'flex';
-    modal.classList.add('active');
-}
-
-function closeWidgetSettingsModal() {
-    const modal = document.getElementById('widgetSettingsModal');
-    if (modal) {
-        modal.style.display = 'none';
-        modal.classList.remove('active');
-    }
-}
-
-function saveWidgetSettingsFromModal() {
-    widgetSettings.incomeExpense = document.getElementById('widgetIncomeExpense').checked;
-    widgetSettings.topExpenses = document.getElementById('widgetTopExpenses').checked;
-    widgetSettings.topIncome = document.getElementById('widgetTopIncome').checked;
-    
-    saveWidgetSettings();
-    closeWidgetSettingsModal();
-    showToast('success', 'Настройки виджетов сохранены');
-}
-
-// ========== ЗАГРУЗКА ДАННЫХ ==========
-
-async function loadTransactions() {
-    if (!currentUser) return;
-    
-    const { startDate, endDate } = getFilterDates();
-    
-    const filters = {
-        type: currentFilters.type === 'all' ? null : currentFilters.type,
-        startDate,
-        endDate
-    };
-    
-    transactions = await financeService.getTransactions(filters);
-    renderTransactions();
-    await updateWidgets();
-}
-
-async function updateWidgets() {
-    if (!currentUser) return;
-    
-    // Баланс
-    const balance = await financeService.getBalance(currentFilters.period);
-    const balanceEl = document.getElementById('balanceValue');
-    if (balanceEl) {
-        const absBalance = Math.abs(balance);
-        balanceEl.textContent = `${balance >= 0 ? '+' : '-'} ${absBalance.toLocaleString()} ₽`;
-        balanceEl.style.color = balance >= 0 ? '#4caf50' : '#ff6b6b';
-    }
-    
-    // Сводка доходов/расходов
-    if (widgetSettings.incomeExpense) {
-        const stats = await financeService.getStats(currentFilters.period);
-        const incomeExpenseWidget = document.getElementById('incomeExpenseWidget');
-        if (incomeExpenseWidget) {
-            incomeExpenseWidget.innerHTML = `
-                <div style="display: flex; justify-content: space-between; margin-bottom: 16px;">
-                    <div>
-                        <div style="font-size: 0.7rem; color: var(--text-muted);">Доходы</div>
-                        <div style="font-size: 1.3rem; font-weight: 600; color: #4caf50;">+${stats.totalIncome.toLocaleString()} ₽</div>
+/**
+ * Загрузить виджет «Бюджет на месяц»
+ */
+async function loadBudgetWidget(container) {
+    try {
+        const budgetSummary = await financeService.getBudgetSummary(currentMonth);
+        
+        const topCategoriesHtml = budgetSummary.topCategories.length === 0
+            ? '<div class="finance-widget-empty">Нет данных о бюджете</div>'
+            : budgetSummary.topCategories.map(cat => {
+                const percentage = Math.min(100, cat.percentage);
+                const statusClass = percentage >= 100 ? 'over' : (percentage >= 80 ? 'warning' : 'good');
+                return `
+                    <div class="finance-budget-item" data-category-id="${cat.categoryId}">
+                        <div class="finance-budget-info">
+                            <div class="finance-budget-name">${escapeHtml(cat.categoryName)}</div>
+                            <div class="finance-budget-values">
+                                ${cat.fact.toLocaleString()} / ${cat.planned.toLocaleString()} ₽
+                            </div>
+                        </div>
+                        <div class="finance-budget-progress">
+                            <div class="finance-budget-progress-bar ${statusClass}" 
+                                 style="width: ${percentage}%"></div>
+                        </div>
+                        <div class="finance-budget-remaining ${cat.remaining >= 0 ? 'positive' : 'negative'}">
+                            ${cat.remaining >= 0 ? 'Остаток' : 'Перерасход'}: 
+                            ${Math.abs(cat.remaining).toLocaleString()} ₽
+                        </div>
                     </div>
-                    <div>
-                        <div style="font-size: 0.7rem; color: var(--text-muted);">Расходы</div>
-                        <div style="font-size: 1.3rem; font-weight: 600; color: #ff6b6b;">-${stats.totalExpense.toLocaleString()} ₽</div>
-                    </div>
+                `;
+            }).join('');
+        
+        const monthName = new Date(currentMonth + '-01').toLocaleString('ru', { month: 'long', year: 'numeric' });
+        
+        container.innerHTML = `
+            <div class="finance-widget-header">
+                <h3 class="finance-widget-title">
+                    <i class="fas fa-chart-pie"></i> Бюджет
+                </h3>
+                <div class="finance-month-selector">
+                    <button class="finance-month-btn" id="prevMonthBtn">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <span class="finance-month-display">${monthName}</span>
+                    <button class="finance-month-btn" id="nextMonthBtn">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
                 </div>
-                <div class="progress-bar-container" style="margin-top: 8px;">
-                    <div class="progress-bar-fill" style="width: ${stats.totalExpense > 0 ? Math.min(100, (stats.totalExpense / (stats.totalIncome || 1)) * 100) : 0}%; background: linear-gradient(90deg, #4caf50, #ff6b6b);"></div>
+            </div>
+            <div class="finance-budget-summary">
+                <div class="finance-budget-total">
+                    <span>Потрачено:</span>
+                    <strong>${budgetSummary.totalFact.toLocaleString()} ₽</strong>
                 </div>
-                <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 8px;">
-                    Расходы составляют ${stats.totalIncome > 0 ? Math.round((stats.totalExpense / stats.totalIncome) * 100) : 0}% от доходов
+                <div class="finance-budget-total">
+                    <span>Бюджет:</span>
+                    <strong>${budgetSummary.totalPlanned.toLocaleString()} ₽</strong>
+                </div>
+            </div>
+            <div class="finance-budget-list">
+                ${topCategoriesHtml}
+            </div>
+            <div class="finance-widget-footer">
+                <a href="#" class="finance-widget-link" id="setupBudgetLink">
+                    <i class="fas fa-cog"></i> Настроить бюджет
+                </a>
+            </div>
+        `;
+        
+        container.querySelectorAll('.finance-budget-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const categoryId = item.dataset.categoryId;
+                window.location.href = `./transactions.html?category=${categoryId}&month=${currentMonth}`;
+            });
+        });
+        
+        const prevBtn = container.querySelector('#prevMonthBtn');
+        if (prevBtn) {
+            prevBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const date = new Date(currentMonth + '-01');
+                date.setMonth(date.getMonth() - 1);
+                currentMonth = date.toISOString().slice(0, 7);
+                await loadBudgetWidget(container);
+            });
+        }
+        
+        const nextBtn = container.querySelector('#nextMonthBtn');
+        if (nextBtn) {
+            nextBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const date = new Date(currentMonth + '-01');
+                date.setMonth(date.getMonth() + 1);
+                currentMonth = date.toISOString().slice(0, 7);
+                await loadBudgetWidget(container);
+            });
+        }
+        
+        const setupLink = container.querySelector('#setupBudgetLink');
+        if (setupLink) {
+            setupLink.addEventListener('click', (e) => {
+                e.preventDefault();
+                openBudgetSetupModal();
+            });
+        }
+    } catch (error) {
+        console.error('[finance] Ошибка загрузки виджета бюджета:', error);
+        container.innerHTML = '<div class="finance-widget-error">Ошибка загрузки</div>';
+    }
+}
+
+/**
+ * Загрузить виджет «Сводка по кредитам»
+ */
+async function loadCreditsSummaryWidget(container) {
+    try {
+        const summary = await financeService.getFinanceSummary();
+        const credits = summary.credits || [];
+        const totalCreditBalance = summary.totalCreditBalance || 0;
+        const nextPayment = summary.nextPayment;
+        
+        if (credits.length === 0) {
+            container.innerHTML = `
+                <div class="finance-widget-header">
+                    <h3 class="finance-widget-title">
+                        <i class="fas fa-percent"></i> Кредиты
+                    </h3>
+                </div>
+                <div class="finance-widget-empty">
+                    Нет активных кредитов
+                    <a href="./credits.html" class="finance-widget-link">Добавить кредит</a>
                 </div>
             `;
+            return;
         }
-    }
-    
-    // Топ расходов
-    if (widgetSettings.topExpenses) {
-        const topExpenses = await financeService.getStatsByCategory(currentFilters.period, 'expense');
-        const topExpensesWidget = document.getElementById('topExpensesWidget');
-        if (topExpensesWidget) {
-            if (topExpenses.length === 0) {
-                topExpensesWidget.innerHTML = '<div class="empty-state" style="padding: 20px;">Нет расходов</div>';
-            } else {
-                topExpensesWidget.innerHTML = `
-                    <div class="category-stats-list">
-                        ${topExpenses.slice(0, 5).map(cat => `
-                            <div class="category-stat-item">
-                                <div class="category-stat-name">
-                                    <i class="fas ${getCategoryIcon(cat.category)}" style="width: 20px;"></i>
-                                    ${escapeHtml(cat.category)}
-                                </div>
-                                <div class="category-stat-amount">-${cat.total.toLocaleString()} ₽</div>
-                            </div>
-                        `).join('')}
+        
+        const nextPaymentHtml = nextPayment
+            ? `
+                <div class="finance-next-payment">
+                    <div class="finance-next-payment-label">Ближайший платёж</div>
+                    <div class="finance-next-payment-info">
+                        <span class="finance-next-payment-name">${escapeHtml(nextPayment.creditName)}</span>
+                        <span class="finance-next-payment-date">${formatDate(nextPayment.date)}</span>
                     </div>
-                `;
-            }
-        }
-    }
-    
-    // Топ доходов
-    if (widgetSettings.topIncome) {
-        const topIncome = await financeService.getStatsByCategory(currentFilters.period, 'income');
-        const topIncomeWidget = document.getElementById('topIncomeWidget');
-        if (topIncomeWidget) {
-            if (topIncome.length === 0) {
-                topIncomeWidget.innerHTML = '<div class="empty-state" style="padding: 20px;">Нет доходов</div>';
-            } else {
-                topIncomeWidget.innerHTML = `
-                    <div class="category-stats-list">
-                        ${topIncome.slice(0, 5).map(cat => `
-                            <div class="category-stat-item">
-                                <div class="category-stat-name">
-                                    <i class="fas ${getCategoryIcon(cat.category)}" style="width: 20px;"></i>
-                                    ${escapeHtml(cat.category)}
-                                </div>
-                                <div class="category-stat-amount" style="color: #4caf50;">+${cat.total.toLocaleString()} ₽</div>
-                            </div>
-                        `).join('')}
+                    <div class="finance-next-payment-amount">${nextPayment.amount.toLocaleString()} ₽</div>
+                </div>
+            `
+            : '';
+        
+        container.innerHTML = `
+            <div class="finance-widget-header">
+                <h3 class="finance-widget-title">
+                    <i class="fas fa-percent"></i> Кредиты
+                </h3>
+            </div>
+            <div class="finance-credits-summary">
+                <div class="finance-credits-stats">
+                    <div class="finance-credits-stat">
+                        <span class="finance-credits-stat-label">Всего кредитов</span>
+                        <span class="finance-credits-stat-value">${credits.length}</span>
                     </div>
-                `;
+                    <div class="finance-credits-stat">
+                        <span class="finance-credits-stat-label">Общий остаток</span>
+                        <span class="finance-credits-stat-value">${totalCreditBalance.toLocaleString()} ₽</span>
+                    </div>
+                </div>
+                ${nextPaymentHtml}
+            </div>
+            <div class="finance-widget-footer">
+                <a href="./credits.html" class="finance-widget-link">
+                    <i class="fas fa-list"></i> Все кредиты
+                </a>
+            </div>
+        `;
+        
+        container.addEventListener('click', (e) => {
+            if (!e.target.closest('a') && !e.target.closest('button')) {
+                window.location.href = './credits.html';
             }
-        }
+        });
+    } catch (error) {
+        console.error('[finance] Ошибка загрузки виджета кредитов:', error);
+        container.innerHTML = '<div class="finance-widget-error">Ошибка загрузки</div>';
     }
 }
 
-// ========== РЕНДЕРИНГ ==========
-
-function renderTransactions() {
-    const container = document.getElementById('transactionsList');
-    if (!container) return;
-    
-    if (transactions.length === 0) {
+/**
+ * Загрузить виджет «Совет дня»
+ */
+async function loadSavingsTipWidget(container) {
+    try {
+        const summary = await financeService.getFinanceSummary();
+        const budget = summary.budget;
+        const credits = summary.credits || [];
+        
+        const savings = budget.remaining > 0 ? budget.remaining : 0;
+        
+        if (savings <= 0 || credits.length === 0) {
+            container.innerHTML = `
+                <div class="finance-widget-header">
+                    <h3 class="finance-widget-title">
+                        <i class="fas fa-lightbulb"></i> Совет дня
+                    </h3>
+                </div>
+                <div class="finance-widget-empty">
+                    ${credits.length === 0 ? 'Добавьте кредит для получения советов' : 'Нет экономии в этом месяце'}
+                </div>
+            `;
+            return;
+        }
+        
+        const highRateCredit = credits
+            .filter(c => c.balance > 0)
+            .sort((a, b) => b.rate - a.rate)[0];
+        
+        if (!highRateCredit) {
+            container.innerHTML = `
+                <div class="finance-widget-header">
+                    <h3 class="finance-widget-title">
+                        <i class="fas fa-lightbulb"></i> Совет дня
+                    </h3>
+                </div>
+                <div class="finance-widget-empty">Нет активных кредитов с остатком</div>
+            `;
+            return;
+        }
+        
+        const prepaymentCalc = financeService.calculatePrepayment(highRateCredit, savings);
+        
         container.innerHTML = `
-            <div class="empty-state">
-                <i class="fas fa-receipt" style="font-size: 48px; margin-bottom: 16px;"></i>
-                <p>Нет транзакций</p>
-                <button class="add-transaction-btn" id="emptyStateAddBtn" style="margin-top: 16px; padding: 8px 20px;">
-                    <i class="fas fa-plus"></i> Добавить операцию
+            <div class="finance-widget-header">
+                <h3 class="finance-widget-title">
+                    <i class="fas fa-lightbulb"></i> Совет дня
+                </h3>
+            </div>
+            <div class="finance-tip-content">
+                <p class="finance-tip-text">
+                    Вы сэкономили <strong>${savings.toLocaleString()} ₽</strong> в этом месяце.
+                    Внесите их в кредит <strong>«${escapeHtml(highRateCredit.name)}»</strong> —
+                    это сократит срок на <strong>${prepaymentCalc.monthsReduced} мес.</strong>
+                    и сэкономит <strong>${prepaymentCalc.interestSaved.toLocaleString()} ₽</strong> процентов.
+                </p>
+                <button class="finance-tip-action" id="applyTipBtn" data-credit-id="${highRateCredit.id}">
+                    Внести досрочно
                 </button>
             </div>
         `;
         
-        const emptyBtn = document.getElementById('emptyStateAddBtn');
-        if (emptyBtn) {
-            emptyBtn.onclick = () => openTransactionModal();
+        const applyBtn = container.querySelector('#applyTipBtn');
+        if (applyBtn) {
+            applyBtn.addEventListener('click', () => {
+                const creditId = applyBtn.dataset.creditId;
+                window.location.href = `./credit-detail.html?id=${creditId}&prepayment=${savings}`;
+            });
         }
-        return;
+    } catch (error) {
+        console.error('[finance] Ошибка загрузки виджета совета:', error);
+        container.innerHTML = '<div class="finance-widget-error">Ошибка загрузки</div>';
     }
-    
-    container.innerHTML = transactions.map(transaction => `
-        <div class="transaction-item" data-id="${transaction.id}">
-            <div class="transaction-info">
-                <div class="transaction-category-icon">
-                    <i class="fas ${getCategoryIcon(transaction.category)}"></i>
-                </div>
-                <div class="transaction-details">
-                    <div class="transaction-category">${escapeHtml(transaction.category)}</div>
-                    <div class="transaction-description">${escapeHtml(transaction.description || '—')}</div>
-                </div>
-            </div>
-            <div class="transaction-date">
-                ${formatDate(transaction.transaction_date, 'DD.MM.YYYY')}
-            </div>
-            <div class="transaction-amount ${transaction.type}">
-                ${transaction.type === 'income' ? '+' : '-'} ${transaction.amount.toLocaleString()} ₽
-            </div>
-            <div class="transaction-actions">
-                <button class="transaction-action-btn delete-transaction" data-id="${transaction.id}" title="Удалить">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </div>
-        </div>
-    `).join('');
-    
-    document.querySelectorAll('.delete-transaction').forEach(btn => {
-        btn.addEventListener('click', async (e) => {
-            e.stopPropagation();
-            const id = btn.dataset.id;
-            if (confirm('Удалить транзакцию?')) {
-                try {
-                    await financeService.deleteTransaction(id);
-                    showToast('success', 'Транзакция удалена');
-                    await loadTransactions();
-                } catch (error) {
-                    showToast('error', 'Ошибка удаления');
-                }
-            }
-        });
-    });
 }
 
-// ========== МОДАЛЬНОЕ ОКНО ТРАНЗАКЦИИ ==========
+// ========== МОДАЛЬНЫЕ ОКНА ==========
 
-async function openTransactionModal(transaction = null) {
-    const modal = document.getElementById('transactionModal');
-    if (!modal) return;
+async function openAccountModal() {
+    const modal = document.createElement('div');
+    modal.className = 'modal finance-modal active';
+    modal.style.display = 'flex';
+    modal.innerHTML = `
+        <div class="modal-content finance-modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-plus-circle"></i> Новый счёт</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Название счёта</label>
+                    <input type="text" id="accountName" placeholder="Наличные, Карта Сбер..." maxlength="100">
+                </div>
+                <div class="form-group">
+                    <label>Тип счёта</label>
+                    <select id="accountType">
+                        <option value="cash">Наличные</option>
+                        <option value="card">Банковская карта</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Начальный баланс</label>
+                    <input type="number" id="accountBalance" placeholder="0" min="0" step="0.01" value="0">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary modal-cancel">Отмена</button>
+                <button class="btn-primary modal-save">Создать счёт</button>
+            </div>
+        </div>
+    `;
     
-    const titleEl = document.getElementById('modalTitle');
-    const typeSelect = document.getElementById('transactionType');
-    const amountInput = document.getElementById('transactionAmount');
-    const categorySelect = document.getElementById('transactionCategory');
-    const descInput = document.getElementById('transactionDescription');
-    const dateInput = document.getElementById('transactionDate');
-    const saveBtn = document.getElementById('saveTransactionBtn');
+    document.body.appendChild(modal);
     
-    const categories = await financeService.getCategories();
+    const closeModal = () => modal.remove();
     
-    categorySelect.innerHTML = '<option value="">Выберите категорию</option>';
-    const currentType = typeSelect?.value || 'expense';
-    const categoryList = categories[currentType] || [];
-    categoryList.forEach(cat => {
-        const option = document.createElement('option');
-        option.value = cat;
-        option.textContent = cat;
-        categorySelect.appendChild(option);
+    modal.querySelector('.modal-close').addEventListener('click', closeModal);
+    modal.querySelector('.modal-cancel').addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
     });
     
-    dateInput.value = new Date().toISOString().split('T')[0];
-    amountInput.value = '';
-    descInput.value = '';
-    
-    if (transaction) {
-        titleEl.innerHTML = '<i class="fas fa-edit"></i> Редактировать операцию';
-        typeSelect.value = transaction.type;
-        amountInput.value = transaction.amount;
-        categorySelect.value = transaction.category;
-        descInput.value = transaction.description || '';
-        dateInput.value = transaction.transaction_date;
+    modal.querySelector('.modal-save').addEventListener('click', async () => {
+        const name = modal.querySelector('#accountName').value.trim();
+        const type = modal.querySelector('#accountType').value;
+        const balance = parseFloat(modal.querySelector('#accountBalance').value) || 0;
         
-        const updateCategories = async () => {
-            const newCategories = await financeService.getCategories();
-            const newList = newCategories[typeSelect.value] || [];
-            categorySelect.innerHTML = '<option value="">Выберите категорию</option>';
-            newList.forEach(cat => {
-                const option = document.createElement('option');
-                option.value = cat;
-                option.textContent = cat;
-                if (transaction && transaction.category === cat) option.selected = true;
-                categorySelect.appendChild(option);
-            });
-        };
-        typeSelect.onchange = updateCategories;
-    } else {
-        titleEl.innerHTML = '<i class="fas fa-plus-circle"></i> Новая операция';
-        typeSelect.onchange = async () => {
-            const newCategories = await financeService.getCategories();
-            const newList = newCategories[typeSelect.value] || [];
-            categorySelect.innerHTML = '<option value="">Выберите категорию</option>';
-            newList.forEach(cat => {
-                const option = document.createElement('option');
-                option.value = cat;
-                option.textContent = cat;
-                categorySelect.appendChild(option);
-            });
-        };
-    }
-    
-    modal.style.display = 'flex';
-    modal.classList.add('active');
-    
-    const saveHandler = async () => {
-        const type = typeSelect.value;
-        const amount = parseFloat(amountInput.value);
-        const category = categorySelect.value;
-        const description = descInput.value;
-        const transactionDate = dateInput.value;
-        
-        if (!amount || isNaN(amount) || amount <= 0) {
-            showToast('error', 'Введите корректную сумму');
-            return;
-        }
-        
-        if (!category) {
-            showToast('error', 'Выберите категорию');
+        if (!name) {
+            alert('Введите название счёта');
             return;
         }
         
         try {
-            if (transaction) {
-                await financeService.updateTransaction(transaction.id, {
-                    type, amount, category, description, transaction_date: transactionDate
-                });
-                showToast('success', 'Транзакция обновлена');
-            } else {
-                await financeService.addTransaction({
-                    type, amount, category, description, transaction_date: transactionDate
-                });
-                showToast('success', 'Транзакция добавлена');
-            }
+            await financeService.createAccount({ name, type, balance });
+            eventBus.emit('finance:account:created');
             closeModal();
-            await loadTransactions();
+            await refreshAllWidgets();
         } catch (error) {
-            showToast('error', 'Ошибка сохранения');
+            console.error('[finance] Ошибка создания счёта:', error);
+            alert('Ошибка создания счёта: ' + error.message);
         }
-    };
+    });
+}
+
+async function openBudgetSetupModal() {
+    const categories = await financeService.getCategories('expense');
+    const existingBudget = await financeService.getBudget(currentMonth);
+    const budgetMap = {};
+    existingBudget.forEach(b => { budgetMap[b.category_id] = b.planned; });
     
-    saveBtn.onclick = saveHandler;
+    const modal = document.createElement('div');
+    modal.className = 'modal finance-modal active';
+    modal.style.display = 'flex';
+    
+    const categoriesHtml = categories.map(cat => `
+        <div class="finance-budget-setup-item">
+            <label>${escapeHtml(cat.name)}</label>
+            <input type="number" 
+                   class="finance-budget-input" 
+                   data-category-id="${cat.id}"
+                   value="${budgetMap[cat.id] || 0}"
+                   min="0" 
+                   step="100"
+                   placeholder="0">
+        </div>
+    `).join('');
+    
+    const monthName = new Date(currentMonth + '-01').toLocaleString('ru', { month: 'long', year: 'numeric' });
+    
+    modal.innerHTML = `
+        <div class="modal-content finance-modal-content finance-budget-modal">
+            <div class="modal-header">
+                <h3><i class="fas fa-chart-pie"></i> Бюджет на ${monthName}</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="finance-budget-setup-list">
+                    ${categoriesHtml}
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary modal-cancel">Отмена</button>
+                <button class="btn-primary modal-save">Сохранить</button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    const closeModal = () => modal.remove();
+    
+    modal.querySelector('.modal-close').addEventListener('click', closeModal);
+    modal.querySelector('.modal-cancel').addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+    });
+    
+    modal.querySelector('.modal-save').addEventListener('click', async () => {
+        const inputs = modal.querySelectorAll('.finance-budget-input');
+        const promises = [];
+        
+        for (const input of inputs) {
+            const categoryId = input.dataset.categoryId;
+            const planned = parseFloat(input.value) || 0;
+            if (planned > 0) {
+                promises.push(financeService.setBudgetPlan(categoryId, currentMonth, planned));
+            }
+        }
+        
+        try {
+            await Promise.all(promises);
+            eventBus.emit('finance:budget:updated');
+            closeModal();
+            await refreshAllWidgets();
+        } catch (error) {
+            console.error('[finance] Ошибка сохранения бюджета:', error);
+            alert('Ошибка сохранения бюджета');
+        }
+    });
 }
 
-function closeModal() {
-    const modal = document.getElementById('transactionModal');
-    if (modal) {
-        modal.style.display = 'none';
-        modal.classList.remove('active');
-    }
+// ========== ОБНОВЛЕНИЕ ВИДЖЕТОВ ==========
+
+async function refreshAllWidgets() {
+    const accountsContainer = document.querySelector('[data-widget="finance-accounts"]');
+    const budgetContainer = document.querySelector('[data-widget="finance-budget"]');
+    const creditsContainer = document.querySelector('[data-widget="finance-credits"]');
+    const tipContainer = document.querySelector('[data-widget="finance-tip"]');
+    
+    if (accountsContainer) await loadAccountsWidget(accountsContainer);
+    if (budgetContainer) await loadBudgetWidget(budgetContainer);
+    if (creditsContainer) await loadCreditsSummaryWidget(creditsContainer);
+    if (tipContainer) await loadSavingsTipWidget(tipContainer);
 }
 
-// ========== ИНИЦИАЛИЗАЦИЯ ==========
+// ========== ВСПОМОГАТЕЛЬНЫЕ ==========
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function formatDate(dateString) {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('ru', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+// ========== ИНИЦИАЛИЗАЦИЯ СТРАНИЦЫ ==========
 
 export async function initFinancePage() {
     if (isInitialized) {
@@ -565,65 +564,24 @@ export async function initFinancePage() {
     
     currentUser = getCurrentSupabaseUser();
     updateSupabaseUserInterface();
-    console.log('[finance] Текущий пользователь:', currentUser?.name);
     
-    // Загружаем настройки виджетов
-    loadWidgetSettings();
+    await refreshAllWidgets();
     
-    // Инициализируем новые кнопки
-    initPeriodButtons();
-    initTypeButtons();
-    initDatePickers();
+    eventBus.on('transaction:added', refreshAllWidgets);
+    eventBus.on('transaction:updated', refreshAllWidgets);
+    eventBus.on('transaction:deleted', refreshAllWidgets);
+    eventBus.on('credit:prepayment', refreshAllWidgets);
+    eventBus.on('budget:updated', refreshAllWidgets);
     
-    // Кнопка добавления транзакции
-    const addBtn = document.getElementById('addTransactionBtn');
-    if (addBtn) {
-        addBtn.onclick = () => openTransactionModal();
+    const addTransactionBtn = document.getElementById('addTransactionBtn');
+    if (addTransactionBtn) {
+        addTransactionBtn.addEventListener('click', () => {
+            window.location.href = './transactions.html?action=new';
+        });
     }
-    
-    // Кнопки управления виджетами
-    const widgetSettingsBtn = document.getElementById('widgetSettingsBtn');
-    if (widgetSettingsBtn) {
-        widgetSettingsBtn.onclick = () => openWidgetSettingsModal();
-    }
-    
-    const closeWidgetSettingsBtn = document.getElementById('closeWidgetSettingsBtn');
-    if (closeWidgetSettingsBtn) {
-        closeWidgetSettingsBtn.onclick = () => closeWidgetSettingsModal();
-    }
-    
-    const saveWidgetSettingsBtn = document.getElementById('saveWidgetSettingsBtn');
-    if (saveWidgetSettingsBtn) {
-        saveWidgetSettingsBtn.onclick = () => saveWidgetSettingsFromModal();
-    }
-    
-    // Кнопки настроек каждого виджета
-    document.querySelectorAll('.widget-settings-btn').forEach(btn => {
-        btn.onclick = (e) => {
-            e.stopPropagation();
-            openWidgetSettingsModal();
-        };
-    });
-    
-    // Закрытие модалок по клику вне
-    const modal = document.getElementById('transactionModal');
-    if (modal) {
-        modal.onclick = (e) => {
-            if (e.target === modal) closeModal();
-        };
-    }
-    
-    const widgetModal = document.getElementById('widgetSettingsModal');
-    if (widgetModal) {
-        widgetModal.onclick = (e) => {
-            if (e.target === widgetModal) closeWidgetSettingsModal();
-        };
-    }
-    
-    document.getElementById('cancelModalBtn')?.addEventListener('click', closeModal);
-    
-    await loadTransactions();
     
     isInitialized = true;
     console.log('[finance] Инициализация завершена');
 }
+
+export default { initFinancePage };

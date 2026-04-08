@@ -59,6 +59,13 @@ function getBasePath() {
 const BASE_PATH = getBasePath();
 
 function getPageUrl(page) {
+    // Если мы уже находимся в папке app, используем относительный путь
+    const currentPath = window.location.pathname;
+    if (currentPath.includes('/app/')) {
+        return `./${page}`;
+    }
+    
+    // Для GitHub Pages или корня сайта
     if (BASE_PATH) {
         return `${BASE_PATH}/app/${page}`;
     }

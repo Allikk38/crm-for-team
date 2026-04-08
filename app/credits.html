@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    
+    <!-- 
+    ============================================
+    ФАЙЛ: app/credits.html
+    РОЛЬ: Страница списка кредитов модуля «Финансы»
+    
+    ОСОБЕННОСТИ:
+      - Отображение кредитов в виде карточек
+      - Создание нового кредита
+      - Переход на детальную страницу
+      - Расчёт аннуитетного платежа при создании
+    
+    ЗАВИСИМОСТИ:
+      - js/pages/credits.js
+      - js/services/finance-supabase.js
+    
+    ИСТОРИЯ:
+      2026-04-08: Создание страницы
+    ============================================
+    -->
+    
+    <script>
+        (function() {
+            try {
+                const savedTheme = localStorage.getItem('crm_theme');
+                if (savedTheme === 'light') {
+                    if (document.documentElement) document.documentElement.classList.add('theme-light');
+                    if (document.body) document.body.classList.add('theme-light');
+                } else if (savedTheme === 'dark') {
+                    if (document.documentElement) document.documentElement.classList.add('theme-dark');
+                    if (document.body) document.body.classList.add('theme-dark');
+                }
+            } catch(e) {}
+        })();
+    </script>
+    
+    <title>Кредиты - Финансы - CRM</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="../css/base.css">
+    <link rel="stylesheet" href="../css/theme.css">
+    <link rel="stylesheet" href="../css/components.css">
+    <link rel="stylesheet" href="../css/modal.css">
+    <link rel="stylesheet" href="../css/responsive.css">
+    <link rel="stylesheet" href="../css/animations.css">
+    
+    <style>
+        .credits-page {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+        
+        .page-header h1 {
+            font-size: 1.8rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .page-header h1 i {
+            color: var(--accent);
+        }
+        
+        .header-actions {
+            display: flex;
+            gap: 12px;
+        }
+        
+        .btn {
+            padding: 12px 20px;
+            border-radius: 40px;
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn:hover {
+            background: rgba(108, 108, 255, 0.1);
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+        
+        .btn-primary {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: var(--accent-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(108, 108, 255, 0.3);
+        }
+        
+        /* Статистика */
+        .credits-summary {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+        
+        .summary-card {
+            flex: 1;
+            min-width: 180px;
+            background: var(--card-bg);
+            border-radius: 20px;
+            border: 1px solid var(--card-border);
+            padding: 24px;
+        }
+        
+        .summary-label {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .summary-value {
+            font-size: 2rem;
+            font-weight: 700;
+        }
+        
+        /* Сетка кредитов */
+        .credits-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+            gap: 20px;
+        }
+        
+        .credit-card {
+            background: var(--card-bg);
+            border-radius: 20px;
+            border: 1px solid var(--card-border);
+            padding: 24px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .credit-card:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+        }
+        
+        .credit-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 20px;
+        }
+        
+        .credit-name {
+            font-size: 1.3rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .credit-name i {
+            color: var(--accent);
+        }
+        
+        .credit-status {
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        
+        .credit-status.active {
+            background: rgba(76, 175, 80, 0.15);
+            color: #4caf50;
+        }
+        
+        .credit-status.closed {
+            background: rgba(158, 158, 158, 0.15);
+            color: #9e9e9e;
+        }
+        
+        .credit-details {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        
+        .credit-detail-row {
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .credit-detail-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+        
+        .credit-detail-value {
+            font-weight: 600;
+        }
+        
+        .credit-detail-value.amount {
+            color: var(--accent);
+        }
+        
+        .credit-progress {
+            margin-bottom: 20px;
+        }
+        
+        .credit-progress-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            margin-bottom: 6px;
+        }
+        
+        .progress-bar {
+            height: 8px;
+            background: var(--card-border);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent), var(--accent-hover));
+            border-radius: 4px;
+            transition: width 0.3s;
+        }
+        
+        .credit-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-top: 16px;
+            border-top: 1px solid var(--card-border);
+        }
+        
+        .next-payment {
+            font-size: 0.85rem;
+        }
+        
+        .next-payment-date {
+            color: var(--accent);
+            font-weight: 600;
+        }
+        
+        .credit-actions {
+            display: flex;
+            gap: 8px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        
+        .credit-card:hover .credit-actions {
+            opacity: 1;
+        }
+        
+        .credit-action-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+        
+        .credit-action-btn.edit:hover {
+            background: rgba(108, 108, 255, 0.2);
+            color: var(--accent);
+        }
+        
+        .credit-action-btn.delete:hover {
+            background: rgba(255, 107, 107, 0.2);
+            color: #ff6b6b;
+        }
+        
+        /* Пустое состояние */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-muted);
+        }
+        
+        .empty-state i {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+        
+        /* Модальное окно */
+        .modal-content {
+            max-width: 500px;
+        }
+        
+        .form-group {
+            margin-bottom: 16px;
+        }
+        
+        .form-group label {
+            display: block;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+        }
+        
+        .form-control {
+            width: 100%;
+            padding: 12px 16px;
+            background: var(--input-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            color: var(--text-primary);
+            font-size: 0.95rem;
+        }
+        
+        .form-control:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+        
+        .form-row {
+            display: flex;
+            gap: 12px;
+        }
+        
+        .form-row .form-group {
+            flex: 1;
+        }
+        
+        .calculation-result {
+            margin-top: 16px;
+            padding: 16px;
+            background: var(--hover-bg);
+            border-radius: 12px;
+        }
+        
+        .calculation-result-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+        }
+        
+        .calculation-result-value {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+        
+        /* Адаптивность */
+        @media (max-width: 768px) {
+            .credits-page {
+                padding: 16px;
+            }
+            
+            .page-header h1 {
+                font-size: 1.5rem;
+            }
+            
+            .credits-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .credits-summary {
+                flex-direction: column;
+                gap: 12px;
+            }
+            
+            .summary-card {
+                padding: 16px;
+            }
+            
+            .summary-value {
+                font-size: 1.5rem;
+            }
+            
+            .credit-actions {
+                opacity: 1;
+            }
+        }
+        
+        /* Загрузка */
+        .loading-state {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-muted);
+        }
+        
+        .loading-state i {
+            font-size: 24px;
+            margin-bottom: 12px;
+        }
+        
+        /* Анимации */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .credit-card {
+            animation: fadeInUp 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-layout">
+        <!-- Боковая панель -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-logo">
+                <i class="fas fa-chart-line"></i>
+                <span>CRM Team</span>
+            </div>
+            <nav class="sidebar-nav" id="sidebar-nav"></nav>
+            <div class="sidebar-footer">
+                <button class="collapse-btn" onclick="window.sidebar?.toggleSidebar()">
+                    <i class="fas fa-chevron-left"></i>
+                    <span>Свернуть</span>
+                </button>
+                <button class="logout-btn" onclick="window.sidebar?.logout()" style="margin-top: 12px; width: 100%; padding: 10px; background: rgba(255, 107, 107, 0.2); border: none; border-radius: 12px; color: #ff6b6b; cursor: pointer;">
+                    <i class="fas fa-sign-out-alt"></i> Выйти
+                </button>
+            </div>
+        </aside>
+        
+        <!-- Основной контент -->
+        <main class="main-content">
+            <div class="top-bar">
+                <div class="user-profile" onclick="window.sidebar?.goToProfile()">
+                    <div class="user-info">
+                        <div class="user-name" id="userName">Загрузка...</div>
+                        <div class="user-role" id="userRole">—</div>
+                    </div>
+                    <div class="user-avatar" id="userAvatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="credits-page">
+                <!-- Заголовок -->
+                <div class="page-header">
+                    <h1>
+                        <i class="fas fa-percent"></i>
+                        Кредиты
+                    </h1>
+                    <div class="header-actions">
+                        <button class="btn" id="backToFinanceBtn">
+                            <i class="fas fa-arrow-left"></i>
+                            Назад
+                        </button>
+                        <button class="btn btn-primary" id="addCreditBtn">
+                            <i class="fas fa-plus"></i>
+                            Добавить кредит
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Статистика -->
+                <div class="credits-summary" id="creditsSummary">
+                    <div class="summary-card">
+                        <div class="summary-label">
+                            <i class="fas fa-coins"></i>
+                            Общий остаток
+                        </div>
+                        <div class="summary-value" id="totalBalance">0 ₽</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-label">
+                            <i class="fas fa-calendar-alt"></i>
+                            Ежемесячный платёж
+                        </div>
+                        <div class="summary-value" id="totalMonthlyPayment">0 ₽</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-label">
+                            <i class="fas fa-percent"></i>
+                            Кредитов
+                        </div>
+                        <div class="summary-value" id="creditsCount">0</div>
+                    </div>
+                </div>
+                
+                <!-- Список кредитов -->
+                <div class="credits-grid" id="creditsGrid">
+                    <div class="loading-state">
+                        <i class="fas fa-spinner fa-pulse"></i>
+                        <p>Загрузка кредитов...</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <!-- Модальное окно создания/редактирования кредита -->
+    <div id="creditModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h3 id="modalTitle">
+                <i class="fas fa-plus-circle"></i>
+                Новый кредит
+            </h3>
+            
+            <div class="form-group">
+                <label>Название кредита</label>
+                <input type="text" class="form-control" id="modalName" placeholder="Ипотека, Автокредит..." maxlength="100" required>
+            </div>
+            
+            <div class="form-group">
+                <label>Сумма кредита</label>
+                <input type="number" class="form-control" id="modalAmount" placeholder="0" min="0.01" step="0.01" required>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Ставка (% годовых)</label>
+                    <input type="number" class="form-control" id="modalRate" placeholder="0" min="0" step="0.01" required>
+                </div>
+                <div class="form-group">
+                    <label>Срок (месяцев)</label>
+                    <input type="number" class="form-control" id="modalTerm" placeholder="12" min="1" step="1" required>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>Дата начала</label>
+                <input type="date" class="form-control" id="modalStartDate" required>
+            </div>
+            
+            <div class="calculation-result" id="paymentCalculation" style="display: none;">
+                <div class="calculation-result-label">Ежемесячный платёж</div>
+                <div class="calculation-result-value" id="calculatedPayment">0 ₽</div>
+            </div>
+            
+            <div class="modal-buttons">
+                <button class="btn" id="cancelModalBtn">Отмена</button>
+                <button class="btn btn-primary" id="saveCreditBtn">Сохранить</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Универсальный загрузчик модулей -->
+    <script type="module" src="../js/core/moduleLoader.js"></script>
+    
+    <!-- Инициализация страницы -->
+    <script type="module">
+        import { initCreditsPage } from '../js/pages/credits.js';
+        initCreditsPage();
+    </script>
+    
+    <!-- Боковое меню -->
+    <script type="module">
+        import * as sidebar from '../layout.js';
+        window.sidebar = sidebar;
+        sidebar.initSidebar();
+    </script>
+</body>
+</html>

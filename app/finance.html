@@ -7,16 +7,13 @@
     <!-- 
     ============================================
     ФАЙЛ: app/finance.html
-    РОЛЬ: Страница управления финансами (доходы/расходы)
+    РОЛЬ: Дашборд модуля «Финансы»
     
     ОСОБЕННОСТИ:
-      - Добавление доходов и расходов
-      - Просмотр списка транзакций
-      - Фильтрация по типу, периоду, датам
-      - Статистика по периодам
-      - Адаптивный дизайн для мобильных устройств
-      - Виджеты справа (стационарные)
-      - Управление виджетами (как на дашборде)
+      - Виджеты: остатки по счетам, бюджет, кредиты, совет дня
+      - Переходы на страницы транзакций и кредитов
+      - Drag-and-drop виджетов (совместимо с dashboard-container)
+      - Адаптивный дизайн
     
     ЗАВИСИМОСТИ:
       - js/pages/finance.js
@@ -24,10 +21,7 @@
       - js/core/supabase-session.js
     
     ИСТОРИЯ:
-      - 08.04.2026: Создание страницы финансов
-      - 08.04.2026: Добавлены стили для select в темной теме
-      - 08.04.2026: Добавлена кнопка управления виджетами
-      - 08.04.2026: Заменен select периода на кнопки (как на дашборде)
+      2026-04-08: Создание страницы для новой структуры finance_*
     ============================================
     -->
     
@@ -59,206 +53,49 @@
     <link rel="stylesheet" href="../css/animations.css">
     
     <style>
-        /* Стили для страницы финансов */
-        .finance-layout {
-            display: flex;
-            gap: 24px;
-            max-width: 1600px;
+        /* Стили для дашборда финансов */
+        .finance-dashboard {
+            max-width: 1400px;
             margin: 0 auto;
             padding: 20px;
         }
         
-        /* Основной контент */
-        .finance-main {
-            flex: 1;
-            min-width: 0;
-        }
-        
-        /* Виджеты справа (стационарные) */
-        .finance-sidebar {
-            width: 320px;
-            flex-shrink: 0;
-            position: sticky;
-            top: 20px;
-            height: fit-content;
-            max-height: calc(100vh - 40px);
-            overflow-y: auto;
-        }
-        
-        /* Карточки виджетов */
-        .finance-widget {
-            background: var(--card-bg);
-            border-radius: 20px;
-            border: 1px solid var(--card-border);
-            padding: 20px;
-            margin-bottom: 20px;
-            position: relative;
-        }
-        
-        .finance-widget:last-child {
-            margin-bottom: 0;
-        }
-        
-        .finance-widget-title {
-            font-size: 0.85rem;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: var(--text-muted);
-            margin-bottom: 16px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 8px;
-        }
-        
-        /* Кнопка управления виджетами */
-        .widget-settings-btn {
-            background: none;
-            border: none;
-            color: var(--text-muted);
-            cursor: pointer;
-            padding: 4px 8px;
-            border-radius: 8px;
-            transition: all 0.2s;
-            font-size: 0.8rem;
-        }
-        
-        .widget-settings-btn:hover {
-            background: rgba(108, 108, 255, 0.1);
-            color: var(--accent);
-        }
-        
-        /* Стили для select в темной теме */
-        select, .filter-select, .modal-select {
-            background: var(--input-bg);
-            border: 1px solid var(--card-border);
-            border-radius: 40px;
-            padding: 10px 16px;
-            color: var(--text-primary);
-            font-size: 0.85rem;
-            cursor: pointer;
-            appearance: none;
-            -webkit-appearance: none;
-            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
-            background-repeat: no-repeat;
-            background-position: right 12px center;
-            background-size: 16px;
-            padding-right: 40px;
-        }
-        
-        /* Стили для select в модальном окне */
-        .modal-select {
-            width: 100%;
-            margin-bottom: 16px;
-            border-radius: 12px;
-        }
-        
-        /* Стили для input date */
-        input[type="date"] {
-            background: var(--input-bg);
-            border: 1px solid var(--card-border);
-            border-radius: 40px;
-            padding: 10px 16px;
-            color: var(--text-primary);
-            font-size: 0.85rem;
-            cursor: pointer;
-        }
-        
-        input[type="date"]::-webkit-calendar-picker-indicator {
-            filter: invert(0.5);
-            cursor: pointer;
-        }
-        
-        /* Темная тема для календаря */
-        .theme-dark input[type="date"]::-webkit-calendar-picker-indicator {
-            filter: invert(1);
-        }
-        
-        /* Баланс */
-        .balance-card {
-            background: linear-gradient(135deg, var(--accent), var(--accent-hover));
-            border-radius: 20px;
-            padding: 24px;
-            margin-bottom: 24px;
-            color: white;
-        }
-        
-        .balance-label {
-            font-size: 0.8rem;
-            opacity: 0.8;
-            margin-bottom: 8px;
-        }
-        
-        .balance-value {
-            font-size: 2.2rem;
-            font-weight: 700;
-        }
-        
-        /* Кнопка добавления */
-        .add-transaction-btn {
-            background: linear-gradient(135deg, var(--accent), var(--accent-hover));
-            border: none;
-            padding: 14px 24px;
-            border-radius: 40px;
-            color: white;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-            font-weight: 600;
-            transition: all 0.2s;
-            margin-bottom: 24px;
-        }
-        
-        .add-transaction-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(108, 108, 255, 0.4);
-        }
-        
-        /* Тулбар как на дашборде */
-        .finance-toolbar {
+        .finance-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            flex-wrap: wrap;
-            gap: 16px;
             margin-bottom: 24px;
-            padding: 16px 20px;
-            background: var(--card-bg);
-            border-radius: 20px;
-            border: 1px solid var(--card-border);
         }
         
-        .finance-title {
-            font-size: 18px;
+        .finance-header h1 {
+            font-size: 1.8rem;
             font-weight: 600;
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 12px;
         }
         
-        .finance-title i {
+        .finance-header h1 i {
             color: var(--accent);
         }
         
-        .finance-controls {
+        .finance-actions {
             display: flex;
             gap: 12px;
-            flex-wrap: wrap;
         }
         
         .finance-btn {
-            padding: 8px 16px;
+            padding: 12px 20px;
             border-radius: 40px;
-            background: var(--hover-bg);
+            background: var(--card-bg);
             border: 1px solid var(--card-border);
             color: var(--text-primary);
             cursor: pointer;
             transition: all 0.2s;
-            font-size: 0.85rem;
+            font-size: 0.9rem;
             display: inline-flex;
             align-items: center;
-            gap: 6px;
+            gap: 8px;
         }
         
         .finance-btn:hover {
@@ -276,291 +113,439 @@
         .finance-btn.primary:hover {
             background: var(--accent-hover);
             transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(108, 108, 255, 0.3);
         }
         
-        /* Кнопки периода */
-        .period-buttons {
-            display: flex;
-            gap: 8px;
-            background: var(--input-bg);
-            padding: 4px;
-            border-radius: 48px;
-            border: 1px solid var(--card-border);
+        /* Сетка виджетов */
+        .finance-widgets-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            margin-bottom: 20px;
         }
         
-        .period-btn {
-            padding: 6px 16px;
-            border-radius: 40px;
-            background: transparent;
-            border: none;
-            color: var(--text-muted);
-            cursor: pointer;
-            transition: all 0.2s;
-            font-size: 0.8rem;
-            font-weight: 500;
-        }
-        
-        .period-btn:hover {
-            color: var(--accent);
-        }
-        
-        .period-btn.active {
-            background: var(--accent);
-            color: white;
-        }
-        
-        /* Фильтр по типу */
-        .type-filter {
-            display: flex;
-            gap: 8px;
-            background: var(--input-bg);
-            padding: 4px;
-            border-radius: 48px;
-            border: 1px solid var(--card-border);
-        }
-        
-        .type-filter-btn {
-            padding: 6px 16px;
-            border-radius: 40px;
-            background: transparent;
-            border: none;
-            color: var(--text-muted);
-            cursor: pointer;
-            transition: all 0.2s;
-            font-size: 0.8rem;
-            font-weight: 500;
-        }
-        
-        .type-filter-btn:hover {
-            color: var(--accent);
-        }
-        
-        .type-filter-btn.active {
-            background: var(--accent);
-            color: white;
-        }
-        
-        /* Дата пикеры */
-        .date-pickers {
-            display: flex;
-            gap: 12px;
-            align-items: center;
-        }
-        
-        .date-picker-wrapper {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            background: var(--input-bg);
-            border: 1px solid var(--card-border);
-            border-radius: 40px;
-            padding: 4px 12px;
-        }
-        
-        .date-picker-wrapper label {
-            font-size: 0.7rem;
-            color: var(--text-muted);
-        }
-        
-        .date-picker-wrapper input {
-            background: transparent;
-            border: none;
-            padding: 6px 0;
-            color: var(--text-primary);
-            font-size: 0.8rem;
-        }
-        
-        .date-picker-wrapper input:focus {
-            outline: none;
-        }
-        
-        /* Таблица транзакций */
-        .transactions-list {
+        /* Карточки виджетов */
+        .finance-widget {
             background: var(--card-bg);
             border-radius: 20px;
             border: 1px solid var(--card-border);
-            overflow: hidden;
-        }
-        
-        .transaction-item {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 16px 20px;
-            border-bottom: 1px solid var(--card-border);
+            padding: 20px;
+            cursor: pointer;
             transition: all 0.2s;
         }
         
-        .transaction-item:hover {
-            background: rgba(108, 108, 255, 0.05);
+        .finance-widget:hover {
+            border-color: var(--accent);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
         
-        .transaction-info {
+        .finance-widget-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        
+        .finance-widget-title {
+            font-size: 1rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .finance-widget-title i {
+            color: var(--accent);
+        }
+        
+        .finance-widget-add-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+        
+        .finance-widget-add-btn:hover {
+            background: rgba(108, 108, 255, 0.1);
+            color: var(--accent);
+        }
+        
+        .finance-widget-content {
+            min-height: 150px;
+        }
+        
+        .finance-widget-footer {
+            margin-top: 16px;
+            padding-top: 12px;
+            border-top: 1px solid var(--card-border);
+        }
+        
+        .finance-widget-link {
+            color: var(--accent);
+            text-decoration: none;
+            font-size: 0.85rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .finance-widget-link:hover {
+            text-decoration: underline;
+        }
+        
+        .finance-widget-empty {
+            text-align: center;
+            padding: 30px 20px;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+        
+        .finance-widget-error {
+            text-align: center;
+            padding: 30px 20px;
+            color: #ff6b6b;
+            font-size: 0.9rem;
+        }
+        
+        /* Виджет счетов */
+        .finance-accounts-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .finance-account-item {
             display: flex;
             align-items: center;
             gap: 12px;
-            flex: 1;
+            padding: 10px;
+            border-radius: 12px;
+            transition: background 0.2s;
         }
         
-        .transaction-category-icon {
-            width: 40px;
-            height: 40px;
+        .finance-account-item:hover {
+            background: var(--hover-bg);
+        }
+        
+        .finance-account-icon {
+            width: 44px;
+            height: 44px;
             background: rgba(108, 108, 255, 0.1);
             border-radius: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
             color: var(--accent);
+            font-size: 1.2rem;
         }
         
-        .transaction-details {
+        .finance-account-info {
             flex: 1;
         }
         
-        .transaction-category {
+        .finance-account-name {
             font-weight: 600;
-            margin-bottom: 4px;
+            margin-bottom: 2px;
         }
         
-        .transaction-description {
+        .finance-account-type {
             font-size: 0.75rem;
             color: var(--text-muted);
         }
         
-        .transaction-date {
-            font-size: 0.7rem;
-            color: var(--text-muted);
-            min-width: 80px;
-            text-align: right;
-        }
-        
-        .transaction-amount {
+        .finance-account-balance {
             font-weight: 700;
-            min-width: 100px;
-            text-align: right;
+            font-size: 1.1rem;
         }
         
-        .transaction-amount.income {
+        .finance-account-balance.positive {
             color: #4caf50;
         }
         
-        .transaction-amount.expense {
+        .finance-account-balance.negative {
             color: #ff6b6b;
         }
         
-        .transaction-actions {
+        .finance-total-balance {
             display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.95rem;
+        }
+        
+        /* Виджет бюджета */
+        .finance-budget-summary {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 16px;
+            padding: 12px;
+            background: var(--hover-bg);
+            border-radius: 12px;
+        }
+        
+        .finance-budget-total {
+            text-align: center;
+        }
+        
+        .finance-budget-total span {
+            display: block;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+        }
+        
+        .finance-budget-total strong {
+            font-size: 1.2rem;
+        }
+        
+        .finance-month-selector {
+            display: flex;
+            align-items: center;
             gap: 8px;
-            margin-left: 12px;
-            opacity: 0;
-            transition: opacity 0.2s;
         }
         
-        .transaction-item:hover .transaction-actions {
-            opacity: 1;
-        }
-        
-        .transaction-action-btn {
+        .finance-month-btn {
             background: none;
             border: none;
             color: var(--text-muted);
             cursor: pointer;
-            padding: 4px;
+            padding: 4px 8px;
             border-radius: 6px;
         }
         
-        .transaction-action-btn:hover {
-            background: rgba(255, 107, 107, 0.2);
-            color: #ff6b6b;
+        .finance-month-btn:hover {
+            background: var(--hover-bg);
+            color: var(--accent);
         }
         
-        /* Пустое состояние */
-        .empty-state {
-            text-align: center;
-            padding: 60px 20px;
-            color: var(--text-muted);
+        .finance-month-display {
+            font-size: 0.85rem;
+            font-weight: 500;
         }
         
-        /* Категории в виджете */
-        .category-stats-list {
+        .finance-budget-list {
             display: flex;
             flex-direction: column;
             gap: 12px;
         }
         
-        .category-stat-item {
+        .finance-budget-item {
+            cursor: pointer;
+        }
+        
+        .finance-budget-info {
             display: flex;
-            align-items: center;
             justify-content: space-between;
+            margin-bottom: 6px;
+        }
+        
+        .finance-budget-name {
             font-size: 0.85rem;
         }
         
-        .category-stat-name {
-            display: flex;
-            align-items: center;
-            gap: 8px;
+        .finance-budget-values {
+            font-size: 0.8rem;
+            color: var(--text-muted);
         }
         
-        .category-stat-amount {
-            font-weight: 600;
+        .finance-budget-progress {
+            height: 6px;
+            background: var(--card-border);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-bottom: 4px;
+        }
+        
+        .finance-budget-progress-bar {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.3s;
+        }
+        
+        .finance-budget-progress-bar.good {
+            background: linear-gradient(90deg, #4caf50, #8bc34a);
+        }
+        
+        .finance-budget-progress-bar.warning {
+            background: linear-gradient(90deg, #ff9800, #ffc107);
+        }
+        
+        .finance-budget-progress-bar.over {
+            background: linear-gradient(90deg, #f44336, #ff6b6b);
+        }
+        
+        .finance-budget-remaining {
+            font-size: 0.75rem;
+            text-align: right;
+        }
+        
+        .finance-budget-remaining.positive {
+            color: #4caf50;
+        }
+        
+        .finance-budget-remaining.negative {
             color: #ff6b6b;
         }
         
-        /* Мобильная адаптация */
+        /* Виджет кредитов */
+        .finance-credits-summary {
+            padding: 8px 0;
+        }
+        
+        .finance-credits-stats {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 20px;
+        }
+        
+        .finance-credits-stat {
+            text-align: center;
+        }
+        
+        .finance-credits-stat-label {
+            display: block;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+        }
+        
+        .finance-credits-stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+        
+        .finance-next-payment {
+            padding: 16px;
+            background: var(--hover-bg);
+            border-radius: 12px;
+        }
+        
+        .finance-next-payment-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+        
+        .finance-next-payment-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+        
+        .finance-next-payment-name {
+            font-weight: 600;
+        }
+        
+        .finance-next-payment-date {
+            color: var(--text-muted);
+        }
+        
+        .finance-next-payment-amount {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+        
+        /* Виджет совета */
+        .finance-tip-content {
+            padding: 8px 0;
+        }
+        
+        .finance-tip-text {
+            font-size: 0.95rem;
+            line-height: 1.5;
+            margin-bottom: 16px;
+        }
+        
+        .finance-tip-text strong {
+            color: var(--accent);
+        }
+        
+        .finance-tip-action {
+            width: 100%;
+            padding: 12px;
+            background: var(--accent);
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .finance-tip-action:hover {
+            background: var(--accent-hover);
+            transform: translateY(-2px);
+        }
+        
+        /* Модальное окно */
+        .finance-modal-content {
+            max-width: 450px;
+        }
+        
+        .finance-budget-setup-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .finance-budget-setup-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--card-border);
+        }
+        
+        .finance-budget-setup-item label {
+            font-size: 0.9rem;
+        }
+        
+        .finance-budget-input {
+            width: 120px;
+            padding: 8px 12px;
+            background: var(--input-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            text-align: right;
+        }
+        
+        .finance-budget-modal {
+            max-width: 500px;
+        }
+        
+        /* Адаптивность */
+        @media (max-width: 900px) {
+            .finance-widgets-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
         @media (max-width: 768px) {
-            .finance-layout {
-                flex-direction: column;
+            .finance-dashboard {
                 padding: 16px;
             }
             
-            .finance-sidebar {
-                width: 100%;
-                position: static;
-                order: -1;
-            }
-            
-            .transaction-item {
-                flex-wrap: wrap;
-            }
-            
-            .transaction-date {
-                width: 100%;
-                text-align: left;
-                margin-top: 8px;
-                margin-left: 52px;
-            }
-            
-            .transaction-actions {
-                opacity: 1;
-            }
-            
-            .finance-toolbar {
+            .finance-header {
                 flex-direction: column;
-                align-items: stretch;
+                align-items: flex-start;
+                gap: 16px;
             }
             
-            .finance-controls {
-                justify-content: space-between;
+            .finance-header h1 {
+                font-size: 1.5rem;
             }
             
-            .period-buttons, .type-filter {
+            .finance-actions {
+                width: 100%;
+            }
+            
+            .finance-btn {
                 flex: 1;
                 justify-content: center;
-            }
-            
-            .date-pickers {
-                flex-direction: column;
-                width: 100%;
-            }
-            
-            .date-picker-wrapper {
-                width: 100%;
-                justify-content: space-between;
-            }
-            
-            select, .filter-select, .modal-select {
-                background-size: 14px;
-                padding-right: 32px;
             }
         }
         
@@ -576,7 +561,7 @@
             }
         }
         
-        .finance-main, .finance-sidebar {
+        .finance-widget {
             animation: fadeInUp 0.3s ease;
         }
         
@@ -628,107 +613,51 @@
                 </div>
             </div>
             
-            <div class="finance-layout">
-                <!-- Основной контент -->
-                <div class="finance-main">
-                    <!-- Баланс -->
-                    <div class="balance-card" id="balanceCard">
-                        <div class="balance-label">Общий баланс</div>
-                        <div class="balance-value" id="balanceValue">0 ₽</div>
-                    </div>
-                    
-                    <!-- Тулбар как на дашборде -->
-                    <div class="finance-toolbar">
-                        <div class="finance-title">
-                            <i class="fas fa-money-bill-wave"></i> Финансы
-                        </div>
-                        <div class="finance-controls">
-                            <button class="finance-btn" id="addTransactionBtn">
-                                <i class="fas fa-plus"></i> Добавить
-                            </button>
-                            <button class="finance-btn" id="widgetSettingsBtn">
-                                <i class="fas fa-sliders-h"></i> Настроить
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <!-- Фильтры -->
-                    <div style="margin-bottom: 24px;">
-                        <!-- Кнопки периода (как на дашборде) -->
-                        <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between;">
-                            <div class="period-buttons">
-                                <button class="period-btn" data-period="week">Неделя</button>
-                                <button class="period-btn active" data-period="month">Месяц</button>
-                                <button class="period-btn" data-period="year">Год</button>
-                                <button class="period-btn" data-period="all">Всё время</button>
-                            </div>
-                            
-                            <div class="type-filter">
-                                <button class="type-filter-btn active" data-type="all">Все</button>
-                                <button class="type-filter-btn" data-type="income">Доходы</button>
-                                <button class="type-filter-btn" data-type="expense">Расходы</button>
-                            </div>
-                        </div>
-                        
-                        <!-- Свои даты -->
-                        <div class="date-pickers" style="margin-top: 16px;">
-                            <div class="date-picker-wrapper">
-                                <label><i class="fas fa-calendar-alt"></i> С:</label>
-                                <input type="date" id="filterDateFrom" class="filter-date">
-                            </div>
-                            <div class="date-picker-wrapper">
-                                <label><i class="fas fa-calendar-alt"></i> По:</label>
-                                <input type="date" id="filterDateTo" class="filter-date">
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Список транзакций -->
-                    <div class="transactions-list" id="transactionsList">
-                        <div class="loading-state">
-                            <i class="fas fa-spinner fa-pulse"></i>
-                            <p>Загрузка транзакций...</p>
-                        </div>
+            <div class="finance-dashboard">
+                <!-- Заголовок -->
+                <div class="finance-header">
+                    <h1>
+                        <i class="fas fa-coins"></i>
+                        Финансы
+                    </h1>
+                    <div class="finance-actions">
+                        <button class="finance-btn" id="addTransactionBtn">
+                            <i class="fas fa-plus"></i>
+                            Транзакция
+                        </button>
+                        <button class="finance-btn primary" id="goToTransactionsBtn">
+                            <i class="fas fa-list"></i>
+                            Все транзакции
+                        </button>
                     </div>
                 </div>
                 
-                <!-- Виджеты справа -->
-                <div class="finance-sidebar">
-                    <!-- Виджет: Доходы/Расходы -->
-                    <div class="finance-widget" data-widget="income-expense">
-                        <div class="finance-widget-title">
-                            <span><i class="fas fa-chart-pie"></i> Сводка за период</span>
-                            <button class="widget-settings-btn" data-widget="income-expense" title="Настройки виджета">
-                                <i class="fas fa-cog"></i>
-                            </button>
-                        </div>
-                        <div id="incomeExpenseWidget">
-                            <div class="skeleton" style="height: 80px;"></div>
+                <!-- Сетка виджетов -->
+                <div class="finance-widgets-grid">
+                    <!-- Виджет: Остатки по счетам -->
+                    <div class="finance-widget" data-widget="finance-accounts">
+                        <div class="finance-widget-content" id="accountsWidget">
+                            <div class="skeleton" style="height: 180px;"></div>
                         </div>
                     </div>
                     
-                    <!-- Виджет: Топ расходов по категориям -->
-                    <div class="finance-widget" data-widget="top-expenses">
-                        <div class="finance-widget-title">
-                            <span><i class="fas fa-tags"></i> Топ расходов</span>
-                            <button class="widget-settings-btn" data-widget="top-expenses" title="Настройки виджета">
-                                <i class="fas fa-cog"></i>
-                            </button>
-                        </div>
-                        <div id="topExpensesWidget">
-                            <div class="skeleton" style="height: 150px;"></div>
+                    <!-- Виджет: Бюджет -->
+                    <div class="finance-widget" data-widget="finance-budget">
+                        <div class="finance-widget-content" id="budgetWidget">
+                            <div class="skeleton" style="height: 180px;"></div>
                         </div>
                     </div>
                     
-                    <!-- Виджет: Топ доходов по категориям -->
-                    <div class="finance-widget" data-widget="top-income">
-                        <div class="finance-widget-title">
-                            <span><i class="fas fa-tags"></i> Топ доходов</span>
-                            <button class="widget-settings-btn" data-widget="top-income" title="Настройки виджета">
-                                <i class="fas fa-cog"></i>
-                            </button>
+                    <!-- Виджет: Сводка по кредитам -->
+                    <div class="finance-widget" data-widget="finance-credits">
+                        <div class="finance-widget-content" id="creditsWidget">
+                            <div class="skeleton" style="height: 180px;"></div>
                         </div>
-                        <div id="topIncomeWidget">
+                    </div>
+                    
+                    <!-- Виджет: Совет дня -->
+                    <div class="finance-widget" data-widget="finance-tip">
+                        <div class="finance-widget-content" id="tipWidget">
                             <div class="skeleton" style="height: 150px;"></div>
                         </div>
                     </div>
@@ -737,65 +666,20 @@
         </main>
     </div>
     
-    <!-- Модальное окно добавления транзакции -->
-    <div id="transactionModal" class="modal" style="display: none;">
-        <div class="modal-content">
-            <h3 id="modalTitle"><i class="fas fa-plus-circle"></i> Новая операция</h3>
-            
-            <select id="transactionType" class="modal-select">
-                <option value="expense">Расход</option>
-                <option value="income">Доход</option>
-            </select>
-            
-            <input type="number" id="transactionAmount" placeholder="Сумма" step="0.01" required>
-            
-            <select id="transactionCategory" class="modal-select" required>
-                <option value="">Выберите категорию</option>
-            </select>
-            
-            <input type="text" id="transactionDescription" placeholder="Описание (необязательно)">
-            
-            <input type="date" id="transactionDate" required>
-            
-            <div class="modal-buttons">
-                <button id="cancelModalBtn">Отмена</button>
-                <button id="saveTransactionBtn" class="primary">Сохранить</button>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Модальное окно настроек виджетов -->
-    <div id="widgetSettingsModal" class="modal" style="display: none;">
-        <div class="modal-content">
-            <h3><i class="fas fa-sliders-h"></i> Настройка виджетов</h3>
-            <p style="margin-bottom: 16px; color: var(--text-muted);">Выберите виджеты для отображения:</p>
-            
-            <div style="display: flex; flex-direction: column; gap: 12px;">
-                <label style="display: flex; align-items: center; gap: 12px; cursor: pointer;">
-                    <input type="checkbox" id="widgetIncomeExpense" checked> Сводка за период
-                </label>
-                <label style="display: flex; align-items: center; gap: 12px; cursor: pointer;">
-                    <input type="checkbox" id="widgetTopExpenses" checked> Топ расходов
-                </label>
-                <label style="display: flex; align-items: center; gap: 12px; cursor: pointer;">
-                    <input type="checkbox" id="widgetTopIncome" checked> Топ доходов
-                </label>
-            </div>
-            
-            <div class="modal-buttons" style="margin-top: 24px;">
-                <button id="closeWidgetSettingsBtn">Отмена</button>
-                <button id="saveWidgetSettingsBtn" class="primary">Сохранить</button>
-            </div>
-        </div>
-    </div>
-    
     <!-- Универсальный загрузчик модулей -->
     <script type="module" src="../js/core/moduleLoader.js"></script>
     
     <!-- Инициализация страницы финансов -->
     <script type="module">
         import { initFinancePage } from '../js/pages/finance.js';
+        
+        // Инициализация страницы
         initFinancePage();
+        
+        // Кнопка перехода к транзакциям
+        document.getElementById('goToTransactionsBtn')?.addEventListener('click', () => {
+            window.location.href = './transactions.html';
+        });
     </script>
     
     <!-- Инициализация бокового меню -->
