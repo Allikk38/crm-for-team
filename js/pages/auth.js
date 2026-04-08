@@ -8,7 +8,7 @@
  *   - js/services/team-supabase.js
  *   - js/services/email-check.js
  *   - js/utils/helpers.js
- *   - js/services/cache-service.js (для очистки кэша)
+ *   - js/services/cache-service.js
  * 
  * ИСТОРИЯ:
  *   - 01.04.2026: Исправлено использование company_id вместо team_id
@@ -16,6 +16,7 @@
  *   - 02.04.2026: ДОБАВЛЕН RATE LIMITING для защиты от 429 ошибок
  *   - 02.04.2026: ДОБАВЛЕНА ОЧИСТКА КЭША EMAIL при успешной регистрации
  *   - 02.04.2026: ДОБАВЛЕНА ОЧИСТКА КЭША ПРОФИЛЯ при успешной регистрации
+ *   - 08.04.2026: ИСПРАВЛЕН редирект для GitHub Pages (относительные пути)
  * ============================================
  */
 
@@ -28,13 +29,43 @@ import cacheService from '../services/cache-service.js';
 let currentMode = 'login';
 let inviteToken = null;
 let referralToken = null;
-let isRegistering = false; // Флаг для предотвращения множественных запросов
+let isRegistering = false;
+
+// ========== ОПРЕДЕЛЕНИЕ БАЗОВОГО ПУТИ ДЛЯ GITHUB PAGES ==========
+function getBasePath() {
+    const fullPath = window.location.pathname;
+    
+    // Ищем паттерн /crm-for-team/ в пути
+    const match = fullPath.match(/^(\/crm-for-team)/);
+    if (match) {
+        return match[1];
+    }
+    
+    // Проверяем, есть ли репозиторий в hostname (для GitHub Pages)
+    if (window.location.hostname.includes('github.io')) {
+        const parts = fullPath.split('/');
+        if (parts.length > 1 && parts[1] && parts[1] !== 'app') {
+            return `/${parts[1]}`;
+        }
+    }
+    
+    return '';
+}
+
+const BASE_PATH = getBasePath();
+
+function getRedirectUrl(page) {
+    if (BASE_PATH) {
+        return `${BASE_PATH}/app/${page}`;
+    }
+    return `/app/${page}`;
+}
 
 /**
  * Инициализация страницы авторизации
  */
 export function initAuthPage() {
-    console.log('[auth] Инициализация страницы');
+    console.log('[auth] Инициализация страницы, BASE_PATH:', BASE_PATH);
     
     const urlParams = new URLSearchParams(window.location.search);
     inviteToken = urlParams.get('invite');
@@ -68,7 +99,6 @@ export function initAuthPage() {
         showRegister();
     }
     
-    // Добавляем валидацию на ввод email в реальном времени
     const regEmailInput = document.getElementById('reg-email');
     if (regEmailInput) {
         regEmailInput.addEventListener('input', debounce(validateEmailField, 500));
@@ -80,9 +110,6 @@ export function initAuthPage() {
     window.showRegister = showRegister;
 }
 
-/**
- * Валидация поля email в реальном времени
- */
 async function validateEmailField() {
     const emailInput = document.getElementById('reg-email');
     const emailHint = document.getElementById('email-hint');
@@ -97,7 +124,6 @@ async function validateEmailField() {
         return;
     }
     
-    // Проверка формата
     if (!isValidEmail(email)) {
         emailHint.textContent = '❌ Неверный формат email';
         emailHint.style.color = '#c33';
@@ -106,7 +132,6 @@ async function validateEmailField() {
         return;
     }
     
-    // Проверка существования email
     emailHint.textContent = '⏳ Проверка...';
     emailHint.style.color = '#666';
     
@@ -125,11 +150,6 @@ async function validateEmailField() {
     }
 }
 
-/**
- * Установка состояния кнопки регистрации
- * @param {boolean} disabled - заблокировать или разблокировать
- * @param {string} text - текст на кнопке
- */
 function setRegisterButtonState(disabled, text = null) {
     const btn = document.getElementById('register-btn');
     if (!btn) return;
@@ -148,31 +168,23 @@ function setRegisterButtonState(disabled, text = null) {
     }
 }
 
-/**
- * Валидация формы регистрации
- * @returns {Promise<{valid: boolean, message: string|null}>}
- */
 async function validateRegisterForm() {
     const email = document.getElementById('reg-email').value.trim();
     const name = document.getElementById('reg-name').value.trim();
     const password = document.getElementById('reg-password').value;
     
-    // Проверка на пустые поля
     if (!email || !name || !password) {
         return { valid: false, message: 'Заполните все поля' };
     }
     
-    // Проверка длины пароля
     if (password.length < 6) {
         return { valid: false, message: 'Пароль должен быть не менее 6 символов' };
     }
     
-    // Проверка email
     if (!isValidEmail(email)) {
         return { valid: false, message: 'Введите корректный email (например, name@domain.com)' };
     }
     
-    // Проверка существования email
     const { valid, message } = await validateEmailForRegistration(email);
     if (!valid) {
         return { valid: false, message };
@@ -181,24 +193,14 @@ async function validateRegisterForm() {
     return { valid: true, message: null };
 }
 
-// ========== ФУНКЦИИ RATE LIMITING ==========
-
-/**
- * Проверка rate limit для регистрации
- * @returns {{allowed: boolean, waitSeconds?: number}}
- */
 function checkRegistrationRateLimit() {
     const key = 'crm_registration_attempts';
     const attempts = JSON.parse(localStorage.getItem(key) || '[]');
     const now = Date.now();
     
-    // Очищаем старые попытки (старше 60 секунд)
     const recentAttempts = attempts.filter(t => now - t < 60000);
-    
-    // Сохраняем очищенный список обратно
     localStorage.setItem(key, JSON.stringify(recentAttempts));
     
-    // Если больше 3 попыток за минуту - блокируем
     if (recentAttempts.length >= 3) {
         const oldestAttempt = Math.min(...recentAttempts);
         const waitSeconds = Math.ceil((oldestAttempt + 60000 - now) / 1000);
@@ -208,24 +210,16 @@ function checkRegistrationRateLimit() {
     return { allowed: true };
 }
 
-/**
- * Запись попытки регистрации
- */
 function recordRegistrationAttempt() {
     const key = 'crm_registration_attempts';
     const attempts = JSON.parse(localStorage.getItem(key) || '[]');
     const now = Date.now();
     
-    // Оставляем только попытки за последнюю минуту
     const recentAttempts = attempts.filter(t => now - t < 60000);
     recentAttempts.push(now);
     localStorage.setItem(key, JSON.stringify(recentAttempts));
 }
 
-/**
- * Показать сообщение о блокировке с таймером
- * @param {number} seconds - сколько секунд ждать
- */
 function showRateLimitMessage(seconds) {
     const msgDiv = document.getElementById('message');
     if (!msgDiv) return;
@@ -238,8 +232,6 @@ function showRateLimitMessage(seconds) {
     `;
     msgDiv.className = 'message warning';
 }
-
-// ========== ОСНОВНЫЕ ФУНКЦИИ ==========
 
 async function handleLogin() {
     const email = document.getElementById('email').value.trim();
@@ -272,7 +264,7 @@ async function handleLogin() {
         }
         
         setTimeout(() => {
-            window.location.href = '/app/navigator.html';
+            window.location.href = getRedirectUrl('navigator.html');
         }, 1000);
         
     } catch (error) {
@@ -283,19 +275,16 @@ async function handleLogin() {
 }
 
 async function handleRegister() {
-    // Защита от множественных запросов
     if (isRegistering) {
         console.log('[auth] Регистрация уже выполняется, игнорирую повторный клик');
         return;
     }
     
-    // ПРОВЕРКА RATE LIMIT
     const rateLimit = checkRegistrationRateLimit();
     if (!rateLimit.allowed) {
         showRateLimitMessage(rateLimit.waitSeconds);
         setRegisterButtonState(true, `⏳ Подождите ${rateLimit.waitSeconds} сек...`);
         
-        // Автоматически разблокируем через указанное время
         setTimeout(() => {
             setRegisterButtonState(false);
             const msgDiv = document.getElementById('message');
@@ -308,7 +297,6 @@ async function handleRegister() {
         return;
     }
     
-    // Валидация формы перед отправкой
     const validation = await validateRegisterForm();
     if (!validation.valid) {
         showMessage(validation.message, 'error');
@@ -335,11 +323,9 @@ async function handleRegister() {
         
         if (signUpError) throw signUpError;
         
-        // УСПЕШНАЯ РЕГИСТРАЦИЯ - очищаем историю попыток, кэш email и кэш профиля
         localStorage.removeItem('crm_registration_attempts');
         clearEmailCache(email);
         
-        // Очищаем кэш профиля для нового пользователя (на всякий случай)
         if (authData.user?.id) {
             cacheService.invalidate(`user_profile_${authData.user.id}`, 'all');
         }
@@ -348,7 +334,6 @@ async function handleRegister() {
             throw new Error('Ошибка регистрации');
         }
         
-        // Создаем профиль
         const { error: profileError } = await supabase
             .from('profiles')
             .insert({
@@ -356,14 +341,14 @@ async function handleRegister() {
                 name: name,
                 email: email,
                 role: 'agent',
-                github_username: email.split('@')[0]
+                github_username: email.split('@')[0],
+                permission_sets: ['BASE', 'AGENT']
             });
         
         if (profileError) {
             console.error('[auth] Ошибка создания профиля:', profileError);
         }
         
-        // Проверяем invite-токен
         if (inviteToken) {
             try {
                 const result = await acceptInvite(inviteToken);
@@ -375,7 +360,6 @@ async function handleRegister() {
             }
         }
         
-        // Проверяем referral-токен
         if (referralToken) {
             try {
                 const result = await acceptInvite(referralToken);
@@ -390,19 +374,17 @@ async function handleRegister() {
         showMessage('Регистрация успешна! Перенаправление...', 'success');
         
         setTimeout(() => {
-            window.location.href = '/app/navigator.html';
+            window.location.href = getRedirectUrl('navigator.html');
         }, 2000);
         
     } catch (error) {
         console.error('[auth] Ошибка регистрации:', error);
         const userMessage = formatSupabaseError(error);
         
-        // ЗАПИСЫВАЕМ НЕУДАЧНУЮ ПОПЫТКУ
         recordRegistrationAttempt();
         
         showMessage(userMessage, 'error');
         
-        // Если ошибка связана с email, обновляем подсказку
         if (userMessage.includes('email уже зарегистрирован') || 
             userMessage.includes('корректный email')) {
             const emailInput = document.getElementById('reg-email');
