@@ -56,23 +56,49 @@ function getInitials(name) {
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
 }
 
-function loadDemoData() {
-    const saved = localStorage.getItem('team_members');
-    if (saved) {
-        teamMembers = JSON.parse(saved);
-    } else {
-        teamMembers = [
-            { id: 'admin', name: 'Администратор', email: 'admin@crm.com', role: 'admin', github_username: 'admin', tasks_completed: 45, tasks_active: 3 },
-            { id: 'manager1', name: 'Дмитрий Волков', email: 'dmitry@crm.com', role: 'manager', github_username: 'dmitry', tasks_completed: 32, tasks_active: 5 },
-            { id: 'agent1', name: 'Анна Петрова', email: 'anna@crm.com', role: 'agent', github_username: 'anna', tasks_completed: 28, tasks_active: 4 },
-            { id: 'agent2', name: 'Иван Соколов', email: 'ivan@crm.com', role: 'agent', github_username: 'ivan', tasks_completed: 19, tasks_active: 6 },
-            { id: 'agent3', name: 'Елена Смирнова', email: 'elena@crm.com', role: 'agent', github_username: 'elena', tasks_completed: 24, tasks_active: 2 }
-        ];
+async function loadTeamData() {
+    const user = getCurrentSupabaseUser();
+    if (!user) return;
+    
+    // Получаем профиль пользователя с company_id
+    const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('company_id')
+        .eq('id', user.id)
+        .single();
+    
+    if (profileError || !profile?.company_id) {
+        // У пользователя нет компании
+        teamMembers = [];
+        invites = [];
+        return;
     }
     
-    const savedInvites = localStorage.getItem('team_invites');
-    if (savedInvites) {
-        invites = JSON.parse(savedInvites);
+    // Загружаем участников компании
+    const { data: members, error: membersError } = await supabase
+        .from('profiles')
+        .select('id, name, email, role, github_username')
+        .eq('company_id', profile.company_id);
+    
+    if (!membersError && members) {
+        teamMembers = members.map(m => ({
+            ...m,
+            tasks_completed: 0,
+            tasks_active: 0
+        }));
+    } else {
+        teamMembers = [];
+    }
+    
+    // Загружаем приглашения
+    const { data: invitesData, error: invitesError } = await supabase
+        .from('invites')
+        .select('*')
+        .eq('company_id', profile.company_id)
+        .eq('status', 'pending');
+    
+    if (!invitesError && invitesData) {
+        invites = invitesData;
     } else {
         invites = [];
     }
@@ -177,7 +203,7 @@ export async function initTeamPage() {
         return;
     }
     
-    loadDemoData();
+    await loadTeamData();
     renderTeamStats();
     renderMembersList();
     renderInvitesList();
