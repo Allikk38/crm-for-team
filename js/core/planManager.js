@@ -4,10 +4,10 @@
  * РОЛЬ: Управление тарифными планами
  * 
  * ОСОБЕННОСТИ:
- *   - Определение плана по роли пользователя
+ *   - Определение плана по наборам разрешений (permission_sets)
  *   - Проверка доступности модулей
  *   - Контроль лимитов (задачи, сделки, объекты)
- *   - Поддержка разных тарифов (Free, Pro, Business)
+ *   - Поддержка разных тарифов (Free, Pro, Business, Enterprise)
  *   - Чистые экспорты без глобальных объектов
  * 
  * ЗАВИСИМОСТИ:
@@ -17,6 +17,7 @@
  *   - 31.03.2026: Администратор получает ENTERPRISE план
  *   - 30.03.2026: Создание менеджера планов
  *   - 08.04.2026: Переход на чистые экспорты, убраны глобальные объекты
+ *   - 08.04.2026: Исправлено определение тарифа по permission_sets
  * ============================================
  */
 
@@ -31,7 +32,7 @@ export const PLANS = {
         id: 'free',
         name: 'Бесплатный',
         price: 0,
-        modules: ['tasks', 'calendar', 'profile'],
+        modules: ['tasks', 'calendar', 'profile', 'notes', 'habits', 'pomodoro'],
         features: {
             maxTasks: 50,
             maxDeals: 0,
@@ -43,7 +44,7 @@ export const PLANS = {
         id: 'pro',
         name: 'Профессиональный',
         price: 990,
-        modules: ['tasks', 'deals', 'complexes', 'calendar', 'counterparties', 'profile'],
+        modules: ['tasks', 'deals', 'complexes', 'calendar', 'counterparties', 'profile', 'notes', 'habits', 'pomodoro'],
         features: {
             maxTasks: 500,
             maxDeals: 100,
@@ -55,7 +56,7 @@ export const PLANS = {
         id: 'business',
         name: 'Бизнес',
         price: 2990,
-        modules: ['tasks', 'deals', 'complexes', 'calendar', 'counterparties', 'manager', 'profile'],
+        modules: ['tasks', 'deals', 'complexes', 'calendar', 'counterparties', 'manager', 'profile', 'notes', 'habits', 'pomodoro', 'team'],
         features: {
             maxTasks: Infinity,
             maxDeals: Infinity,
@@ -67,7 +68,7 @@ export const PLANS = {
         id: 'enterprise',
         name: 'Корпоративный',
         price: 'по запросу',
-        modules: ['tasks', 'deals', 'complexes', 'calendar', 'counterparties', 'manager', 'admin', 'dashboard', 'profile'],
+        modules: ['tasks', 'deals', 'complexes', 'calendar', 'counterparties', 'manager', 'admin', 'dashboard', 'profile', 'notes', 'habits', 'pomodoro', 'team'],
         features: {
             maxTasks: Infinity,
             maxDeals: Infinity,
@@ -93,7 +94,6 @@ class PlanManager {
      * Настройка слушателя изменения пользователя
      */
     setupUserChangeListener() {
-        // Слушаем событие userLoaded для сброса кэша
         if (typeof window !== 'undefined') {
             this.userChangeHandler = () => {
                 console.log('[planManager] Пользователь изменился, сбрасываем кэш плана');
@@ -108,17 +108,15 @@ class PlanManager {
      * @returns {Object|null}
      */
     getCurrentUser() {
-        // Пробуем получить из модуля
         try {
             return getCurrentSupabaseUser();
         } catch (e) {
-            // Fallback на глобальную переменную
             return window.currentSupabaseUser || null;
         }
     }
     
     /**
-     * Получить план пользователя по его роли
+     * Получить план пользователя по его наборам разрешений
      * @returns {Object} Объект плана
      */
     getUserPlan() {
@@ -133,18 +131,26 @@ class PlanManager {
         
         if (!user) {
             console.log('[planManager] Пользователь не загружен, используем FREE');
-        } else if (user.role === 'admin') {
-            plan = PLANS.ENTERPRISE;
-            console.log('[planManager] Администратор → ENTERPRISE');
-        } else if (user.role === 'manager') {
-            plan = PLANS.BUSINESS;
-            console.log('[planManager] Менеджер → BUSINESS');
-        } else if (user.role === 'agent') {
-            plan = PLANS.PRO;
-            console.log('[planManager] Агент → PRO');
         } else {
-            plan = PLANS.FREE;
-            console.log('[planManager] Неизвестная роль → FREE');
+            // Определяем тариф по наборам разрешений (permission_sets)
+            const permissionSets = user.permission_sets || [];
+            
+            if (permissionSets.includes('ADMIN')) {
+                plan = PLANS.ENTERPRISE;
+                console.log('[planManager] Набор ADMIN → ENTERPRISE');
+            } else if (permissionSets.includes('MANAGER')) {
+                plan = PLANS.BUSINESS;
+                console.log('[planManager] Набор MANAGER → BUSINESS');
+            } else if (permissionSets.includes('AGENT')) {
+                plan = PLANS.PRO;
+                console.log('[planManager] Набор AGENT → PRO');
+            } else if (permissionSets.includes('BASE')) {
+                plan = PLANS.FREE;
+                console.log('[planManager] Набор BASE → FREE');
+            } else {
+                plan = PLANS.FREE;
+                console.log('[planManager] Нет наборов разрешений → FREE');
+            }
         }
         
         // Сохраняем в кэш
@@ -152,6 +158,8 @@ class PlanManager {
             userId: user?.id,
             plan: plan
         };
+        
+        console.log(`[planManager] Итоговый план: ${plan.name} (${plan.id})`);
         
         return plan;
     }
@@ -288,7 +296,7 @@ const planManager = new PlanManager();
 export default planManager;
 export { PlanManager };
 
-// Для обратной совместимости (временно)
+// Для обратной совместимости
 if (typeof window !== 'undefined') {
     window.CRM = window.CRM || {};
     window.CRM.PlanManager = planManager;
