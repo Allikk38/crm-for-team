@@ -52,6 +52,7 @@
             max-width: 1200px;
             margin: 0 auto;
             padding: 40px 20px;
+            display: block !important;  /* ← ГЛАВНОЕ ИСПРАВЛЕНИЕ */
         }
         
         .page-header {
@@ -289,35 +290,24 @@
             color: var(--text-muted);
         }
         
+        /* Адаптивные стили */
         @media (max-width: 768px) {
+            .team-container {
+                display: block !important;
+            }
+            
             .invite-section {
                 flex-direction: column;
                 text-align: center;
             }
+            
             .member-card {
                 flex-direction: column;
                 text-align: center;
             }
+            
             .member-stats {
                 justify-content: center;
-            }
-            .team-container {
-                display: block !important;
-            }
-            @media (max-width: 1200px) {
-                .team-container {
-                    display: block !important;
-                }
-            }
-            
-            @media (max-width: 768px) {
-                .team-container {
-                    display: block !important;
-                }
-            }
-            
-            .team-container {
-                display: block !important;
             }
         }
     </style>
