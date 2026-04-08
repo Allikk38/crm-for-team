@@ -758,16 +758,34 @@ function debounce(func, wait) {
 
 async function loadUsers() {
     try {
-        const { data, error } = await supabase.from('profiles').select('*');
+        const user = getCurrentSupabaseUser();
+        if (!user) {
+            users = [];
+            return;
+        }
+        
+        // Получаем company_id текущего пользователя
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('company_id')
+            .eq('id', user.id)
+            .single();
+        
+        let query = supabase.from('profiles').select('*');
+        
+        // Если пользователь в компании — показываем только коллег
+        if (profile?.company_id) {
+            query = query.eq('company_id', profile.company_id);
+        } else {
+            // Если нет компании — показываем только себя
+            query = query.eq('id', user.id);
+        }
+        
+        const { data, error } = await query;
+        
         if (!error && data) {
             users = data;
             console.log('[tasks] Загружено пользователей:', users.length);
-            console.log('[tasks] Пользователи:', users.map(u => ({ 
-                name: u.name, 
-                github: u.github_username, 
-                role: u.role,
-                id: u.id
-            })));
             updateAssigneeFilters();
         } else {
             console.error('[tasks] Ошибка загрузки пользователей:', error);
