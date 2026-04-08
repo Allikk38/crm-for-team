@@ -654,30 +654,22 @@ function setupDropZones() {
     const columns = document.querySelectorAll('.kanban-column');
     
     columns.forEach(column => {
-        const container = column.querySelector('.tasks-container');
         const status = column.getAttribute('data-status');
+        if (!status) return;
         
-        if (!container || !status) return;
-        
-        // Удаляем старые обработчики (без клонирования!)
-        const oldContainer = container;
-        const newContainer = oldContainer.cloneNode(false);
-        oldContainer.parentNode.replaceChild(newContainer, oldContainer);
-        
-        // Вешаем новые обработчики
-        newContainer.addEventListener('dragover', (e) => {
+        column.addEventListener('dragover', (e) => {
             e.preventDefault();
             column.classList.add('drag-over');
         });
         
-        newContainer.addEventListener('dragleave', (e) => {
+        column.addEventListener('dragleave', (e) => {
             const related = e.relatedTarget;
-            if (!related || !newContainer.contains(related)) {
+            if (!related || !column.contains(related)) {
                 column.classList.remove('drag-over');
             }
         });
         
-        newContainer.addEventListener('drop', async (e) => {
+        column.addEventListener('drop', async (e) => {
             e.preventDefault();
             e.stopPropagation();
             column.classList.remove('drag-over');
@@ -688,17 +680,14 @@ function setupDropZones() {
             const task = tasks.find(t => t.id == taskId);
             if (!task || task.status === status) return;
             
-            console.log('[tasks] Перемещение:', taskId, task.status, '→', status);
+            console.log('[tasks] Перемещение:', taskId, '→', status);
             
             const updated = await updateTaskStatusInDB(taskId, status);
-            
             if (updated) {
                 await loadTasksData();
                 if (window.showToast) {
                     window.showToast('success', 'Задача перемещена');
                 }
-            } else {
-                alert('Ошибка перемещения задачи');
             }
         });
     });
