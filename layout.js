@@ -156,12 +156,6 @@ function isModuleAvailable(moduleId) {
     const user = getCurrentUser();
     if (!user) return false;
     
-    // Если реестр загружен — используем его логику
-    if (window.CRM?.Registry?.isModuleAvailable) {
-        // Но реестр ожидает, что модуль зарегистрирован
-        // Проверяем через права напрямую
-    }
-    
     // Администратор имеет доступ ко всему
     if (user.role === 'admin') return true;
     
