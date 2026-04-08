@@ -6,25 +6,22 @@
  * ОСОБЕННОСТИ:
  *   - Создание карточек задач и сделок
  *   - Drag-and-drop для изменения статуса
- *   - Чистые экспорты для модульной архитектуры
+ *   - Отображение категорий и важных задач
  * 
  * ЗАВИСИМОСТИ:
  *   - js/utils/helpers.js (escapeHtml, formatDate)
  * 
  * ИСТОРИЯ:
  *   - 30.03.2026: Переход на чистые импорты/экспорты
+ *   - 08.04.2026: Добавлены категории и важное в карточки задач
  * ============================================
  */
 
 import { escapeHtml, formatDate } from '../utils/helpers.js';
+import { TASK_CATEGORIES } from '../services/tasks-supabase.js';
 
 console.log('[kanban.js] Загрузка компонента...');
 
-/**
- * Создание карточки для задачи
- * @param {Object} task - Данные задачи
- * @param {Object} options - Опции { showDelete, onDelete }
- */
 /**
  * Создание карточки для задачи
  * @param {Object} task - Данные задачи
@@ -49,45 +46,43 @@ export function createTaskCard(task, options = {}) {
         card.classList.remove('dragging');
     };
     
-    // Цветовая индикация приоритета
-    const priorityColors = {
-        high: '#ff6b6b',
-        medium: '#ffc107',
-        low: '#4caf50'
-    };
-    card.style.borderLeftColor = priorityColors[task.priority] || '#ffc107';
-    card.style.borderLeftWidth = '4px';
-    card.style.borderLeftStyle = 'solid';
+    // Цветовая индикация: важное = золотой, обычное = синий
+    if (task.is_important) {
+        card.style.borderLeftColor = '#fbbf24';
+        card.style.borderLeftWidth = '4px';
+        card.style.borderLeftStyle = 'solid';
+    } else {
+        card.style.borderLeftColor = '#3b82f6';
+        card.style.borderLeftWidth = '4px';
+        card.style.borderLeftStyle = 'solid';
+    }
     
-    // Иконка приватности
-    const privateBadge = task.is_private 
-        ? '<span class="task-private-badge" title="Приватная задача"><i class="fas fa-lock"></i></span>' 
-        : '';
+    // Категория
+    const categoryInfo = TASK_CATEGORIES[task.category] || TASK_CATEGORIES.other;
     
-    // Иконка статуса
+    // Статус (только иконка Font Awesome)
     const statusIcons = {
-        pending: '<i class="fas fa-circle" style="color: #ffc107; font-size: 0.7rem;"></i>',
-        in_progress: '<i class="fas fa-spinner fa-pulse" style="color: #2196f3; font-size: 0.7rem;"></i>',
-        completed: '<i class="fas fa-check-circle" style="color: #4caf50; font-size: 0.7rem;"></i>'
+        pending: '<i class="far fa-circle"></i>',
+        in_progress: '<i class="fas fa-spinner fa-pulse"></i>',
+        completed: '<i class="fas fa-check-circle"></i>'
     };
     const statusIcon = statusIcons[task.status] || statusIcons.pending;
     
-    // Текст приоритета
-    const priorityTexts = { high: 'Высокий', medium: 'Средний', low: 'Низкий' };
-    const priorityText = priorityTexts[task.priority] || 'Средний';
-    
     // Форматирование даты
-    const dueDate = task.due_date ? formatDate(task.due_date, 'DD.MM.YYYY') : 'без срока';
+    const dueDate = task.due_date ? formatDate(task.due_date, 'DD.MM.YYYY') : 'Без срока';
     
-    // Определяем просрочена ли задача
+    // Просрочена ли задача
     const isOverdue = task.due_date && task.status !== 'completed' && new Date(task.due_date) < new Date();
     const dueDateClass = isOverdue ? 'task-due-date overdue' : 'task-due-date';
-    const dueDateIcon = isOverdue ? '<i class="fas fa-exclamation-triangle"></i>' : '<i class="fas fa-calendar"></i>';
+    
+    // Важное (звезда)
+    const importantStar = task.is_important 
+        ? '<i class="fas fa-star" style="color: #fbbf24; margin-left: 6px;" title="Важное"></i>' 
+        : '';
     
     // Кнопки действий
     let actionsHtml = '<div class="task-actions">';
     
-    // Кнопка редактирования
     if (options.showEdit !== false) {
         actionsHtml += `
             <button class="task-btn task-edit-btn" data-id="${task.id}" title="Редактировать">
@@ -96,7 +91,6 @@ export function createTaskCard(task, options = {}) {
         `;
     }
     
-    // Кнопка удаления
     if (options.showDelete !== false) {
         actionsHtml += `
             <button class="task-btn task-delete-btn" data-id="${task.id}" title="Удалить">
@@ -107,38 +101,32 @@ export function createTaskCard(task, options = {}) {
     
     actionsHtml += '</div>';
     
-    // Полная структура карточки
+    // Карточка
     card.innerHTML = `
         <div class="task-header">
             <div class="task-status-icon">${statusIcon}</div>
             <div class="task-title-wrapper">
-                <div class="task-title">${escapeHtml(task.title)}</div>
-                ${privateBadge}
+                <span class="task-title">${escapeHtml(task.title)}</span>
+                ${importantStar}
             </div>
+        </div>
+        
+        <div class="task-category">
+            <i class="fas ${categoryInfo.icon}"></i>
+            <span>${categoryInfo.label}</span>
         </div>
         
         ${task.description ? `
             <div class="task-description">
-                ${escapeHtml(task.description.substring(0, 100))}
-                ${task.description.length > 100 ? '...' : ''}
+                ${escapeHtml(task.description.substring(0, 80))}
+                ${task.description.length > 80 ? '...' : ''}
             </div>
         ` : ''}
         
-        <div class="task-meta-grid">
-            <div class="task-meta-item">
-                <span class="task-priority priority-${task.priority}">
-                    <i class="fas fa-flag"></i> ${priorityText}
-                </span>
-            </div>
-            <div class="task-meta-item">
-                <span class="task-assignee">
-                    <i class="fas fa-user"></i> 
-                    <span>${escapeHtml(task.assigned_to || 'Не назначен')}</span>
-                </span>
-            </div>
-            <div class="task-meta-item ${dueDateClass}">
-                <span>${dueDateIcon} ${dueDate}</span>
-            </div>
+        <div class="task-meta">
+            <span class="${dueDateClass}">
+                <i class="far fa-calendar-alt"></i> ${dueDate}
+            </span>
         </div>
         
         ${actionsHtml}
@@ -159,7 +147,6 @@ export function createDealCard(deal, options = {}) {
     
     const canEdit = options.canEdit === true;
     
-    // Включаем стандартный drag-and-drop
     card.draggable = canEdit;
     card.setAttribute('draggable', canEdit ? 'true' : 'false');
     
@@ -180,10 +167,10 @@ export function createDealCard(deal, options = {}) {
     }
     
     const typeLabels = {
-        primary: '🏗️ Первичка',
-        secondary: '🏠 Вторичка',
-        exchange: '🔄 Альтернатива',
-        urgent: '⚡ Срочный выкуп'
+        primary: 'Первичка',
+        secondary: 'Вторичка',
+        exchange: 'Альтернатива',
+        urgent: 'Срочный выкуп'
     };
     const typeText = typeLabels[deal.type] || 'Вторичка';
     
@@ -222,8 +209,6 @@ export function createDealCard(deal, options = {}) {
 
 /**
  * Настройка drag-and-drop для контейнеров
- * @param {string} containerSelector - Селектор контейнеров
- * @param {Function} onDrop - Коллбэк при drop (dealId, newStatus)
  */
 export function setupDragAndDrop(containerSelector, onDrop) {
     const containers = document.querySelectorAll(containerSelector);
@@ -233,78 +218,22 @@ export function setupDragAndDrop(containerSelector, onDrop) {
         function handleDragOver(e) {
             e.preventDefault();
             container.classList.add('drag-over');
-            container.classList.add('drag-over-pulse');
-            
-            // Эффект для пустого контейнера
-            const emptyDiv = container.querySelector('.empty-deals');
-            if (emptyDiv) {
-                emptyDiv.style.transform = 'translateY(-4px)';
-                const icon = emptyDiv.querySelector('i');
-                if (icon) icon.style.animation = 'bounceIcon 0.4s ease infinite';
-            }
         }
         
         function handleDragLeave() {
             container.classList.remove('drag-over');
-            container.classList.remove('drag-over-pulse');
-            
-            // Сбрасываем эффект для пустого контейнера
-            const emptyDiv = container.querySelector('.empty-deals');
-            if (emptyDiv) {
-                emptyDiv.style.transform = '';
-                const icon = emptyDiv.querySelector('i');
-                if (icon) icon.style.animation = '';
-            }
         }
         
         async function handleDrop(e) {
             e.preventDefault();
             container.classList.remove('drag-over');
-            container.classList.remove('drag-over-pulse');
-            
-            // Сбрасываем эффект для пустого контейнера
-            const emptyDiv = container.querySelector('.empty-deals');
-            if (emptyDiv) {
-                emptyDiv.style.transform = '';
-                const icon = emptyDiv.querySelector('i');
-                if (icon) icon.style.animation = '';
-            }
             
             const dealId = e.dataTransfer.getData('text/plain');
             const newStatus = container.getAttribute('data-status');
             
             if (dealId && newStatus && onDrop) {
-                console.log(`[kanban.js] Drop: deal ${dealId} → ${newStatus}`);
-                
-                // Находим карточку и добавляем анимацию
-                const card = document.querySelector(`[data-deal-id="${dealId}"]`);
-                if (card) {
-                    card.classList.add('status-updating');
-                }
-                
-                try {
-                    await onDrop(dealId, newStatus);
-                    
-                    // Анимация успеха
-                    if (card) {
-                        card.classList.remove('status-updating');
-                        card.classList.add('status-success');
-                        card.classList.add('card-dropped');
-                        setTimeout(() => {
-                            card.classList.remove('status-success');
-                            card.classList.remove('card-dropped');
-                        }, 400);
-                    }
-                } catch (error) {
-                    console.error('[kanban.js] Ошибка при drop:', error);
-                    
-                    // Анимация ошибки
-                    if (card) {
-                        card.classList.remove('status-updating');
-                        card.classList.add('status-error');
-                        setTimeout(() => card.classList.remove('status-error'), 300);
-                    }
-                }
+                console.log(`[kanban.js] Drop: ${dealId} → ${newStatus}`);
+                await onDrop(dealId, newStatus);
             }
         }
         
@@ -318,7 +247,7 @@ export function setupDragAndDrop(containerSelector, onDrop) {
     });
 }
 
-// Для обратной совместимости регистрируем в глобальный объект
+// Глобальный объект для обратной совместимости
 if (typeof window !== 'undefined') {
     window.CRM = window.CRM || {};
     window.CRM.Kanban = {
@@ -328,4 +257,4 @@ if (typeof window !== 'undefined') {
     };
 }
 
-console.log('[kanban.js] ✅ Компонент загружен');
+console.log('[kanban.js] Компонент загружен');
