@@ -23,6 +23,17 @@
  * ============================================
  */
 
+/**
+ * ============================================
+ * ФАЙЛ: layout.js
+ * РОЛЬ: Управление боковой навигационной панелью с группировкой модулей
+ * 
+ * ИСТОРИЯ:
+ *   - 08.04.2026: Исправлено определение базового пути для GitHub Pages
+ *   - 08.04.2026: Добавлен модуль Финансы в категорию Личное
+ * ============================================
+ */
+
 import { escapeHtml } from './js/utils/helpers.js';
 import { getState, start, pause, subscribe } from './js/services/pomodoro.js';
 import { hasPermission } from './js/core/permissions.js';
@@ -30,16 +41,26 @@ import { hasPermission } from './js/core/permissions.js';
 let sidebarCollapsed = false;
 let isInitialized = false;
 
-// ========== ОПРЕДЕЛЕНИЕ БАЗОВОГО ПУТИ ==========
+// ========== ОПРЕДЕЛЕНИЕ БАЗОВОГО ПУТИ ДЛЯ GITHUB PAGES ==========
 function getBasePath() {
-    const currentPath = window.location.pathname;
+    // Получаем полный путь из текущего URL
+    const fullPath = window.location.pathname;
     
-    // GitHub Pages: /crm-for-team/app/navigator.html
-    if (currentPath.includes('/crm-for-team/')) {
-        return '/crm-for-team';
+    // Ищем паттерн /crm-for-team/ в пути
+    const match = fullPath.match(/^(\/crm-for-team)/);
+    if (match) {
+        return match[1];
     }
     
-    // Локальная разработка: /app/navigator.html
+    // Проверяем, есть ли репозиторий в hostname (для GitHub Pages)
+    if (window.location.hostname.includes('github.io')) {
+        // Извлекаем имя репозитория из URL
+        const parts = fullPath.split('/');
+        if (parts.length > 1 && parts[1] && parts[1] !== 'app') {
+            return `/${parts[1]}`;
+        }
+    }
+    
     return '';
 }
 
@@ -95,45 +116,34 @@ const MODULE_CATEGORIES = {
 
 // ========== ОПИСАНИЯ МОДУЛЕЙ ==========
 const MODULE_INFO = {
-    // Основные
     navigator: { name: 'Навигатор', icon: 'fa-th-large', page: 'navigator.html', description: 'Обзор всех модулей' },
     dashboard: { name: 'Дашборд', icon: 'fa-home', page: 'dashboard.html', description: 'Главная панель управления' },
-    
-    // Бизнес
     deals: { name: 'Сделки', icon: 'fa-handshake', page: 'deals.html', description: 'Управление сделками' },
     complexes: { name: 'Объекты', icon: 'fa-building', page: 'complexes.html', description: 'Управление объектами' },
     counterparties: { name: 'Контрагенты', icon: 'fa-users', page: 'counterparties.html', description: 'База контрагентов' },
     analytics: { name: 'Аналитика', icon: 'fa-chart-line', page: 'analytics.html', description: 'Расширенная аналитика' },
     reports: { name: 'Отчеты', icon: 'fa-file-alt', page: 'reports.html', description: 'Формирование отчетов' },
     invoices: { name: 'Счета', icon: 'fa-file-invoice', page: 'invoices.html', description: 'Управление счетами' },
-    
-    // Личное
     tasks: { name: 'Задачи', icon: 'fa-tasks', page: 'tasks.html', description: 'Управление задачами' },
     calendar: { name: 'Календарь', icon: 'fa-calendar-alt', page: 'calendar.html', description: 'Планирование событий' },
     notes: { name: 'Заметки', icon: 'fa-sticky-note', page: 'notes.html', description: 'Быстрые заметки' },
     habits: { name: 'Привычки', icon: 'fa-calendar-check', page: 'habits.html', description: 'Отслеживание привычек' },
     pomodoro: { name: 'Помодоро', icon: 'fa-clock', page: 'pomodoro.html', description: 'Таймер продуктивности' },
     finance: { name: 'Финансы', icon: 'fa-money-bill-wave', page: 'finance.html', description: 'Учет доходов и расходов' },
-    
-    // Инструменты
     team: { name: 'Команда', icon: 'fa-user-friends', page: 'team.html', description: 'Управление командой' },
     marketplace: { name: 'Маркетплейс', icon: 'fa-store', page: 'marketplace.html', description: 'Магазин модулей' },
     'my-modules': { name: 'Мои модули', icon: 'fa-puzzle-piece', page: 'my-modules.html', description: 'Установленные модули' },
     chat: { name: 'Чат', icon: 'fa-comments', page: 'chat.html', description: 'Внутренний чат' },
     documents: { name: 'Документы', icon: 'fa-file-pdf', page: 'documents.html', description: 'Электронный документооборот' },
-    
-    // Управление
     profile: { name: 'Профиль', icon: 'fa-user', page: 'profile.html', description: 'Настройки профиля' },
     notifications: { name: 'Уведомления', icon: 'fa-bell', page: 'notifications.html', description: 'Центр уведомлений' },
     admin: { name: 'Администрирование', icon: 'fa-shield-alt', page: 'admin.html', description: 'Управление системой' }
 };
 
-// Получаем URL для страницы
 function getModuleHref(module) {
     return getPageUrl(module.page);
 }
 
-// Функция для получения пути (для использования в других местах)
 function getFullPath(page) {
     return getPageUrl(page);
 }
@@ -149,11 +159,6 @@ function isModuleAvailable(moduleId) {
     if (moduleId === 'admin') {
         return hasPermission('manage_users', user);
     }
-    
-    const userRole = user.role;
-    const isAdmin = userRole === 'admin';
-    
-    if (isAdmin) return true;
     
     return true;
 }
@@ -197,7 +202,7 @@ function renderSidebarMenu() {
             if (!module) continue;
             
             const href = getModuleHref(module);
-            const isActive = href === currentPath || currentPath.endsWith(module.page);
+            const isActive = currentPath.endsWith(module.page);
             
             html += `
                 <a href="${href}" class="sidebar-menu-item ${isActive ? 'active' : ''}" 
@@ -293,6 +298,7 @@ export async function initSidebar() {
     if (isInitialized) return;
     
     console.log('[layout] Инициализация бокового меню...');
+    console.log('[layout] BASE_PATH:', BASE_PATH);
     
     const saved = localStorage.getItem('sidebar_collapsed');
     if (saved === 'true') {
@@ -586,6 +592,6 @@ notificationStyle.textContent = `
 `;
 document.head.appendChild(notificationStyle);
 
-export { updateNotificationBadge, getFullPath };
+export { updateNotificationBadge, getFullPath, BASE_PATH };
 
 console.log('[layout] Модуль загружен, BASE_PATH:', BASE_PATH);
