@@ -11,6 +11,7 @@
  *   - 30.03.2026: Добавлен виджет TeamAnalyticsWidget
  *   - 08.04.2026: Интеграция с planManager, добавлены тарифные ограничения
  *   - 08.04.2026: Добавлен виджет QuickTaskWidget (быстрая задача)
+ *   - 08.04.2026: Исправлена инициализация PlanManager
  * ============================================
  */
 
@@ -48,20 +49,44 @@ class DashboardContainer {
         this.editMode = false;
         this.initialized = false;
         this.renderInProgress = false;
-        this.planManager = window.CRM?.PlanManager || null;
+        
+        // Ждем инициализации planManager
+        this.planManager = null;
+        this.initPlanManager();
         
         console.log('[dashboard-container] Создан');
     }
+    
+    initPlanManager() {
+        // Проверяем наличие planManager
+        if (window.CRM?.PlanManager) {
+            this.planManager = window.CRM.PlanManager;
+            console.log('[dashboard-container] PlanManager найден');
+        } else {
+            console.warn('[dashboard-container] PlanManager не найден, используем FREE для всех');
+            // Создаем заглушку - все виджеты доступны
+            this.planManager = {
+                getUserPlan: () => ({ id: 'enterprise', name: 'Корпоративный' })
+            };
+        }
+    }
+
+export default DashboardContainer;
     
     getWidgetTier(widgetId) {
         return WIDGET_TIERS[widgetId] || 'FREE';
     }
     
     isWidgetAvailable(widgetId) {
-        if (!this.planManager) return true;
+        if (!this.planManager) {
+            console.warn('[dashboard-container] PlanManager недоступен, разрешаем все виджеты');
+            return true;
+        }
         
         const widgetTier = this.getWidgetTier(widgetId);
         const currentPlan = this.planManager.getUserPlan();
+        
+        console.log(`[dashboard-container] Проверка ${widgetId}: tier=${widgetTier}, plan=${currentPlan?.id}`);
         
         const tierLevels = {
             'FREE': 0,
@@ -78,9 +103,12 @@ class DashboardContainer {
         };
         
         const requiredLevel = tierLevels[widgetTier] || 0;
-        const userLevel = planLevels[currentPlan.id] || 0;
+        const userLevel = planLevels[currentPlan?.id] || 0;
         
-        return userLevel >= requiredLevel;
+        const available = userLevel >= requiredLevel;
+        console.log(`[dashboard-container] ${widgetId}: required=${requiredLevel}, user=${userLevel}, available=${available}`);
+        
+        return available;
     }
     
     getTierDisplayName(tier) {
