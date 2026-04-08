@@ -13,6 +13,7 @@
  *   - 08.04.2026: Добавлен виджет QuickTaskWidget (быстрая задача)
  *   - 08.04.2026: Исправлена инициализация PlanManager и синтаксис класса
  *   - 08.04.2026: Переход на чистый импорт planManager
+ *   - 08.04.2026: Добавлен drag-and-drop для перестановки виджетов
  * ============================================
  */
 
@@ -155,6 +156,10 @@ class DashboardContainer {
             await this.render();
             this.subscribeEvents();
             this.initialized = true;
+            
+            // Добавляем стили для drag-and-drop
+            this.addDragDropStyles();
+            
             console.log('[dashboard-container] Инициализирован');
         } catch (error) {
             console.error('[dashboard-container] Ошибка инициализации:', error);
@@ -362,7 +367,9 @@ class DashboardContainer {
         const tierColor = this.getTierBadgeColor(widgetTier);
         
         return `
-            <div class="widget-card" data-widget-id="${widgetConfig.id}" data-widget-index="${index}" style="background: var(--card-bg); border-radius: 16px; border: 1px solid var(--card-border); overflow: hidden;">
+            <div class="widget-card" data-widget-id="${widgetConfig.id}" data-widget-index="${index}" 
+                 draggable="${this.editMode}" 
+                 style="background: var(--card-bg); border-radius: 16px; border: 1px solid var(--card-border); overflow: hidden; ${this.editMode ? 'cursor: grab;' : ''}">
                 <div class="widget-header" style="padding: 12px 16px; border-bottom: 1px solid var(--card-border); display: flex; justify-content: space-between; align-items: center;">
                     <div class="widget-title" style="display: flex; align-items: center; gap: 8px; font-weight: 600;">
                         <i class="fas ${widgetIcon}" style="color: var(--accent);"></i>
@@ -542,8 +549,130 @@ class DashboardContainer {
                 };
             });
         }
+        
+        // Настройка drag-and-drop
+        this.setupDragAndDrop();
     }
-    
+        /**
+     * Настройка drag-and-drop для виджетов
+     */
+    setupDragAndDrop() {
+        if (!this.editMode) return;
+        
+        const grid = this.container.querySelector('#dashboardGrid');
+        if (!grid) return;
+        
+        const widgets = grid.querySelectorAll('.widget-card[draggable="true"]');
+        let draggedElement = null;
+        
+        widgets.forEach(widget => {
+            widget.addEventListener('dragstart', (e) => {
+                draggedElement = widget;
+                const widgetId = widget.dataset.widgetId;
+                widget.classList.add('dragging');
+                widget.style.opacity = '0.5';
+                widget.style.cursor = 'grabbing';
+                e.dataTransfer.setData('text/plain', widgetId);
+                e.dataTransfer.effectAllowed = 'move';
+            });
+            
+            widget.addEventListener('dragend', (e) => {
+                widget.classList.remove('dragging');
+                widget.style.opacity = '';
+                widget.style.cursor = '';
+                draggedElement = null;
+                
+                widgets.forEach(w => w.classList.remove('drag-over'));
+            });
+            
+            widget.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                
+                if (draggedElement && widget !== draggedElement) {
+                    widget.classList.add('drag-over');
+                }
+            });
+            
+            widget.addEventListener('dragleave', () => {
+                widget.classList.remove('drag-over');
+            });
+            
+            widget.addEventListener('drop', async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                widget.classList.remove('drag-over');
+                
+                const targetId = widget.dataset.widgetId;
+                const sourceId = e.dataTransfer.getData('text/plain');
+                
+                if (!sourceId || !targetId || sourceId === targetId) return;
+                
+                const sourceIndex = this.dashboard.layout.widgets.findIndex(w => w.id === sourceId);
+                const targetIndex = this.dashboard.layout.widgets.findIndex(w => w.id === targetId);
+                
+                if (sourceIndex === -1 || targetIndex === -1) return;
+                
+                const widgetsArray = this.dashboard.layout.widgets;
+                const [movedWidget] = widgetsArray.splice(sourceIndex, 1);
+                widgetsArray.splice(targetIndex, 0, movedWidget);
+                
+                widgetsArray.forEach((w, i) => {
+                    w.position = { order: i };
+                });
+                
+                const success = await saveDashboardLayout(this.dashboard.id, this.dashboard.layout);
+                
+                if (success) {
+                    await this.render();
+                    console.log(`[dashboard-container] Виджет ${sourceId} перемещен на позицию ${targetIndex}`);
+                }
+            });
+        });
+        
+        grid.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+        });
+        
+        grid.addEventListener('drop', (e) => {
+            e.preventDefault();
+        });
+    }
+        /**
+     * Добавить стили для drag-and-drop
+     */
+    addDragDropStyles() {
+        if (document.querySelector('#drag-drop-styles')) return;
+        
+        const style = document.createElement('style');
+        style.id = 'drag-drop-styles';
+        style.textContent = `
+            .widget-card[draggable="true"] {
+                transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+            }
+            
+            .widget-card[draggable="true"]:hover {
+                box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+                transform: translateY(-2px);
+            }
+            
+            .widget-card.dragging {
+                opacity: 0.5;
+                transform: scale(0.98);
+                box-shadow: 0 12px 28px rgba(0, 0, 0, 0.2);
+                cursor: grabbing !important;
+            }
+            
+            .widget-card.drag-over {
+                border: 2px dashed var(--accent) !important;
+                background: var(--hover-bg) !important;
+                transform: scale(1.02);
+            }
+        `;
+        document.head.appendChild(style);
+    }
     /**
      * Переключить режим редактирования
      */
