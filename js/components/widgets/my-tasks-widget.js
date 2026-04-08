@@ -223,7 +223,7 @@ class MyTasksWidget extends Widget {
             </div>
             ${this.tasks.length >= this.settings.limit ? `
                 <div style="margin-top: 12px; text-align: center; padding-top: 8px;">
-                    <a href="tasks.html" style="color: var(--accent); font-size: 12px; text-decoration: none;">
+                    <a href="${getPageUrl('tasks.html')}" style="color: var(--accent); font-size: 12px; text-decoration: none;">
                         Показать все задачи →
                     </a>
                 </div>
@@ -271,7 +271,7 @@ class MyTasksWidget extends Widget {
         const expandBtn = this.container.querySelector('.expand-btn');
         if (expandBtn) {
             expandBtn.onclick = () => {
-                window.location.href = 'tasks.html';
+                window.location.href = getPageUrl('tasks.html');
             };
         }
             
