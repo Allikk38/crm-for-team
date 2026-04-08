@@ -725,12 +725,22 @@ function setupFilters() {
     // Фильтр по исполнителю (динамически обновляется после загрузки пользователей)
     updateAssigneeFilters();
     
-    // Фильтр по приоритету
+    // Фильтр по приоритету (TOGGLE)
     document.querySelectorAll('.priority-filter').forEach(btn => {
         btn.addEventListener('click', () => {
-            document.querySelectorAll('.priority-filter').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            filters.priority = btn.dataset.priority;
+            const priority = btn.dataset.priority;
+            
+            // Если кликнули на уже активный фильтр - сбрасываем
+            if (btn.classList.contains('active')) {
+                btn.classList.remove('active');
+                filters.priority = 'all';
+            } else {
+                // Убираем active у всех, ставим на текущий
+                document.querySelectorAll('.priority-filter').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                filters.priority = priority;
+            }
+            
             renderKanbanBoard();
         });
     });
