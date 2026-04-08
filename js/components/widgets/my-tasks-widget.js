@@ -16,6 +16,15 @@ import { getCurrentSupabaseUser } from '../../core/supabase-session.js';
 
 console.log('[my-tasks-widget] Загрузка...');
 
+// ========== ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ==========
+function getPageUrl(page) {
+    const basePath = window.CRM?.BASE_PATH || '';
+    if (basePath) {
+        return `${basePath}/app/${page}`;
+    }
+    return page;
+}
+
 class MyTasksWidget extends Widget {
     constructor(container, options = {}) {
         super(container, options);
@@ -262,10 +271,10 @@ class MyTasksWidget extends Widget {
         const expandBtn = this.container.querySelector('.expand-btn');
         if (expandBtn) {
             expandBtn.onclick = () => {
-                window.location.href = 'tasks-supabase.html';
+                window.location.href = 'tasks.html';
             };
         }
-        
+            
         // Кнопка повторной авторизации
         const retryAuthBtn = this.container.querySelector('.retry-auth-btn');
         if (retryAuthBtn) {
