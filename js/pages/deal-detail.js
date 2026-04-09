@@ -17,6 +17,7 @@
  * 
  * ИСТОРИЯ:
  *   - 31.03.2026: Создание файла
+ *   - 09.04.2026: Исправлены пути для GitHub Pages
  * ============================================
  */
 
@@ -57,7 +58,6 @@ function getStageOrder(deal) {
         return stageOrder;
     }
     
-    // Дефолтные порядки
     const defaults = {
         'new_building': ['new', 'selection', 'booking', 'documents', 'mortgage', 'registration', 'keys'],
         'secondary_buy': ['new', 'matching', 'showing', 'negotiation', 'documents', 'mortgage', 'deal', 'keys'],
@@ -69,7 +69,7 @@ function getStageOrder(deal) {
 }
 
 /**
- * Получить текущий активный этап (первый незавершенный)
+ * Получить текущий активный этап
  */
 function getCurrentActiveStage(stages, stageOrder) {
     for (const stageName of stageOrder) {
@@ -81,16 +81,14 @@ function getCurrentActiveStage(stages, stageOrder) {
 }
 
 /**
- * Проверить, можно ли завершить этап (все чек-листы выполнены)
+ * Проверить, можно ли завершить этап
  */
 function canCompleteStage(stageName, stages) {
     const stage = stages[stageName];
     if (!stage || stage.completed) return false;
     
     const checklist = stage.checklist || {};
-    const allCompleted = Object.values(checklist).every(item => item.completed === true);
-    
-    return allCompleted;
+    return Object.values(checklist).every(item => item.completed === true);
 }
 
 /**
@@ -106,18 +104,11 @@ function getSpiraTips(stageName, deal, stages) {
             if (pendingDocs.length > 0) {
                 tips.push(`📋 Осталось собрать документов: ${pendingDocs.length}. Начни с самых важных.`);
             }
-            
-            const buyerIncome = checklist.buyer_income;
-            if (buyerIncome && !buyerIncome.completed && deal.mortgage_approved) {
-                tips.push(`⚠️ Для ипотеки нужна справка 2-НДФЛ. Напомни клиенту завтра утром.`);
-            }
             break;
             
         case 'negotiation':
             if (deal.price_current < deal.price_initial * 0.9) {
                 tips.push(`💰 Текущая цена ${deal.price_current?.toLocaleString()}₽ (${Math.round(deal.price_current / deal.price_initial * 100)}% от начальной). Хороший торг!`);
-            } else if (deal.price_current === deal.price_initial) {
-                tips.push(`💡 Цена не изменилась. Попробуй предложить скидку за быстрый выход на сделку.`);
             }
             break;
             
@@ -134,7 +125,6 @@ function getSpiraTips(stageName, deal, stages) {
             break;
     }
     
-    // Общие подсказки
     if (deal.deadline) {
         const deadline = new Date(deal.deadline);
         const daysLeft = Math.ceil((deadline - new Date()) / (1000 * 60 * 60 * 24));
@@ -164,37 +154,23 @@ async function completeStage(stageName) {
         return;
     }
     
-    // Завершаем текущий этап
     stages[stageName] = {
         ...stages[stageName],
         completed: true,
         completedAt: new Date().toISOString()
     };
     
-    // Находим следующий этап
     const currentIndex = stageOrder.indexOf(stageName);
     const nextStage = stageOrder[currentIndex + 1];
-    
-    // Обновляем статус сделки (stage) на следующий этап
     const newStage = nextStage || stageName;
     
     try {
-        const updated = await updateDeal(currentDeal.id, {
-            stages: stages,
-            stage: newStage
-        });
+        const updated = await updateDeal(currentDeal.id, { stages, stage: newStage });
         
         if (updated) {
-            // Добавляем лог
-            await addDealLog(currentDeal.id, 'stage_completed', {
-                stage: stageName,
-                next_stage: nextStage
-            });
-            
+            await addDealLog(currentDeal.id, 'stage_completed', { stage: stageName, next_stage: nextStage });
             currentDeal = updated;
             showToast('success', `✅ Этап "${STAGE_LABELS[stageName]?.name || stageName}" завершен!`);
-            
-            // Обновляем UI
             renderDealDetail();
         } else {
             showToast('error', 'Ошибка при завершении этапа');
@@ -213,7 +189,6 @@ async function updateChecklist(stageName, itemKey, completed) {
     
     const stages = { ...currentDeal.stages };
     const stage = stages[stageName];
-    
     if (!stage) return;
     
     stage.checklist = stage.checklist || {};
@@ -228,24 +203,15 @@ async function updateChecklist(stageName, itemKey, completed) {
         
         if (updated) {
             currentDeal = updated;
+            await addDealLog(currentDeal.id, 'checklist_updated', { stage: stageName, item: itemKey, completed });
             
-            // Добавляем лог
-            await addDealLog(currentDeal.id, 'checklist_updated', {
-                stage: stageName,
-                item: itemKey,
-                completed: completed
-            });
-            
-            // Обновляем кнопку завершения этапа
             const completeBtn = document.getElementById('completeStageBtn');
             if (completeBtn) {
-                const canComplete = canCompleteStage(currentStage, currentDeal.stages);
-                completeBtn.disabled = !canComplete;
+                completeBtn.disabled = !canCompleteStage(currentStage, currentDeal.stages);
             }
             
-            // Показываем подсказку если чек-лист выполнен
             if (completed && canCompleteStage(stageName, stages)) {
-                showToast('success', `🎉 Все пункты этапа "${STAGE_LABELS[stageName]?.name || stageName}" выполнены! Можно завершать этап.`);
+                showToast('success', `🎉 Все пункты этапа "${STAGE_LABELS[stageName]?.name || stageName}" выполнены!`);
             }
         }
     } catch (error) {
@@ -260,7 +226,6 @@ async function updateChecklist(stageName, itemKey, completed) {
 function renderBreadcrumb() {
     if (!currentDeal) return '';
     
-    // Определяем правильный путь
     const basePath = window.location.pathname.includes('/crm-for-team/') ? '/crm-for-team' : '';
     const dealsUrl = basePath ? `${basePath}/app/deals.html` : './deals.html';
     
@@ -307,17 +272,14 @@ function renderInfoCard() {
                 <div class="stat-item">
                     <div class="stat-label">Сумма сделки</div>
                     <div class="stat-value">${priceFormatted} ₽</div>
-                    <div class="stat-sub">${currentDeal.commission}% комиссия</div>
                 </div>
                 <div class="stat-item">
                     <div class="stat-label">Комиссия</div>
                     <div class="stat-value">${commissionFormatted} ₽</div>
-                    <div class="stat-sub">агентская</div>
                 </div>
                 <div class="stat-item">
                     <div class="stat-label">Прогноз</div>
                     <div class="stat-value">${forecast}</div>
-                    <div class="stat-sub">ожидаемая дата</div>
                 </div>
                 <div class="stat-item">
                     <div class="stat-label">Ответственный</div>
@@ -329,7 +291,7 @@ function renderInfoCard() {
 }
 
 /**
- * Рендер вертикальной навигации (десктоп)
+ * Рендер вертикальной навигации
  */
 function renderVerticalStages() {
     const stageOrder = getStageOrder(currentDeal);
@@ -360,7 +322,7 @@ function renderVerticalStages() {
 }
 
 /**
- * Рендер горизонтальной навигации (мобильные)
+ * Рендер горизонтальной навигации
  */
 function renderHorizontalStages() {
     const stageOrder = getStageOrder(currentDeal);
@@ -407,19 +369,14 @@ function renderChecklist(stageName) {
     const completed = Object.values(checklist).filter(item => item.completed === true).length;
     const percent = total > 0 ? (completed / total) * 100 : 0;
     
-    // Группируем по типу (продавец/покупатель)
     const sellerItems = {};
     const buyerItems = {};
     const otherItems = {};
     
     for (const [key, item] of Object.entries(checklist)) {
-        if (key.includes('seller')) {
-            sellerItems[key] = item;
-        } else if (key.includes('buyer')) {
-            buyerItems[key] = item;
-        } else {
-            otherItems[key] = item;
-        }
+        if (key.includes('seller')) sellerItems[key] = item;
+        else if (key.includes('buyer')) buyerItems[key] = item;
+        else otherItems[key] = item;
     }
     
     let html = `
@@ -435,28 +392,14 @@ function renderChecklist(stageName) {
             </div>
     `;
     
-    // Рендер группы продавца
-    if (Object.keys(sellerItems).length > 0) {
-        html += renderChecklistGroup('ПРОДАВЕЦ', sellerItems);
-    }
-    
-    // Рендер группы покупателя
-    if (Object.keys(buyerItems).length > 0) {
-        html += renderChecklistGroup('ПОКУПАТЕЛЬ', buyerItems);
-    }
-    
-    // Рендер остальных
-    if (Object.keys(otherItems).length > 0) {
-        html += renderChecklistGroup('ДОПОЛНИТЕЛЬНО', otherItems);
-    }
+    if (Object.keys(sellerItems).length > 0) html += renderChecklistGroup('ПРОДАВЕЦ', sellerItems);
+    if (Object.keys(buyerItems).length > 0) html += renderChecklistGroup('ПОКУПАТЕЛЬ', buyerItems);
+    if (Object.keys(otherItems).length > 0) html += renderChecklistGroup('ДОПОЛНИТЕЛЬНО', otherItems);
     
     html += '</div>';
     return html;
 }
 
-/**
- * Рендер группы чек-листа
- */
 function renderChecklistGroup(title, items) {
     const isExpanded = localStorage.getItem(`checklist_${title}`) !== 'collapsed';
     
@@ -559,10 +502,10 @@ function renderHistory(history) {
         
         if (log.action === 'stage_completed') {
             icon = 'fa-check-circle';
-            actionText = `Завершен этап "${log.data?.stage}" → "${log.data?.next_stage || 'завершение'}"`;
+            actionText = `Завершен этап "${log.data?.stage}"`;
         } else if (log.action === 'checklist_updated') {
             icon = 'fa-list-check';
-            actionText = `${log.data?.completed ? '✅ Выполнен' : '⬜ Отменен'} пункт "${log.data?.item}" в этапе "${log.data?.stage}"`;
+            actionText = `${log.data?.completed ? '✅' : '⬜'} Пункт "${log.data?.item}"`;
         } else if (log.action === 'deal_created') {
             icon = 'fa-plus-circle';
             actionText = 'Сделка создана';
@@ -570,9 +513,7 @@ function renderHistory(history) {
         
         html += `
             <div class="history-item">
-                <div class="history-icon">
-                    <i class="fas ${icon}"></i>
-                </div>
+                <div class="history-icon"><i class="fas ${icon}"></i></div>
                 <div class="history-detail">
                     <div class="history-action">${escapeHtml(actionText)}</div>
                     <div class="history-time">${formatDate(log.created_at, 'DD.MM.YYYY HH:MM')}</div>
@@ -643,12 +584,13 @@ async function renderDealDetail() {
         </div>
     `;
     
-    // Добавляем обработчики
     attachEventHandlers();
 }
 
+/**
+ * Прикрепить обработчики событий
+ */
 function attachEventHandlers() {
-    // Вертикальная навигация
     document.querySelectorAll('.stage-vertical-item').forEach(el => {
         el.addEventListener('click', () => {
             const stage = el.dataset.stage;
@@ -659,7 +601,6 @@ function attachEventHandlers() {
         });
     });
     
-    // Горизонтальная навигация
     document.querySelectorAll('.stage-horizontal-item').forEach(el => {
         el.addEventListener('click', () => {
             const stage = el.dataset.stage;
@@ -670,26 +611,22 @@ function attachEventHandlers() {
         });
     });
     
-    // Кнопка завершения этапа
     const completeBtn = document.getElementById('completeStageBtn');
     if (completeBtn && !completeBtn.disabled) {
         completeBtn.addEventListener('click', () => completeStage(currentStage));
     }
     
-    // Чек-листы
     document.querySelectorAll('.checklist-checkbox').forEach(checkbox => {
         checkbox.addEventListener('change', (e) => {
             e.stopPropagation();
             const stage = checkbox.dataset.stage;
             const item = checkbox.dataset.item;
-            const completed = checkbox.checked;
             if (stage && item) {
-                updateChecklist(stage, item, completed);
+                updateChecklist(stage, item, checkbox.checked);
             }
         });
     });
     
-    // Сворачивание групп чек-листа
     document.querySelectorAll('.checklist-header').forEach(header => {
         header.addEventListener('click', () => {
             const groupId = header.dataset.group;
@@ -712,7 +649,6 @@ function attachEventHandlers() {
         });
     });
     
-    // История
     const historyHeader = document.getElementById('historyHeader');
     if (historyHeader) {
         historyHeader.addEventListener('click', () => {
@@ -733,7 +669,6 @@ function attachEventHandlers() {
         });
     }
     
-    // Кнопка назад
     const backBtn = document.getElementById('backToListBtn');
     if (backBtn) {
         backBtn.addEventListener('click', () => {
@@ -742,7 +677,7 @@ function attachEventHandlers() {
             window.location.href = dealsUrl;
         });
     }
-} // ← ЗАКРЫВАЮЩАЯ СКОБКА ЗДЕСЬ!
+}
 
 /**
  * Инициализация страницы
@@ -751,7 +686,6 @@ export async function initDealDetailPage(dealId) {
     console.log('[deal-detail] Инициализация страницы, ID:', dealId);
     
     currentUser = getCurrentSupabaseUser();
-    
     currentDeal = await getDealById(dealId);
         
     if (!currentDeal) {
@@ -766,8 +700,6 @@ export async function initDealDetailPage(dealId) {
     }
     
     console.log('[deal-detail] Сделка загружена:', currentDeal);
-    
     await renderDealDetail();
-    
     console.log('[deal-detail] Инициализация завершена');
 }
