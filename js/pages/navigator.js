@@ -13,6 +13,7 @@
  * ИСТОРИЯ:
  *   - 08.04.2026: Исправлены пути для GitHub Pages
  *   - 08.04.2026: Унифицировано отображение недоступных модулей
+ *   - 09.04.2026: Переход с role на permission_sets (isAdmin, hasPermission)
  * ============================================
  */
 
@@ -20,6 +21,7 @@ import { getCurrentSupabaseUser } from '../core/supabase-session.js';
 import { escapeHtml, showToast } from '../utils/helpers.js';
 import { supabase } from '../core/supabase.js';
 import planManager from '../core/planManager.js';
+import { isAdmin, hasPermission, canManageTeam } from '../core/permissions.js';
 
 // ========== ОПРЕДЕЛЕНИЕ БАЗОВОГО ПУТИ ==========
 function getBasePath() {
@@ -49,22 +51,22 @@ function getPageUrl(page) {
 const MODULES_CONFIG = {
     quick: [
         { id: 'dashboard', name: 'Дашборд', icon: 'fa-home', page: 'dashboard.html', metric: null },
-        { id: 'tasks', name: 'Задачи', icon: 'fa-tasks', page: 'tasks.html', metric: 'count' },
+        { id: 'tasks', name: 'Задачи', icon: 'fa-tasks', page: 'tasks.html', metric: 'count', permission: 'view_tasks' },
         { id: 'deals', name: 'Сделки', icon: 'fa-handshake', page: 'deals.html', metric: 'count', permission: 'view_own_deals' }
     ],
     
     personal: [
-        { id: 'notes', name: 'Заметки', icon: 'fa-sticky-note', page: 'notes.html', description: 'Быстрые заметки и идеи', metric: 'count' },
+        { id: 'notes', name: 'Заметки', icon: 'fa-sticky-note', page: 'notes.html', description: 'Быстрые заметки и идеи', metric: 'count', permission: 'view_notes' },
         { id: 'habits', name: 'Привычки', icon: 'fa-calendar-check', page: 'habits.html', description: 'Отслеживание привычек', metric: 'progress' },
         { id: 'pomodoro', name: 'Помодоро', icon: 'fa-clock', page: 'pomodoro.html', description: 'Таймер для фокусировки', metric: 'timer' },
-        { id: 'calendar', name: 'Календарь', icon: 'fa-calendar-alt', page: 'calendar.html', description: 'Планирование событий', metric: 'today' },
+        { id: 'calendar', name: 'Календарь', icon: 'fa-calendar-alt', page: 'calendar.html', description: 'Планирование событий', metric: 'today', permission: 'view_calendar' },
         { id: 'finance', name: 'Финансы', icon: 'fa-money-bill-wave', page: 'finance.html', description: 'Учет доходов и расходов', metric: 'count' }
     ],
     
     work: [
         { id: 'complexes', name: 'Объекты', icon: 'fa-building', page: 'complexes.html', description: 'Управление объектами', metric: 'count', permission: 'view_complexes' },
         { id: 'counterparties', name: 'Контрагенты', icon: 'fa-users', page: 'counterparties.html', description: 'База клиентов', metric: 'count', permission: 'view_counterparties' },
-        { id: 'team', name: 'Команда', icon: 'fa-user-friends', page: 'team.html', description: 'Управление сотрудниками', metric: 'count', roles: ['admin', 'manager'] }
+        { id: 'team', name: 'Команда', icon: 'fa-user-friends', page: 'team.html', description: 'Управление сотрудниками', metric: 'count', permission: 'view_team' }
     ],
     
     advanced: [
@@ -76,7 +78,7 @@ const MODULES_CONFIG = {
     ],
     
     settings: [
-        { id: 'profile', name: 'Профиль', icon: 'fa-user', page: 'profile.html', description: 'Настройки профиля' },
+        { id: 'profile', name: 'Профиль', icon: 'fa-user', page: 'profile.html', description: 'Настройки профиля', permission: 'view_profile' },
         { id: 'notifications', name: 'Уведомления', icon: 'fa-bell', page: 'notifications.html', description: 'Центр уведомлений' },
         { id: 'marketplace', name: 'Маркетплейс', icon: 'fa-store', page: 'marketplace.html', description: 'Установка модулей' },
         { id: 'my-modules', name: 'Мои модули', icon: 'fa-puzzle-piece', page: 'my-modules.html', description: 'Установленные модули' }
@@ -128,19 +130,31 @@ function isModuleAvailable(module) {
     if (!currentUser) return false;
     
     // Администратор имеет доступ ко всему
-    if (currentUser.role === 'admin') return true;
+    if (isAdmin()) return true;
     
-    // Проверка по ролям
-    if (module.roles && module.roles.length > 0) {
-        if (!module.roles.includes(currentUser.role)) return false;
+    // Проверка по правам (permission_sets)
+    if (module.permission) {
+        // Маппинг старых permission на новые
+        const permissionMap = {
+            'view_tasks': 'view_tasks',
+            'view_own_deals': 'view_own_deals',
+            'view_complexes': 'view_complexes',
+            'view_counterparties': 'view_counterparties',
+            'view_notes': 'view_notes',
+            'view_calendar': 'view_calendar',
+            'view_profile': 'view_profile',
+            'view_team': 'view_team'
+        };
+        
+        const requiredPermission = permissionMap[module.permission];
+        if (requiredPermission && !hasPermission(requiredPermission)) {
+            return false;
+        }
     }
     
-    // Проверка по правам
-    if (module.permission) {
-        const userPermissions = currentUser.permission_sets || [];
-        if (module.permission === 'view_own_deals' && !userPermissions.includes('AGENT')) return false;
-        if (module.permission === 'view_complexes' && !userPermissions.includes('AGENT')) return false;
-        if (module.permission === 'view_counterparties' && !userPermissions.includes('AGENT')) return false;
+    // Проверка для team (только менеджеры и админы)
+    if (module.id === 'team' && !canManageTeam() && !isAdmin()) {
+        return false;
     }
     
     return true;
@@ -172,7 +186,7 @@ async function getModuleMetric(moduleId, metricType) {
                 }
                 if (moduleId === 'finance') {
                     const { data } = await supabase
-                        .from('transactions')
+                        .from('finance_transactions')
                         .select('amount')
                         .eq('user_id', user.id)
                         .eq('type', 'expense')
@@ -180,7 +194,29 @@ async function getModuleMetric(moduleId, metricType) {
                     const total = data?.reduce((sum, t) => sum + (t.amount || 0), 0) || 0;
                     return { value: total.toLocaleString() + ' ₽', label: 'расходы' };
                 }
-                return { value: Math.floor(Math.random() * 5), label: 'активных' };
+                if (moduleId === 'deals') {
+                    const { count } = await supabase
+                        .from('deals')
+                        .select('*', { count: 'exact', head: true })
+                        .eq('user_id', user.id)
+                        .not('stage', 'in', ['closed', 'cancelled']);
+                    return { value: count || 0, label: 'активных' };
+                }
+                if (moduleId === 'complexes') {
+                    const { count } = await supabase
+                        .from('complexes')
+                        .select('*', { count: 'exact', head: true })
+                        .eq('user_id', user.id);
+                    return { value: count || 0, label: 'объектов' };
+                }
+                if (moduleId === 'counterparties') {
+                    const { count } = await supabase
+                        .from('counterparties')
+                        .select('*', { count: 'exact', head: true })
+                        .eq('user_id', user.id);
+                    return { value: count || 0, label: 'контрагентов' };
+                }
+                return { value: 0, label: 'активных' };
                 
             case 'progress':
                 if (moduleId === 'habits') {
@@ -200,10 +236,10 @@ async function getModuleMetric(moduleId, metricType) {
                 if (moduleId === 'calendar') {
                     const today = new Date().toISOString().split('T')[0];
                     const { count } = await supabase
-                        .from('events')
+                        .from('tasks')
                         .select('*', { count: 'exact', head: true })
                         .eq('user_id', user.id)
-                        .eq('date', today);
+                        .eq('due_date', today);
                     return { value: count || 0, label: 'сегодня' };
                 }
                 return { value: 0, label: 'сегодня' };
