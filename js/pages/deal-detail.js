@@ -740,10 +740,11 @@ function attachEventHandlers() {
     const backBtn = document.getElementById('backToListBtn');
     if (backBtn) {
         backBtn.addEventListener('click', () => {
-            window.location.href = '/app/deals.html';
+            const basePath = window.location.pathname.includes('/crm-for-team/') ? '/crm-for-team' : '';
+            const dealsUrl = basePath ? `${basePath}/app/deals.html` : './deals.html';
+            window.location.href = dealsUrl;
         });
     }
-}
 
 /**
  * Инициализация страницы
@@ -755,12 +756,14 @@ export async function initDealDetailPage(dealId) {
     
     // Загружаем данные сделки
     currentDeal = await getDealById(dealId);
-    
+        
     if (!currentDeal) {
         console.error('[deal-detail] Сделка не найдена');
         showToast('error', 'Сделка не найдена');
         setTimeout(() => {
-            window.location.href = '/app/deals.html';
+            const basePath = window.location.pathname.includes('/crm-for-team/') ? '/crm-for-team' : '';
+            const dealsUrl = basePath ? `${basePath}/app/deals.html` : './deals.html';
+            window.location.href = dealsUrl;
         }, 2000);
         return;
     }
