@@ -15,10 +15,35 @@
  * 
  * ИСТОРИЯ:
  *   - 31.03.2026: Создание компонента
+ *   - 09.04.2026: Исправлен путь для открытия сделки
  * ============================================
  */
 
 import { escapeHtml, formatDate, showToast } from '../utils/helpers.js';
+
+// ========== ОПРЕДЕЛЕНИЕ БАЗОВОГО ПУТИ ==========
+function getBasePath() {
+    const fullPath = window.location.pathname;
+    const match = fullPath.match(/^(\/crm-for-team)/);
+    if (match) return match[1];
+    
+    if (window.location.hostname.includes('github.io')) {
+        const parts = fullPath.split('/');
+        if (parts.length > 1 && parts[1] && parts[1] !== 'app') {
+            return `/${parts[1]}`;
+        }
+    }
+    return '';
+}
+
+const BASE_PATH = getBasePath();
+
+function getDealDetailUrl(dealId) {
+    if (BASE_PATH) {
+        return `${BASE_PATH}/app/deal-detail.html?id=${dealId}`;
+    }
+    return `./deal-detail.html?id=${dealId}`;
+}
 
 /**
  * Получить тип сделки с иконкой
@@ -53,7 +78,7 @@ function calculateProgress(stages, stageOrder) {
         if (stages[stageName]?.completed === true) {
             completed++;
         } else {
-            break; // Останавливаемся на первом незавершенном
+            break;
         }
     }
     
@@ -104,7 +129,6 @@ function getStageLabel(stageName) {
 function getWarnings(deal) {
     const warnings = [];
     
-    // Проверка просроченного дедлайна
     if (deal.deadline) {
         const deadline = new Date(deal.deadline);
         const today = new Date();
@@ -123,7 +147,6 @@ function getWarnings(deal) {
         }
     }
     
-    // Проверка задержек по этапам (если этап не завершен более 7 дней)
     if (deal.stages && deal.updated_at) {
         const lastUpdate = new Date(deal.updated_at);
         const daysSinceUpdate = Math.ceil((new Date() - lastUpdate) / (1000 * 60 * 60 * 24));
@@ -157,33 +180,28 @@ export function createDealCardList(deal, options = {}) {
     card.className = 'deal-list-card';
     card.setAttribute('data-deal-id', deal.id);
     
-    // Определяем порядок этапов
     const effectiveStageOrder = stageOrder || deal.stage_order?.[deal.type] || 
         ['new', 'selection', 'documents', 'deal'];
     
-    // Рассчитываем прогресс
     const progress = calculateProgress(deal.stages, effectiveStageOrder);
     const currentStageText = getCurrentStageText(deal.stages, effectiveStageOrder);
     const warnings = getWarnings(deal);
     const typeInfo = getTypeIcon(deal.type);
     
-    // Форматируем сумму
     const priceFormatted = (deal.price_current || deal.price_initial || 0).toLocaleString('ru-RU');
     const commissionFormatted = (deal.commission_amount || 0).toLocaleString('ru-RU');
     
-    // Определяем цвет прогресс-бара
     const progressColor = progress.percent === 100 ? '#4caf50' : 
                           progress.percent >= 66 ? '#2196f3' : 
                           progress.percent >= 33 ? '#ff9800' : '#9e9e9e';
     
-    // Создаем HTML карточки
     card.innerHTML = `
         <div class="deal-list-card-header">
             <div class="deal-list-card-type" style="background: ${typeInfo.color}20; color: ${typeInfo.color};">
                 ${typeInfo.icon} ${typeInfo.label}
             </div>
             <div class="deal-list-card-number">
-                Заявка №${deal.id}
+                Заявка №${deal.id.substring(0, 8)}
             </div>
         </div>
         
@@ -239,19 +257,19 @@ export function createDealCardList(deal, options = {}) {
         </div>
     `;
     
-    // Добавляем обработчик открытия
+    // Обработчик открытия - используем правильный URL
     const openBtn = card.querySelector('.open-deal-btn');
-    if (openBtn && onOpen) {
+    if (openBtn) {
         openBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            onOpen(deal.id);
+            window.location.href = getDealDetailUrl(deal.id);
         });
     }
     
-    // Клик по всей карточке тоже открывает сделку
+    // Клик по карточке
     card.addEventListener('click', (e) => {
-        if (!e.target.closest('.open-deal-btn') && onOpen) {
-            onOpen(deal.id);
+        if (!e.target.closest('.open-deal-btn')) {
+            window.location.href = getDealDetailUrl(deal.id);
         }
     });
     
@@ -260,14 +278,9 @@ export function createDealCardList(deal, options = {}) {
 
 /**
  * Обновить существующую карточку (для оптимизации)
- * @param {HTMLElement} card - Существующая карточка
- * @param {Object} deal - Обновленные данные сделки
- * @param {Object} options - Опции
  */
 export function updateDealCardList(card, deal, options = {}) {
     if (!card || !deal) return;
-    
-    // Просто заменяем содержимое
     const newCard = createDealCardList(deal, options);
     card.replaceWith(newCard);
     return newCard;
@@ -275,9 +288,6 @@ export function updateDealCardList(card, deal, options = {}) {
 
 /**
  * Создать контейнер для группировки сделок
- * @param {string} stageName - Название этапа
- * @param {number} count - Количество сделок
- * @returns {HTMLElement}
  */
 export function createStageGroup(stageName, count = 0) {
     const group = document.createElement('div');
@@ -299,7 +309,6 @@ export function createStageGroup(stageName, count = 0) {
         </div>
     `;
     
-    // Добавляем обработчик сворачивания
     const header = group.querySelector('.stage-group-header');
     const content = group.querySelector('.stage-group-content');
     const icon = group.querySelector('.group-toggle-icon');
@@ -325,7 +334,6 @@ export function createStageGroup(stageName, count = 0) {
 // Добавляем стили динамически
 const style = document.createElement('style');
 style.textContent = `
-    /* Карточка сделки в списочном режиме */
     .deal-list-card {
         background: var(--card-bg);
         border-radius: 16px;
@@ -506,7 +514,6 @@ style.textContent = `
         background: var(--accent-hover);
     }
     
-    /* Группировка по этапам */
     .stage-group {
         margin-bottom: 20px;
         border: 1px solid var(--card-border);
@@ -554,16 +561,10 @@ style.textContent = `
         padding: 16px;
     }
     
-    /* Адаптивность */
     @media (max-width: 768px) {
         .deal-list-card-header {
             flex-direction: column;
             align-items: flex-start;
-        }
-        
-        .deal-list-card-price {
-            flex-direction: column;
-            gap: 8px;
         }
         
         .stage-group-title {
