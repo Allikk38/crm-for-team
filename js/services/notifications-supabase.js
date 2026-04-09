@@ -2,12 +2,25 @@
  * ============================================
  * ФАЙЛ: js/services/notifications-supabase.js
  * РОЛЬ: Сервис для работы с уведомлениями через Supabase
+ * 
+ * ОСОБЕННОСТИ:
+ *   - Получение уведомлений текущего пользователя
+ *   - Отметка прочитанных
+ *   - Создание/удаление уведомлений
+ *   - Проверка дедлайнов и создание уведомлений
+ * 
  * ЗАВИСИМОСТИ:
  *   - js/core/supabase.js
+ * 
+ * ИСТОРИЯ:
+ *   - 31.03.2026: Создание файла
+ *   - 09.04.2026: Удалено полное дублирование кода
  * ============================================
  */
 
 import { supabase } from '../core/supabase.js';
+
+console.log('[notifications-supabase] Сервис загружен');
 
 /**
  * Получить все уведомления текущего пользователя
@@ -43,6 +56,7 @@ export async function getNotifications() {
 export async function getUnreadCount() {
     try {
         const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return 0;
         
         const { count, error } = await supabase
             .from('notifications')
@@ -76,7 +90,9 @@ export async function createNotification(data) {
                 message: data.message,
                 task_id: data.task_id || null,
                 deal_id: data.deal_id || null,
-                complex_id: data.complex_id || null
+                complex_id: data.complex_id || null,
+                read: false,
+                created_at: new Date().toISOString()
             }])
             .select();
         
@@ -115,6 +131,7 @@ export async function markAsRead(id) {
 export async function markAllAsRead() {
     try {
         const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return false;
         
         const { error } = await supabase
             .from('notifications')
@@ -157,6 +174,7 @@ export async function deleteNotification(id) {
 export async function deleteAllNotifications() {
     try {
         const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return false;
         
         const { error } = await supabase
             .from('notifications')
@@ -177,6 +195,8 @@ export async function deleteAllNotifications() {
  * @returns {Promise<void>}
  */
 export async function checkDeadlinesAndNotify(tasks) {
+    if (!tasks || tasks.length === 0) return;
+    
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
@@ -185,6 +205,7 @@ export async function checkDeadlinesAndNotify(tasks) {
         if (!task.due_date) continue;
         
         const dueDate = new Date(task.due_date);
+        dueDate.setHours(0, 0, 0, 0);
         const diffDays = Math.floor((dueDate - today) / (1000 * 60 * 60 * 24));
         
         // Проверяем, есть ли уже уведомление об этом
@@ -193,7 +214,7 @@ export async function checkDeadlinesAndNotify(tasks) {
             .select('id')
             .eq('task_id', task.id)
             .eq('type', diffDays === 1 ? 'deadline' : 'overdue')
-            .single();
+            .maybeSingle();
         
         if (existing) continue;
         
@@ -201,7 +222,7 @@ export async function checkDeadlinesAndNotify(tasks) {
             await createNotification({
                 user_id: task.user_id,
                 type: 'deadline',
-                title: 'Дедлайн завтра',
+                title: '⏰ Дедлайн завтра',
                 message: `Задача "${task.title}" должна быть выполнена завтра`,
                 task_id: task.id
             });
@@ -209,10 +230,34 @@ export async function checkDeadlinesAndNotify(tasks) {
             await createNotification({
                 user_id: task.user_id,
                 type: 'overdue',
-                title: 'Задача просрочена',
-                message: `Задача "${task.title}" просрочена на ${Math.abs(diffDays)} дней`,
+                title: '⚠️ Задача просрочена',
+                message: `Задача "${task.title}" просрочена на ${Math.abs(diffDays)} ${getDaysWord(Math.abs(diffDays))}`,
                 task_id: task.id
             });
         }
     }
 }
+
+/**
+ * Склонение слова "день"
+ */
+function getDaysWord(days) {
+    if (days % 10 === 1 && days % 100 !== 11) return 'день';
+    if (days % 10 >= 2 && days % 10 <= 4 && (days % 100 < 10 || days % 100 >= 20)) return 'дня';
+    return 'дней';
+}
+
+// ========== ЭКСПОРТ ПО УМОЛЧАНИЮ ==========
+
+export default {
+    getNotifications,
+    getUnreadCount,
+    createNotification,
+    markAsRead,
+    markAllAsRead,
+    deleteNotification,
+    deleteAllNotifications,
+    checkDeadlinesAndNotify
+};
+
+console.log('[notifications-supabase] Сервис инициализирован');
