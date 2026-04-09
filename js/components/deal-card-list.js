@@ -22,18 +22,31 @@
 import { escapeHtml, formatDate, showToast } from '../utils/helpers.js';
 
 // ========== ОПРЕДЕЛЕНИЕ БАЗОВОГО ПУТИ ==========
+// ========== ОПРЕДЕЛЕНИЕ БАЗОВОГО ПУТИ ==========
 function getBasePath() {
-    const fullPath = window.location.pathname;
-    const match = fullPath.match(/^(\/crm-for-team)/);
-    if (match) return match[1];
+    const path = window.location.pathname;
     
-    if (window.location.hostname.includes('github.io')) {
-        const parts = fullPath.split('/');
-        if (parts.length > 1 && parts[1] && parts[1] !== 'app') {
-            return `/${parts[1]}`;
-        }
+    // Проверяем, находимся ли мы в репозитории crm-for-team
+    if (path.includes('/crm-for-team/')) {
+        return '/crm-for-team';
     }
+    
+    // Проверяем для локальной разработки
+    if (path.startsWith('/app/') || path === '/' || path.endsWith('.html')) {
+        return '';
+    }
+    
     return '';
+}
+
+const BASE_PATH = getBasePath();
+console.log('[deal-card-list] BASE_PATH:', BASE_PATH);
+
+function getDealDetailUrl(dealId) {
+    if (BASE_PATH) {
+        return `${BASE_PATH}/app/deal-detail.html?id=${dealId}`;
+    }
+    return `./deal-detail.html?id=${dealId}`;
 }
 
 const BASE_PATH = getBasePath();
