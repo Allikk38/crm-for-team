@@ -745,7 +745,7 @@ function attachEventHandlers() {
             window.location.href = dealsUrl;
         });
     }
-
+}
 /**
  * Инициализация страницы
  */
