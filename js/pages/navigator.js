@@ -38,11 +38,11 @@ function getBasePath() {
     return '';
 }
 
-const BASE_PATH = getBasePath();
+const NAV_BASE_PATH = getBasePath();
 
 function getPageUrl(page) {
-    if (BASE_PATH) {
-        return `${BASE_PATH}/app/${page}`;
+    if (NAV_BASE_PATH) {
+        return `${NAV_BASE_PATH}/app/${page}`;
     }
     return `/app/${page}`;
 }
