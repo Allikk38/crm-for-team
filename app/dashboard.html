@@ -18,7 +18,7 @@
       - 27.03.2026: Создание supabase-версии дашборда
       - 30.03.2026: Замена статического контента на динамические виджеты
       - 30.03.2026: Перенос в папку app, исправление путей
-      - 09.04.2026: Исправлен race condition с window.currentSupabaseUser
+      - 09.04.2026: Исправлен race condition с ожиданием пользователя
     ============================================
     -->
     
@@ -42,7 +42,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300..32,400;14..32,500;14..32,600;14..32,700&family=Montserrat:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     
-    <!-- CSS модули -->
     <link rel="stylesheet" href="../css/base.css">
     <link rel="stylesheet" href="../css/theme.css">
     <link rel="stylesheet" href="../css/components.css">
@@ -382,7 +381,6 @@
 </head>
 <body>
     <div class="app-layout">
-        <!-- Боковая панель навигации -->
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-logo">
                 <i class="fas fa-chart-line"></i>
@@ -402,7 +400,6 @@
             </div>
         </aside>
         
-        <!-- Основной контент -->
         <main class="main-content">
             <div class="top-bar">
                 <div class="user-profile" onclick="window.sidebar?.goToProfile()">
@@ -416,7 +413,6 @@
                 </div>
             </div>
             
-            <!-- Динамический контейнер для виджетов -->
             <div id="dashboardRoot" class="dashboard-root">
                 <div style="display: flex; justify-content: center; align-items: center; min-height: 400px;">
                     <div class="widget-loading">
@@ -428,7 +424,7 @@
         </main>
     </div>
     
-    <!-- ========== ИНИЦИАЛИЗАЦИЯ ДАШБОРДА ========== -->
+    <!-- Инициализация дашборда -->
     <script type="module">
         import DashboardContainer from '../js/components/dashboard-container.js';
         import { getCurrentSupabaseUser } from '../js/core/supabase-session.js';
@@ -439,29 +435,33 @@
             const dashboardRoot = document.getElementById('dashboardRoot');
             if (!dashboardRoot) return;
             
-            // Ждём загрузки пользователя через правильный API
-            const waitForUser = (maxWaitMs = 5000) => {
+            // Ждём загрузки пользователя через событие userLoaded
+            const waitForUser = () => {
                 return new Promise((resolve) => {
-                    const startTime = Date.now();
+                    // Если пользователь уже загружен
+                    const existingUser = getCurrentSupabaseUser();
+                    if (existingUser) {
+                        console.log('[dashboard] Пользователь уже загружен:', existingUser.name);
+                        resolve(existingUser);
+                        return;
+                    }
                     
-                    const check = () => {
-                        const user = getCurrentSupabaseUser();
-                        if (user) {
-                            console.log('[dashboard] Пользователь загружен:', user.name);
-                            resolve(user);
-                            return;
-                        }
-                        
-                        if (Date.now() - startTime >= maxWaitMs) {
-                            console.warn('[dashboard] Таймаут ожидания пользователя');
-                            resolve(null);
-                            return;
-                        }
-                        
-                        setTimeout(check, 100);
+                    // Ждём событие userLoaded
+                    console.log('[dashboard] Ожидание события userLoaded...');
+                    const timeout = setTimeout(() => {
+                        window.removeEventListener('userLoaded', handler);
+                        console.warn('[dashboard] Таймаут ожидания пользователя');
+                        resolve(null);
+                    }, 10000);
+                    
+                    const handler = (event) => {
+                        clearTimeout(timeout);
+                        window.removeEventListener('userLoaded', handler);
+                        console.log('[dashboard] Получено событие userLoaded:', event.detail?.name);
+                        resolve(event.detail);
                     };
                     
-                    check();
+                    window.addEventListener('userLoaded', handler);
                 });
             };
             
