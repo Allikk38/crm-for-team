@@ -323,9 +323,9 @@ function renderKanban() {
 }
 
 // ========== СПИСОЧНЫЙ РЕЖИМ ==========
-
 function openDealDetail(dealId) {
-    window.location.href = `/app/deal-detail.html?id=${dealId}`;
+    // Используем относительный путь вместо абсолютного
+    window.location.href = `./deal-detail.html?id=${dealId}`;
 }
 
 function renderListView() {
