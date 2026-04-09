@@ -13,9 +13,11 @@
       - Отображение задач на календаре
       - Drag-and-drop для изменения дедлайнов
       - Навигация по месяцам
+      - Удаление дедлайнов
     
     ИСТОРИЯ:
       - 30.03.2026: Перенос в папку app, исправление путей
+      - 09.04.2026: Добавлена инициализация страницы через initCalendarPage()
     ============================================
     -->
     
@@ -50,7 +52,7 @@
     <link rel="stylesheet" href="../css/animations.css">
     
     <style>
-        /* Стили из оригинального файла - без изменений */
+        /* Стили без изменений */
         .calendar-container {
             background: var(--card-bg);
             backdrop-filter: blur(12px);
@@ -360,7 +362,7 @@
             <div class="calendar-container">
                 <div class="calendar-header">
                     <div class="current-month">
-                        <i class="fas fa-calendar-week"></i> <span id="currentMonth">Март 2026</span>
+                        <i class="fas fa-calendar-week"></i> <span id="currentMonth">Загрузка...</span>
                     </div>
                     <div class="calendar-nav">
                         <button id="prevMonth"><i class="fas fa-chevron-left"></i></button>
@@ -390,8 +392,15 @@
         </main>
     </div>
     
-    <!-- ========== УНИВЕРСАЛЬНЫЙ ЗАГРУЗЧИК МОДУЛЕЙ ========== -->
-    <script type="module" src="../js/core/moduleLoader.js"></script>
+    <!-- ========== ИНИЦИАЛИЗАЦИЯ СТРАНИЦЫ ========== -->
+    <script type="module">
+        import { initCalendarPage } from '../js/pages/calendar.js';
+        
+        // Инициализация страницы календаря
+        initCalendarPage().catch(err => {
+            console.error('[calendar] Ошибка инициализации:', err);
+        });
+    </script>
     
     <!-- Инициализация бокового меню -->
     <script type="module">
