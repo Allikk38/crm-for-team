@@ -650,6 +650,20 @@ async function renderDealDetail() {
 /**
  * Прикрепить обработчики событий
  */
+/**
+ * ============================================
+ * ФАЙЛ: js/pages/deal-detail.js
+ * РОЛЬ: Логика детального режима сделки
+ * ============================================
+ */
+
+import { supabase } from '../core/supabase.js';
+import { getCurrentSupabaseUser } from '../core/supabase-session.js';
+import { getDealById, updateDeal, addDealLog } from '../services/deals-supabase.js';
+import { escapeHtml, formatDate, showToast } from '../utils/helpers.js';
+
+// ... весь код до функции attachEventHandlers ...
+
 function attachEventHandlers() {
     // Вертикальная навигация
     document.querySelectorAll('.stage-vertical-item').forEach(el => {
@@ -745,7 +759,8 @@ function attachEventHandlers() {
             window.location.href = dealsUrl;
         });
     }
-}
+} // ← ЗАКРЫВАЮЩАЯ СКОБКА ЗДЕСЬ!
+
 /**
  * Инициализация страницы
  */
@@ -754,7 +769,6 @@ export async function initDealDetailPage(dealId) {
     
     currentUser = getCurrentSupabaseUser();
     
-    // Загружаем данные сделки
     currentDeal = await getDealById(dealId);
         
     if (!currentDeal) {
@@ -770,7 +784,6 @@ export async function initDealDetailPage(dealId) {
     
     console.log('[deal-detail] Сделка загружена:', currentDeal);
     
-    // Рендерим страницу
     await renderDealDetail();
     
     console.log('[deal-detail] Инициализация завершена');
