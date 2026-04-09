@@ -6,29 +6,38 @@
  * ОСОБЕННОСТИ:
  *   - Регистрация модулей с их метаданными
  *   - Управление зависимостями между модулями
- *   - Проверка прав доступа к модулям
+ *   - Проверка прав доступа к модулям (переход на permission_sets)
  *   - Поддержка разных тарифных планов
  *   - События жизненного цикла модулей
+ *   - ЧИСТЫЕ ES6 ЭКСПОРТЫ
  * 
  * ЗАВИСИМОСТИ:
- *   - js/core/permissions.js
- *   - js/core/planManager.js (для PLANS)
+ *   - js/core/permissions.js (hasPermission, isAdmin)
+ *   - js/core/planManager.js (импорт)
+ *   - js/core/supabase-session.js (getCurrentSupabaseUser)
  * 
  * ИСТОРИЯ:
  *   - 30.03.2026: Создание реестра модулей
- *   - 30.03.2026: Убрано дублирование PLANS, используется из planManager
+ *   - 30.03.2026: Убрано дублирование PLANS
+ *   - 09.04.2026: Добавлены чистые ES6 экспорты
+ *   - 09.04.2026: Переход с role на permission_sets
+ *   - 09.04.2026: Убрана зависимость от window.CRM
  * ============================================
  */
+
+import { hasPermission, hasAnyPermission, isAdmin } from './permissions.js';
+import planManager from './planManager.js';
+import { getCurrentSupabaseUser } from './supabase-session.js';
 
 console.log('[registry] Загрузка реестра модулей...');
 
 // ========== ХРАНИЛИЩЕ МОДУЛЕЙ ==========
 
 const modules = new Map();
-const moduleStates = new Map(); // 'loading', 'loaded', 'error', 'disabled'
+const moduleStates = new Map();
 
 // Состояния модулей
-const MODULE_STATUS = {
+export const MODULE_STATUS = {
     REGISTERED: 'registered',
     LOADING: 'loading',
     LOADED: 'loaded',
@@ -36,38 +45,14 @@ const MODULE_STATUS = {
     DISABLED: 'disabled'
 };
 
-// ========== ОПРЕДЕЛЕНИЯ МОДУЛЕЙ ==========
-
-// Используем PLANS из planManager, если он загружен
-const getPLANS = () => {
-    if (window.CRM?.PLANS) {
-        return window.CRM.PLANS;
-    }
-    // Fallback если planManager еще не загружен
-    return {
-        FREE: 'free',
-        PRO: 'pro',
-        BUSINESS: 'business',
-        ENTERPRISE: 'enterprise'
-    };
-};
-
-// Базовые модули для каждого плана
-const getPlanModules = () => {
-    const PLANS = getPLANS();
-    return {
-        [PLANS.FREE]: ['tasks', 'calendar', 'profile'],
-        [PLANS.PRO]: ['tasks', 'deals', 'complexes', 'calendar', 'counterparties', 'profile'],
-        [PLANS.BUSINESS]: ['tasks', 'deals', 'complexes', 'calendar', 'counterparties', 'manager', 'profile'],
-        [PLANS.ENTERPRISE]: ['tasks', 'deals', 'complexes', 'calendar', 'counterparties', 'manager', 'admin', 'profile']
-    };
-};
+// ========== РЕГИСТРАЦИЯ МОДУЛЯ ==========
 
 /**
  * Регистрация модуля в системе
  * @param {Object} moduleDef - Определение модуля
+ * @returns {boolean}
  */
-function registerModule(moduleDef) {
+export function registerModule(moduleDef) {
     if (!moduleDef || !moduleDef.id) {
         console.error('[registry] Ошибка регистрации: не указан id модуля');
         return false;
@@ -78,20 +63,16 @@ function registerModule(moduleDef) {
         return false;
     }
     
-    // Валидация обязательных полей
     if (!moduleDef.name) {
         console.error(`[registry] Модуль ${moduleDef.id}: не указано name`);
         return false;
     }
     
-    // Получаем PLANS
-    const PLANS = getPLANS();
-    
     // Нормализация данных
     const normalizedModule = {
         ...moduleDef,
         requiredPermissions: moduleDef.requiredPermissions || [],
-        requiredPlans: moduleDef.requiredPlans || Object.values(PLANS),
+        requiredPlans: moduleDef.requiredPlans || ['free', 'pro', 'business', 'enterprise'],
         pages: moduleDef.pages || {},
         widgets: moduleDef.widgets || {},
         dependencies: moduleDef.dependencies || [],
@@ -103,12 +84,9 @@ function registerModule(moduleDef) {
     
     console.log(`[registry] Модуль зарегистрирован: ${moduleDef.id} (${moduleDef.name})`);
     
-    // Отправляем событие о регистрации
-    if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('moduleRegistered', { 
-            detail: { moduleId: moduleDef.id, module: normalizedModule }
-        }));
-    }
+    window.dispatchEvent(new CustomEvent('moduleRegistered', { 
+        detail: { moduleId: moduleDef.id, module: normalizedModule }
+    }));
     
     return true;
 }
@@ -117,7 +95,7 @@ function registerModule(moduleDef) {
  * Получить информацию о модуле
  * @param {string} moduleId - ID модуля
  */
-function getModule(moduleId) {
+export function getModule(moduleId) {
     return modules.get(moduleId) || null;
 }
 
@@ -125,52 +103,38 @@ function getModule(moduleId) {
  * Получить тарифный план пользователя
  */
 function getUserPlan() {
-    // Используем PlanManager если доступен
-    if (window.CRM?.PlanManager) {
-        return window.CRM.PlanManager.getUserPlan();
+    try {
+        return planManager?.getUserPlan() || { id: 'free' };
+    } catch (e) {
+        return { id: 'free' };
     }
-    
-    // Fallback
-    const user = window.currentSupabaseUser;
-    if (user?.role === 'admin') return 'business';
-    if (user?.role === 'manager') return 'pro';
-    return 'free';
 }
 
 /**
  * Проверить, доступен ли модуль для текущего пользователя
  * @param {string} moduleId - ID модуля
  */
-function isModuleAvailable(moduleId) {
+export function isModuleAvailable(moduleId) {
     const module = getModule(moduleId);
     if (!module) return false;
     
-    // Проверка статуса
     if (module.status === MODULE_STATUS.DISABLED) return false;
     
-    // ВАЖНО: Проверяем, что пользователь загружен
-    if (!window.currentSupabaseUser) {
+    const user = getCurrentSupabaseUser();
+    if (!user) {
         console.log(`[registry] Пользователь не загружен, модуль ${moduleId} временно недоступен`);
         return false;
     }
     
-    // ========== ДОБАВИТЬ ЭТУ ПРОВЕРКУ ==========
     // Администратор имеет доступ ко всем модулям
-    if (window.currentSupabaseUser.role === 'admin') {
+    if (isAdmin()) {
         console.log(`[registry] Администратор, модуль ${moduleId} доступен`);
         return true;
     }
-    // ==========================================
     
-    // Проверка прав доступа
+    // Проверка прав доступа (по permission_sets)
     if (module.requiredPermissions && module.requiredPermissions.length > 0) {
-        // Проверяем, что объект Permissions существует
-        if (!window.CRM?.Permissions) {
-            console.warn(`[registry] Модуль прав не загружен, модуль ${moduleId} временно недоступен`);
-            return false;
-        }
-        
-        const hasPermissions = window.CRM.Permissions.hasAnyPermission(module.requiredPermissions);
+        const hasPermissions = hasAnyPermission(module.requiredPermissions);
         if (!hasPermissions) {
             console.log(`[registry] Нет прав для модуля ${moduleId}, требуется:`, module.requiredPermissions);
             return false;
@@ -179,18 +143,19 @@ function isModuleAvailable(moduleId) {
     
     // Проверка тарифного плана
     const userPlan = getUserPlan();
-    const planId = userPlan.id || userPlan;
-    if (!module.requiredPlans.includes(planId)) {
+    const planId = userPlan.id || 'free';
+    if (!module.requiredPlans.includes(planId) && !module.requiredPlans.includes(planId.toUpperCase())) {
         console.log(`[registry] Тарифный план ${planId} не подходит для модуля ${moduleId}`);
         return false;
     }
     
     return true;
 }
+
 /**
  * Получить все доступные модули для текущего пользователя
  */
-function getAvailableModules() {
+export function getAvailableModules() {
     const available = [];
     for (const [id, module] of modules) {
         if (isModuleAvailable(id)) {
@@ -210,20 +175,18 @@ function getAvailableModules() {
  * Загрузить модуль
  * @param {string} moduleId - ID модуля
  */
-async function loadModule(moduleId) {
+export async function loadModule(moduleId) {
     const module = getModule(moduleId);
     if (!module) {
         console.error(`[registry] Модуль ${moduleId} не найден`);
         return null;
     }
     
-    // Проверка доступности
     if (!isModuleAvailable(moduleId)) {
         console.warn(`[registry] Модуль ${moduleId} недоступен для текущего пользователя`);
         return null;
     }
     
-    // Проверка текущего статуса
     const currentStatus = moduleStates.get(moduleId);
     if (currentStatus === MODULE_STATUS.LOADED) {
         console.log(`[registry] Модуль ${moduleId} уже загружен`);
@@ -243,11 +206,9 @@ async function loadModule(moduleId) {
         }
     }
     
-    // Обновляем статус
     moduleStates.set(moduleId, MODULE_STATUS.LOADING);
     
     try {
-        // Вызываем onLoad если есть
         if (module.onLoad && typeof module.onLoad === 'function') {
             await module.onLoad();
         }
@@ -257,12 +218,9 @@ async function loadModule(moduleId) {
         
         console.log(`[registry] Модуль загружен: ${moduleId}`);
         
-        // Отправляем событие о загрузке
-        if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('moduleLoaded', { 
-                detail: { moduleId, module }
-            }));
-        }
+        window.dispatchEvent(new CustomEvent('moduleLoaded', { 
+            detail: { moduleId, module }
+        }));
         
         return module;
     } catch (error) {
@@ -270,11 +228,9 @@ async function loadModule(moduleId) {
         module.status = MODULE_STATUS.ERROR;
         moduleStates.set(moduleId, MODULE_STATUS.ERROR);
         
-        if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('moduleError', { 
-                detail: { moduleId, error }
-            }));
-        }
+        window.dispatchEvent(new CustomEvent('moduleError', { 
+            detail: { moduleId, error }
+        }));
         
         return null;
     }
@@ -284,7 +240,7 @@ async function loadModule(moduleId) {
  * Выгрузить модуль
  * @param {string} moduleId - ID модуля
  */
-async function unloadModule(moduleId) {
+export async function unloadModule(moduleId) {
     const module = getModule(moduleId);
     if (!module) return;
     
@@ -303,11 +259,9 @@ async function unloadModule(moduleId) {
         
         console.log(`[registry] Модуль выгружен: ${moduleId}`);
         
-        if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('moduleUnloaded', { 
-                detail: { moduleId }
-            }));
-        }
+        window.dispatchEvent(new CustomEvent('moduleUnloaded', { 
+            detail: { moduleId }
+        }));
     } catch (error) {
         console.error(`[registry] Ошибка выгрузки модуля ${moduleId}:`, error);
     }
@@ -317,7 +271,7 @@ async function unloadModule(moduleId) {
  * Получить виджеты для дашборда
  * @param {string} moduleId - ID модуля (опционально)
  */
-function getAvailableWidgets(moduleId = null) {
+export function getAvailableWidgets(moduleId = null) {
     const widgets = [];
     
     for (const [id, module] of modules) {
@@ -343,21 +297,18 @@ function getAvailableWidgets(moduleId = null) {
  * Получить страницы модуля
  * @param {string} moduleId - ID модуля
  */
-function getModulePages(moduleId) {
+export function getModulePages(moduleId) {
     const module = getModule(moduleId);
     if (!module) return {};
     
-    // Проверяем, что пользователь загружен и права доступны
-    if (!window.currentSupabaseUser || !window.CRM?.Permissions) {
-        return {};
-    }
+    const user = getCurrentSupabaseUser();
+    if (!user) return {};
     
-    // Фильтруем страницы по правам доступа
     const accessiblePages = {};
     for (const [pagePath, pageDef] of Object.entries(module.pages)) {
         if (!pageDef.permissions || pageDef.permissions.length === 0) {
             accessiblePages[pagePath] = pageDef;
-        } else if (window.CRM.Permissions.hasAnyPermission(pageDef.permissions)) {
+        } else if (hasAnyPermission(pageDef.permissions)) {
             accessiblePages[pagePath] = pageDef;
         }
     }
@@ -368,14 +319,14 @@ function getModulePages(moduleId) {
 /**
  * Проверить, загружен ли модуль
  */
-function isModuleLoaded(moduleId) {
+export function isModuleLoaded(moduleId) {
     return moduleStates.get(moduleId) === MODULE_STATUS.LOADED;
 }
 
 /**
  * Получить все зарегистрированные модули
  */
-function getAllModules() {
+export function getAllModules() {
     return Array.from(modules.entries()).map(([id, module]) => ({
         id,
         name: module.name,
@@ -385,22 +336,23 @@ function getAllModules() {
     }));
 }
 
-// ========== ИНИЦИАЛИЗАЦИЯ ==========
+// ========== ГЛОБАЛЬНЫЙ ОБЪЕКТ ДЛЯ ОБРАТНОЙ СОВМЕСТИМОСТИ ==========
 
-// Экспортируем в глобальный объект
-window.CRM = window.CRM || {};
-window.CRM.Registry = {
-    registerModule,
-    getModule,
-    isModuleAvailable,
-    getAvailableModules,
-    loadModule,
-    unloadModule,
-    getAvailableWidgets,
-    getModulePages,
-    isModuleLoaded,
-    getAllModules,
-    MODULE_STATUS
-};
+if (typeof window !== 'undefined') {
+    window.CRM = window.CRM || {};
+    window.CRM.Registry = {
+        registerModule,
+        getModule,
+        isModuleAvailable,
+        getAvailableModules,
+        loadModule,
+        unloadModule,
+        getAvailableWidgets,
+        getModulePages,
+        isModuleLoaded,
+        getAllModules,
+        MODULE_STATUS
+    };
+}
 
 console.log('[registry] Реестр модулей загружен');
