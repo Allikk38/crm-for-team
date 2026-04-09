@@ -14,9 +14,12 @@
  *   - js/core/supabase.js
  *   - js/core/supabase-session.js
  *   - js/services/tasks-supabase.js
+ *   - js/core/permissions.js
  * 
  * ИСТОРИЯ:
  *   - 27.03.2026: Создание файла, вынос логики из profile-supabase.html
+ *   - 09.04.2026: Переход с role на permission_sets для отображения
+ *   - 09.04.2026: Убраны глобальные функции
  * ============================================
  */
 
@@ -27,6 +30,7 @@ import {
     updateSupabaseUserInterface
 } from '../core/supabase-session.js';
 import { getTasks } from '../services/tasks-supabase.js';
+import { isAdmin, getUserPermissions } from '../core/permissions.js';
 
 // Состояние страницы
 let currentUser = null;
@@ -36,11 +40,6 @@ console.log('[profile.js] Модуль загружен');
 
 // ========== ВСПОМОГАТЕЛЬНЫЕ ==========
 
-/**
- * Экранирование HTML для безопасности
- * @param {string} text - Текст для экранирования
- * @returns {string} Экранированный текст
- */
 function escapeHtml(text) {
     if (!text) return '';
     const div = document.createElement('div');
@@ -48,11 +47,6 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-/**
- * Показать всплывающее уведомление
- * @param {string} type - Тип уведомления (success, error, info)
- * @param {string} message - Текст уведомления
- */
 function showToast(type, message) {
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
@@ -61,11 +55,36 @@ function showToast(type, message) {
     setTimeout(() => toast.remove(), 3000);
 }
 
+// ========== ПОЛУЧЕНИЕ МЕТКИ РОЛИ ПО ПРАВАМ ==========
+
+function getUserRoleLabel() {
+    if (!currentUser) return 'Сотрудник';
+    
+    // Определяем по permission_sets
+    const permissionSets = currentUser.permission_sets || [];
+    
+    if (permissionSets.includes('ADMIN') || isAdmin()) {
+        return 'Администратор';
+    }
+    if (permissionSets.includes('MANAGER')) {
+        return 'Менеджер';
+    }
+    if (permissionSets.includes('AGENT')) {
+        return 'Агент';
+    }
+    
+    // Fallback на старую роль
+    const roleLabels = {
+        'admin': 'Администратор',
+        'manager': 'Менеджер',
+        'agent': 'Агент',
+        'viewer': 'Наблюдатель'
+    };
+    return roleLabels[currentUser.role] || 'Сотрудник';
+}
+
 // ========== ЗАГРУЗКА ДАННЫХ ==========
 
-/**
- * Загрузить профиль пользователя из таблицы profiles
- */
 async function loadUserProfile() {
     console.log('[profile] Загрузка профиля пользователя...');
     const { data, error } = await supabase
@@ -78,15 +97,13 @@ async function loadUserProfile() {
         currentUser.name = data.name || currentUser.name;
         currentUser.role = data.role || currentUser.role;
         currentUser.github_username = data.github_username || currentUser.github_username;
-        console.log('[profile] Профиль загружен:', { name: currentUser.name, role: currentUser.role });
+        currentUser.permission_sets = data.permission_sets || currentUser.permission_sets;
+        console.log('[profile] Профиль загружен:', { name: currentUser.name });
     } else if (error) {
         console.error('[profile] Ошибка загрузки профиля:', error);
     }
 }
 
-/**
- * Загрузить задачи пользователя и обновить UI
- */
 async function loadUserTasks() {
     console.log('[profile] Загрузка задач пользователя...');
     tasks = await getTasks();
@@ -96,9 +113,6 @@ async function loadUserTasks() {
     updateActivityChart();
 }
 
-/**
- * Обновить статистику на странице
- */
 function updateStats() {
     const completedTasks = tasks.filter(t => t.status === 'completed').length;
     const activeTasks = tasks.filter(t => t.status !== 'completed').length;
@@ -125,9 +139,6 @@ function updateStats() {
     console.log('[profile] Статистика обновлена:', { completedTasks, activeTasks, overdueTasks });
 }
 
-/**
- * Обновить список последних завершённых задач
- */
 function updateRecentTasks() {
     const container = document.getElementById('recentTasks');
     const recentCompleted = tasks
@@ -146,13 +157,8 @@ function updateRecentTasks() {
             <div class="recent-task-date">${task.completed_at ? new Date(task.completed_at).toLocaleDateString() : ''}</div>
         </div>
     `).join('');
-    
-    console.log(`[profile] Показано ${recentCompleted.length} последних задач`);
 }
 
-/**
- * Обновить график активности за неделю
- */
 function updateActivityChart() {
     const days = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
     const today = new Date();
@@ -178,13 +184,8 @@ function updateActivityChart() {
         const height = (value / maxValue) * 80 + 20;
         return `<div class="chart-bar-profile" style="height: ${height}px;" title="${value} задач"></div>`;
     }).join('');
-    
-    console.log('[profile] График активности обновлен:', weeklyData);
 }
 
-/**
- * Обновить UI профиля (имя, email, роль, аватар)
- */
 function updateProfileUI() {
     const nameEl = document.getElementById('profileName');
     const emailEl = document.getElementById('profileEmail');
@@ -192,41 +193,98 @@ function updateProfileUI() {
     const roleEl = document.getElementById('profileRole');
     const avatarEl = document.getElementById('profileAvatar');
     
-    if (!nameEl) {
-        console.warn('[profile] Элементы DOM не найдены');
-        return;
-    }
+    if (!nameEl) return;
     
     nameEl.textContent = currentUser.name;
     emailEl.textContent = currentUser.email;
     if (githubEl) githubEl.textContent = currentUser.github_username || '—';
     
-    let roleLabel = '';
-    if (currentUser.role === 'admin') roleLabel = 'Администратор';
-    else if (currentUser.role === 'manager') roleLabel = 'Менеджер';
-    else if (currentUser.role === 'agent') roleLabel = 'Агент';
-    else roleLabel = 'Сотрудник';
-    if (roleEl) roleEl.textContent = roleLabel;
+    // Используем новую функцию для получения метки роли
+    if (roleEl) roleEl.textContent = getUserRoleLabel();
     
     const initials = currentUser.name.split(' ').map(n => n[0]).join('').toUpperCase();
     if (avatarEl) avatarEl.innerHTML = initials || '<i class="fas fa-user"></i>';
     
+    // Отображаем permission_sets
+    renderPermissionSets();
+    
     console.log('[profile] UI обновлен, имя:', currentUser.name);
+}
+
+function renderPermissionSets() {
+    const container = document.getElementById('permissionSetsContainer');
+    if (!container) return;
+    
+    const permissionSets = currentUser.permission_sets || [];
+    
+    if (permissionSets.length === 0) {
+        container.innerHTML = '<span class="profile-info-item"><i class="fas fa-shield"></i>Базовые права</span>';
+        return;
+    }
+    
+    const setLabels = {
+        'BASE': '🔹 Базовый',
+        'AGENT': '🤵 Агент',
+        'MANAGER': '📊 Менеджер',
+        'ADMIN': '👑 Администратор'
+    };
+    
+    container.innerHTML = permissionSets.map(set => {
+        const label = setLabels[set] || set;
+        return `<span class="profile-info-item"><i class="fas fa-check-circle" style="color: #4caf50;"></i>${escapeHtml(label)}</span>`;
+    }).join('');
 }
 
 // ========== МОДАЛЬНОЕ ОКНО ==========
 
-/**
- * Закрыть модальное окно редактирования профиля
- */
-function closeEditModal() {
-    document.getElementById('editProfileModal').classList.remove('active');
-    console.log('[profile] Модальное окно закрыто');
+let modal = null;
+let modalCloseHandler = null;
+
+function createModal() {
+    if (modal) return;
+    
+    modal = document.createElement('div');
+    modal.id = 'editProfileModal';
+    modal.className = 'modal';
+    modal.style.display = 'none';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <h3><i class="fas fa-edit"></i> Редактировать профиль</h3>
+            <input type="text" id="editName" placeholder="Имя">
+            <div class="modal-buttons">
+                <button class="secondary modal-cancel">Отмена</button>
+                <button class="primary modal-save">Сохранить</button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Обработчики
+    modal.querySelector('.modal-cancel').addEventListener('click', closeEditModal);
+    modal.querySelector('.modal-save').addEventListener('click', saveProfileChanges);
+    
+    modalCloseHandler = (e) => {
+        if (e.target === modal) closeEditModal();
+    };
+    modal.addEventListener('click', modalCloseHandler);
 }
 
-/**
- * Сохранить изменения профиля
- */
+function openEditModal() {
+    if (!modal) createModal();
+    
+    document.getElementById('editName').value = currentUser.name;
+    modal.style.display = 'flex';
+    modal.classList.add('active');
+}
+
+function closeEditModal() {
+    if (modal) {
+        modal.style.display = 'none';
+        modal.classList.remove('active');
+    }
+}
+
 async function saveProfileChanges() {
     const newName = document.getElementById('editName').value.trim();
     if (!newName) {
@@ -247,36 +305,20 @@ async function saveProfileChanges() {
         updateSupabaseUserInterface();
         closeEditModal();
         showToast('success', 'Профиль обновлен');
-        console.log('[profile] Профиль успешно обновлен');
     } else {
         console.error('[profile] Ошибка сохранения:', error);
         alert('Ошибка сохранения');
     }
 }
 
-/**
- * Открыть модальное окно редактирования профиля
- */
-function openEditModal() {
-    document.getElementById('editName').value = currentUser.name;
-    document.getElementById('editProfileModal').classList.add('active');
-    console.log('[profile] Модальное окно открыто');
-}
-
 // ========== НАСТРОЙКИ ==========
 
-/**
- * Загрузить настройки интерфейса из localStorage
- */
 function loadSettings() {
     const notificationsToggle = document.getElementById('notificationsToggle');
     const confirmActionsToggle = document.getElementById('confirmActionsToggle');
     const compactModeToggle = document.getElementById('compactModeToggle');
     
-    if (!notificationsToggle) {
-        console.warn('[profile] Элементы настроек не найдены');
-        return;
-    }
+    if (!notificationsToggle) return;
     
     notificationsToggle.checked = localStorage.getItem('crm_notifications') === 'true';
     confirmActionsToggle.checked = localStorage.getItem('crm_confirm_actions') !== 'false';
@@ -288,12 +330,10 @@ function loadSettings() {
     
     notificationsToggle.addEventListener('change', () => {
         localStorage.setItem('crm_notifications', notificationsToggle.checked);
-        console.log('[profile] Настройка уведомлений:', notificationsToggle.checked);
     });
     
     confirmActionsToggle.addEventListener('change', () => {
         localStorage.setItem('crm_confirm_actions', confirmActionsToggle.checked);
-        console.log('[profile] Настройка подтверждения действий:', confirmActionsToggle.checked);
     });
     
     compactModeToggle.addEventListener('change', () => {
@@ -303,23 +343,11 @@ function loadSettings() {
         } else {
             document.body.classList.remove('compact-mode');
         }
-        console.log('[profile] Компактный режим:', compactModeToggle.checked);
     });
-    
-    console.log('[profile] Настройки загружены');
 }
-
-// ========== ЭКСПОРТ ГЛОБАЛЬНЫХ ФУНКЦИЙ ДЛЯ HTML ==========
-
-// Экспортируем функции в window для доступа из onclick в HTML
-window.closeEditModal = closeEditModal;
-window.saveProfileChanges = saveProfileChanges;
 
 // ========== ИНИЦИАЛИЗАЦИЯ ==========
 
-/**
- * Главная функция инициализации страницы
- */
 export async function initProfilePage() {
     console.log('[profile] Инициализация страницы...');
     
@@ -328,22 +356,19 @@ export async function initProfilePage() {
     
     currentUser = getCurrentSupabaseUser();
     updateSupabaseUserInterface();
-    console.log('[profile] Текущий пользователь:', currentUser?.name, 'роль:', currentUser?.role);
+    console.log('[profile] Текущий пользователь:', currentUser?.name);
     
     await loadUserProfile();
     await loadUserTasks();
     updateProfileUI();
     loadSettings();
     
-    document.getElementById('editProfileBtn').addEventListener('click', openEditModal);
+    // Навешиваем обработчик на кнопку редактирования
+    document.getElementById('editProfileBtn')?.addEventListener('click', openEditModal);
     
     const sidebar = document.getElementById('sidebar');
     if (sidebar && localStorage.getItem('sidebar_collapsed') === 'true') {
         sidebar.classList.add('collapsed');
-    }
-    
-    if (window.CRM?.ui?.animations) {
-        console.log('[profile] Анимации инициализированы');
     }
     
     console.log('[profile] Инициализация завершена');
