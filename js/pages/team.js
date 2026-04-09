@@ -13,13 +13,13 @@
  * ЗАВИСИМОСТИ:
  *   - js/core/supabase.js
  *   - js/core/supabase-session.js
- *   - js/services/team-supabase.js (для createCompany)
+ *   - js/services/team-supabase.js
+ *   - js/core/permissions.js
  * 
  * ИСТОРИЯ:
  *   - 30.03.2026: Создание файла для страницы команды
  *   - 08.04.2026: Замена демо-данных на загрузку из Supabase
- *   - 08.04.2026: Добавлена возможность создания команды
- *   - 08.04.2026: Убрана проверка роли (доступно всем авторизованным)
+ *   - 09.04.2026: Переход с role на permission_sets для отображения
  * ============================================
  */
 
@@ -29,6 +29,7 @@ import {
     requireSupabaseAuth, 
     updateSupabaseUserInterface 
 } from '../core/supabase-session.js';
+import { isAdmin, canManageTeam, getUserPermissions } from '../core/permissions.js';
 
 let currentUser = null;
 let teamMembers = [];
@@ -37,9 +38,8 @@ let userCompanyId = null;
 
 console.log('[team.js] Модуль загружен');
 
-/**
- * Экранирование HTML для безопасного вывода
- */
+// ========== ВСПОМОГАТЕЛЬНЫЕ ==========
+
 function escapeHtml(text) {
     if (!text) return '';
     const div = document.createElement('div');
@@ -47,41 +47,42 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-/**
- * Получить читаемую метку роли
- */
-function getRoleLabel(role) {
-    const labels = {
-        admin: 'Администратор',
-        manager: 'Менеджер',
-        agent: 'Агент'
-    };
-    return labels[role] || role;
+function getRoleLabel(user) {
+    // Определяем по permission_sets
+    const permissionSets = user.permission_sets || [];
+    
+    if (permissionSets.includes('ADMIN') || user.role === 'admin') {
+        return 'Администратор';
+    }
+    if (permissionSets.includes('MANAGER') || user.role === 'manager') {
+        return 'Менеджер';
+    }
+    if (permissionSets.includes('AGENT') || user.role === 'agent') {
+        return 'Агент';
+    }
+    return 'Сотрудник';
 }
 
-/**
- * Получить CSS-класс для роли
- */
-function getRoleClass(role) {
-    return `role-${role}`;
+function getRoleClass(user) {
+    const permissionSets = user.permission_sets || [];
+    
+    if (permissionSets.includes('ADMIN') || user.role === 'admin') return 'role-admin';
+    if (permissionSets.includes('MANAGER') || user.role === 'manager') return 'role-manager';
+    if (permissionSets.includes('AGENT') || user.role === 'agent') return 'role-agent';
+    return 'role-viewer';
 }
 
-/**
- * Получить инициалы из имени
- */
 function getInitials(name) {
     if (!name) return '?';
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
 }
 
-/**
- * Загрузить данные команды из Supabase
- */
+// ========== ЗАГРУЗКА ДАННЫХ ==========
+
 async function loadTeamData() {
     const user = getCurrentSupabaseUser();
     if (!user) return;
     
-    // Получаем профиль пользователя с company_id
     const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('company_id')
@@ -99,7 +100,6 @@ async function loadTeamData() {
     userCompanyId = profile?.company_id || null;
     
     if (!userCompanyId) {
-        // У пользователя нет компании
         teamMembers = [];
         invites = [];
         return;
@@ -108,14 +108,14 @@ async function loadTeamData() {
     // Загружаем участников компании
     const { data: members, error: membersError } = await supabase
         .from('profiles')
-        .select('id, name, email, role, github_username')
+        .select('id, name, email, role, github_username, permission_sets')
         .eq('company_id', userCompanyId);
     
     if (!membersError && members) {
         teamMembers = members.map(m => ({
             ...m,
-            tasks_completed: 0,  // TODO: загружать реальную статистику
-            tasks_active: 0       // TODO: загружать реальную статистику
+            tasks_completed: 0,
+            tasks_active: 0
         }));
     } else {
         console.error('[team] Ошибка загрузки участников:', membersError);
@@ -138,9 +138,8 @@ async function loadTeamData() {
     }
 }
 
-/**
- * Отрисовать состояние "Нет команды" с кнопкой создания
- */
+// ========== РЕНДЕРИНГ ==========
+
 function renderNoCompanyState() {
     const container = document.getElementById('membersList');
     if (!container) return;
@@ -150,26 +149,23 @@ function renderNoCompanyState() {
             <i class="fas fa-users-slash" style="font-size: 48px; color: var(--text-muted); margin-bottom: 16px;"></i>
             <h3 style="margin-bottom: 8px;">У вас пока нет команды</h3>
             <p style="color: var(--text-muted); margin-bottom: 20px;">Создайте команду, чтобы приглашать коллег и работать вместе</p>
-            <button onclick="window.createTeam()" style="padding: 12px 24px; background: var(--accent); border: none; border-radius: 40px; color: white; font-weight: 600; cursor: pointer; font-size: 1rem;">
+            <button id="createTeamBtn" style="padding: 12px 24px; background: var(--accent); border: none; border-radius: 40px; color: white; font-weight: 600; cursor: pointer; font-size: 1rem;">
                 <i class="fas fa-plus" style="margin-right: 8px;"></i> Создать команду
             </button>
         </div>
     `;
     
-    // Скрываем секцию приглашений
+    document.getElementById('createTeamBtn')?.addEventListener('click', createTeam);
+    
     const invitesTitle = document.querySelector('.section-title:nth-of-type(2)');
     const invitesContainer = document.getElementById('invitesList')?.parentElement;
     if (invitesTitle) invitesTitle.style.display = 'none';
     if (invitesContainer) invitesContainer.style.display = 'none';
     
-    // Скрываем кнопку "Пригласить" в верхнем блоке
     const inviteBtn = document.querySelector('.invite-btn');
     if (inviteBtn) inviteBtn.style.display = 'none';
 }
 
-/**
- * Показать секции для компании
- */
 function showCompanySections() {
     const invitesTitle = document.querySelector('.section-title:nth-of-type(2)');
     const invitesContainer = document.getElementById('invitesList')?.parentElement;
@@ -180,9 +176,6 @@ function showCompanySections() {
     if (inviteBtn) inviteBtn.style.display = 'inline-flex';
 }
 
-/**
- * Отрисовать статистику команды
- */
 function renderTeamStats() {
     const totalMembers = teamMembers.length;
     const totalTasksCompleted = teamMembers.reduce((sum, m) => sum + (m.tasks_completed || 0), 0);
@@ -197,20 +190,15 @@ function renderTeamStats() {
     if (tasksCompletedEl) tasksCompletedEl.textContent = totalTasksCompleted;
 }
 
-/**
- * Отрисовать список участников
- */
 function renderMembersList() {
     const container = document.getElementById('membersList');
     if (!container) return;
     
-    // Если нет компании - показываем состояние создания
     if (!userCompanyId) {
         renderNoCompanyState();
         return;
     }
     
-    // Есть компания - показываем секции
     showCompanySections();
     
     if (teamMembers.length === 0) {
@@ -218,11 +206,14 @@ function renderMembersList() {
             <div class="empty-state" style="grid-column: 1/-1;">
                 <i class="fas fa-users"></i>
                 <p>Пока нет участников</p>
-                <button onclick="window.location.href='invite-supabase.html'" style="margin-top: 12px; padding: 8px 20px; background: var(--accent); border: none; border-radius: 40px; color: white; cursor: pointer;">
+                <button id="inviteEmptyBtn" style="margin-top: 12px; padding: 8px 20px; background: var(--accent); border: none; border-radius: 40px; color: white; cursor: pointer;">
                     <i class="fas fa-envelope" style="margin-right: 6px;"></i> Пригласить
                 </button>
             </div>
         `;
+        document.getElementById('inviteEmptyBtn')?.addEventListener('click', () => {
+            window.location.href = 'invite.html';
+        });
         return;
     }
     
@@ -234,7 +225,7 @@ function renderMembersList() {
             <div class="member-info">
                 <div class="member-name">${escapeHtml(member.name)}</div>
                 <div class="member-role">
-                    <span class="role-badge ${getRoleClass(member.role)}">${getRoleLabel(member.role)}</span>
+                    <span class="role-badge ${getRoleClass(member)}">${getRoleLabel(member)}</span>
                 </div>
                 <div class="member-stats">
                     <span><i class="fas fa-check-circle"></i> ${member.tasks_completed || 0}</span>
@@ -245,9 +236,6 @@ function renderMembersList() {
     `).join('');
 }
 
-/**
- * Отрисовать список приглашений
- */
 function renderInvitesList() {
     const container = document.getElementById('invitesList');
     if (!container) return;
@@ -280,10 +268,9 @@ function renderInvitesList() {
     `).join('');
 }
 
-/**
- * Создать новую команду (глобальная функция для вызова из HTML)
- */
-window.createTeam = async function() {
+// ========== СОЗДАНИЕ КОМАНДЫ ==========
+
+async function createTeam() {
     const user = getCurrentSupabaseUser();
     if (!user) {
         alert('Необходимо авторизоваться');
@@ -294,49 +281,38 @@ window.createTeam = async function() {
     if (!companyName || companyName.trim() === '') return;
     
     try {
-        // Динамический импорт функции создания компании
         const { createCompany } = await import('../services/team-supabase.js');
-        
         await createCompany(companyName.trim());
-        
-        // Показываем уведомление об успехе
         alert('✅ Команда успешно создана!');
-        
-        // Перезагружаем страницу для отображения команды
         location.reload();
     } catch (error) {
         console.error('[team] Ошибка создания команды:', error);
         alert('❌ Ошибка при создании команды: ' + error.message);
     }
-};
+}
+
+// ========== ИНИЦИАЛИЗАЦИЯ ==========
 
 export async function initTeamPage() {
     console.log('[team] Инициализация страницы...');
     
     try {
         const isAuth = await requireSupabaseAuth('auth-supabase.html');
-        if (!isAuth) {
-            console.log('[team] Не авторизован');
-            return;
-        }
+        if (!isAuth) return;
         
         currentUser = getCurrentSupabaseUser();
-        console.log('[team] currentUser:', currentUser);
-        
         updateSupabaseUserInterface();
         
-        console.log('[team] Загружаем данные...');
         await loadTeamData();
-        console.log('[team] Данные загружены, companyId:', userCompanyId, 'members:', teamMembers.length);
         
-        console.log('[team] Рендерим статистику...');
         renderTeamStats();
-        
-        console.log('[team] Рендерим список участников...');
         renderMembersList();
-        
-        console.log('[team] Рендерим приглашения...');
         renderInvitesList();
+        
+        // Навешиваем обработчик на кнопку приглашения
+        document.querySelector('.invite-btn')?.addEventListener('click', () => {
+            window.location.href = 'invite.html';
+        });
         
         const sidebar = document.getElementById('sidebar');
         if (sidebar && localStorage.getItem('sidebar_collapsed') === 'true') {
