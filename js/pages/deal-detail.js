@@ -647,23 +647,6 @@ async function renderDealDetail() {
     attachEventHandlers();
 }
 
-/**
- * Прикрепить обработчики событий
- */
-/**
- * ============================================
- * ФАЙЛ: js/pages/deal-detail.js
- * РОЛЬ: Логика детального режима сделки
- * ============================================
- */
-
-import { supabase } from '../core/supabase.js';
-import { getCurrentSupabaseUser } from '../core/supabase-session.js';
-import { getDealById, updateDeal, addDealLog } from '../services/deals-supabase.js';
-import { escapeHtml, formatDate, showToast } from '../utils/helpers.js';
-
-// ... весь код до функции attachEventHandlers ...
-
 function attachEventHandlers() {
     // Вертикальная навигация
     document.querySelectorAll('.stage-vertical-item').forEach(el => {
