@@ -14,15 +14,18 @@
  *   - js/core/supabase.js
  *   - js/components/widget.js
  *   - js/services/tasks-supabase.js
+ *   - js/core/permissions.js
  * 
  * ИСТОРИЯ:
  *   - 30.03.2026: Создание виджета
+ *   - 09.04.2026: Переход с role на permission_sets
  * ============================================
  */
 
 import Widget from '../widget.js';
 import { getTasks } from '../../services/tasks-supabase.js';
 import { supabase } from '../../core/supabase.js';
+import { canViewTeamKpi, isAdmin } from '../../core/permissions.js';
 
 console.log('[agent-ranking-widget] Загрузка...');
 
@@ -32,7 +35,7 @@ export class AgentRankingWidget extends Widget {
         
         this.settings = {
             limit: options.settings?.limit || 5,
-            period: options.settings?.period || 'all', // 'week', 'month', 'all'
+            period: options.settings?.period || 'all',
             refreshInterval: options.settings?.refreshInterval || 300000,
             ...options.settings
         };
@@ -49,8 +52,12 @@ export class AgentRankingWidget extends Widget {
     }
     
     /**
-     * Получить дату начала периода
+     * Проверить доступность виджета
      */
+    isAvailable() {
+        return canViewTeamKpi() || isAdmin();
+    }
+    
     getPeriodStartDate(period) {
         const now = new Date();
         
@@ -68,48 +75,43 @@ export class AgentRankingWidget extends Widget {
                 return monthAgo.toISOString();
                 
             default:
-                return null; // всё время
+                return null;
         }
     }
     
-    /**
-     * Загрузить всех агентов
-     */
     async loadAgents() {
         try {
             const { data, error } = await supabase
                 .from('profiles')
-                .select('id, name, role, github_username')
-                .eq('role', 'agent');
+                .select('id, name, role, github_username, permission_sets');
             
             if (error) {
                 console.error('[agent-ranking] Ошибка загрузки агентов:', error);
                 return [];
             }
             
-            console.log(`[agent-ranking] Загружено агентов: ${data?.length || 0}`);
-            return data || [];
+            // Фильтруем агентов по permission_sets
+            const agents = (data || []).filter(u => 
+                u.permission_sets?.includes('AGENT') || u.role === 'agent'
+            );
+            
+            console.log(`[agent-ranking] Загружено агентов: ${agents.length}`);
+            return agents;
         } catch (error) {
             console.error('[agent-ranking] Ошибка загрузки агентов:', error);
             return [];
         }
     }
     
-    /**
-     * Загрузить задачи с фильтром по периоду
-     */
     async loadTasksWithFilter() {
         try {
-            // Загружаем все задачи текущего пользователя (для доступа к assigned_to)
             const allTasks = await getTasks();
             
-            // Если нет фильтра по дате, возвращаем все
             const startDate = this.getPeriodStartDate(this.settings.period);
             if (!startDate) {
                 return allTasks;
             }
             
-            // Фильтруем по дате завершения
             const filteredTasks = allTasks.filter(task => {
                 if (task.status !== 'completed') return false;
                 if (!task.completed_at) return false;
@@ -125,11 +127,7 @@ export class AgentRankingWidget extends Widget {
         }
     }
     
-    /**
-     * Рассчитать статистику по агентам
-     */
     calculateStats(agents, tasks) {
-        // Создаем карту задач по assigned_to
         const tasksByAgent = new Map();
         
         tasks.forEach(task => {
@@ -150,7 +148,6 @@ export class AgentRankingWidget extends Widget {
             }
         });
         
-        // Строим рейтинг по агентам
         const ranking = agents
             .map(agent => {
                 const username = agent.github_username || agent.name;
@@ -169,14 +166,19 @@ export class AgentRankingWidget extends Widget {
                     percent: percent
                 };
             })
-            .filter(agent => agent.total > 0) // Только агенты с задачами
-            .sort((a, b) => b.completed - a.completed) // Сортировка по завершенным
+            .filter(agent => agent.total > 0)
+            .sort((a, b) => b.completed - a.completed)
             .slice(0, this.settings.limit);
         
         return ranking;
     }
     
     async fetchData() {
+        // Проверяем доступность
+        if (!this.isAvailable()) {
+            throw new Error('Виджет доступен только менеджерам и администраторам');
+        }
+        
         const cached = this.getCachedData();
         if (cached && cached.period === this.settings.period && !this.options.forceRefresh) {
             this.data = cached;
@@ -184,11 +186,9 @@ export class AgentRankingWidget extends Widget {
         }
         
         try {
-            // Загружаем агентов и задачи
             this.agents = await this.loadAgents();
             this.tasks = await this.loadTasksWithFilter();
             
-            // Рассчитываем рейтинг
             const ranking = this.calculateStats(this.agents, this.tasks);
             
             this.data = {
@@ -198,7 +198,6 @@ export class AgentRankingWidget extends Widget {
                 totalCompleted: ranking.reduce((sum, a) => sum + a.completed, 0)
             };
             
-            // Кэшируем на 2 минуты
             this.cacheData(this.data, 2 * 60 * 1000);
             
         } catch (error) {
@@ -209,9 +208,6 @@ export class AgentRankingWidget extends Widget {
         return this.data;
     }
     
-    /**
-     * Получить иконку места
-     */
     getRankIcon(index) {
         if (index === 0) return '🥇';
         if (index === 1) return '🥈';
@@ -219,9 +215,6 @@ export class AgentRankingWidget extends Widget {
         return `${index + 1}`;
     }
     
-    /**
-     * Переключить период
-     */
     changePeriod(period) {
         if (period === this.settings.period) return;
         
@@ -230,9 +223,6 @@ export class AgentRankingWidget extends Widget {
         this.refresh();
     }
     
-    /**
-     * Рендер панели управления
-     */
     renderControls() {
         const periods = [
             { value: 'week', label: 'Неделя' },
@@ -264,9 +254,6 @@ export class AgentRankingWidget extends Widget {
         `;
     }
     
-    /**
-     * Рендер списка рейтинга
-     */
     renderRanking() {
         const { ranking } = this.data;
         
@@ -288,7 +275,7 @@ export class AgentRankingWidget extends Widget {
                             ${this.getRankIcon(index)}
                         </div>
                         <div style="flex: 1;">
-                            <div style="font-weight: 500; font-size: 14px;">${window.escapeHtml ? window.escapeHtml(agent.name) : agent.name}</div>
+                            <div style="font-weight: 500; font-size: 14px;">${this.escapeHtml(agent.name)}</div>
                             <div style="display: flex; gap: 16px; font-size: 11px; color: var(--text-muted); margin-top: 4px;">
                                 <span><i class="fas fa-check-circle"></i> ${agent.completed} завершено</span>
                                 <span><i class="fas fa-tasks"></i> ${agent.total} всего</span>
@@ -304,8 +291,27 @@ export class AgentRankingWidget extends Widget {
         `;
     }
     
+    escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
     async render() {
         if (!this.container) return;
+        
+        // Проверяем доступность
+        if (!this.isAvailable()) {
+            this.container.innerHTML = `
+                <div class="widget-locked" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 20px; text-align: center; color: var(--text-muted);">
+                    <i class="fas fa-lock" style="font-size: 32px; margin-bottom: 12px;"></i>
+                    <div>Виджет доступен только менеджерам</div>
+                    <small style="font-size: 11px; margin-top: 8px;">Требуется право view_team_kpi</small>
+                </div>
+            `;
+            return;
+        }
         
         await this.fetchData();
         
@@ -334,13 +340,11 @@ export class AgentRankingWidget extends Widget {
     }
     
     attachEvents() {
-        // Кнопка обновления
         const refreshBtn = this.container.querySelector('.refresh-btn');
         if (refreshBtn) {
             refreshBtn.onclick = () => this.refresh();
         }
         
-        // Кнопки периода
         const periodBtns = this.container.querySelectorAll('[data-period]');
         periodBtns.forEach(btn => {
             btn.onclick = (e) => {
@@ -354,12 +358,10 @@ export class AgentRankingWidget extends Widget {
     setupEventListeners() {
         if (!window.CRM?.EventBus) return;
         
-        // Подписываемся на изменения задач
         this.subscribe('task:created', () => this.refresh());
         this.subscribe('task:updated', () => this.refresh());
         this.subscribe('task:deleted', () => this.refresh());
         
-        // Автообновление
         this.setAutoRefresh(this.settings.refreshInterval);
     }
     
@@ -369,7 +371,6 @@ export class AgentRankingWidget extends Widget {
     }
 }
 
-// Регистрируем виджет в глобальном объекте для обратной совместимости
 if (typeof window !== 'undefined') {
     window.CRM = window.CRM || {};
     window.CRM.Widgets = window.CRM.Widgets || {};
