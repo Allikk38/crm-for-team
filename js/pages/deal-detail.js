@@ -260,11 +260,15 @@ async function updateChecklist(stageName, itemKey, completed) {
 function renderBreadcrumb() {
     if (!currentDeal) return '';
     
+    // Определяем правильный путь
+    const basePath = window.location.pathname.includes('/crm-for-team/') ? '/crm-for-team' : '';
+    const dealsUrl = basePath ? `${basePath}/app/deals.html` : './deals.html';
+    
     return `
         <div class="breadcrumb">
-            <a href="/app/deals.html">← К списку сделок</a>
+            <a href="${dealsUrl}">← К списку сделок</a>
             <i class="fas fa-chevron-right"></i>
-            <span>Сделка №${currentDeal.id}</span>
+            <span>Сделка №${currentDeal.id.substring(0, 8)}</span>
             <i class="fas fa-chevron-right"></i>
             <span>${escapeHtml(currentDeal.address || currentDeal.complex_name || 'Детали')}</span>
         </div>
