@@ -7,21 +7,24 @@
  *   - KPI команды (всего задач, просрочено, выполнено)
  *   - Нагрузка по агентам (топ-3)
  *   - График активности за неделю
- *   - Доступен только для менеджеров и админов
+ *   - Доступен только для менеджеров и админов (по правам)
  * 
  * ЗАВИСИМОСТИ:
  *   - js/core/supabase.js
  *   - js/services/tasks-supabase.js
  *   - js/components/widget.js
+ *   - js/core/permissions.js
  * 
  * ИСТОРИЯ:
  *   - 30.03.2026: Создание виджета
+ *   - 09.04.2026: Переход с role на permission_sets
  * ============================================
  */
 
 import Widget from '../widget.js';
 import { supabase } from '../../core/supabase.js';
 import { getCurrentSupabaseUser } from '../../core/supabase-session.js';
+import { canViewTeamKpi, isAdmin } from '../../core/permissions.js';
 
 console.log('[team-analytics-widget] Загрузка...');
 
@@ -46,7 +49,19 @@ class TeamAnalyticsWidget extends Widget {
         console.log('[team-analytics-widget] Создан');
     }
     
+    /**
+     * Проверить доступность виджета
+     */
+    isAvailable() {
+        return canViewTeamKpi() || isAdmin();
+    }
+    
     async fetchData() {
+        // Проверяем доступность
+        if (!this.isAvailable()) {
+            throw new Error('Виджет доступен только менеджерам и администраторам');
+        }
+        
         const cached = this.getCachedData();
         if (cached && !this.options.forceRefresh) {
             this.data = cached;
@@ -83,8 +98,9 @@ class TeamAnalyticsWidget extends Widget {
             const activeUsers = usersWithTasks.size;
             
             // Топ агентов по выполненным задачам
+            // Фильтруем агентов по permission_sets, а не по role
             const agentStats = users
-                .filter(u => u.role === 'agent')
+                .filter(u => u.permission_sets?.includes('AGENT') || u.role === 'agent')
                 .map(agent => {
                     const agentTasks = tasks.filter(t => t.assigned_to === agent.github_username);
                     const completed = agentTasks.filter(t => t.status === 'completed').length;
@@ -139,6 +155,18 @@ class TeamAnalyticsWidget extends Widget {
     
     async render() {
         if (!this.container) return;
+        
+        // Проверяем доступность
+        if (!this.isAvailable()) {
+            this.container.innerHTML = `
+                <div class="widget-locked" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 20px; text-align: center; color: var(--text-muted);">
+                    <i class="fas fa-lock" style="font-size: 32px; margin-bottom: 12px;"></i>
+                    <div>Виджет доступен только менеджерам</div>
+                    <small style="font-size: 11px; margin-top: 8px;">Требуется право view_team_kpi</small>
+                </div>
+            `;
+            return;
+        }
         
         await this.fetchData();
         
@@ -206,7 +234,7 @@ class TeamAnalyticsWidget extends Widget {
                 <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--hover-bg); border-radius: 12px;">
                     <div style="display: flex; align-items: center; gap: 8px;">
                         <span style="font-size: 1rem;">${medal}</span>
-                        <span style="font-weight: 500; font-size: 0.85rem;">${escapeHtml(agent.name)}</span>
+                        <span style="font-weight: 500; font-size: 0.85rem;">${this.escapeHtml(agent.name)}</span>
                     </div>
                     <div style="display: flex; gap: 12px;">
                         <span style="font-size: 0.7rem; color: #4caf50;"><i class="fas fa-check-circle"></i> ${agent.completed}</span>
@@ -238,6 +266,13 @@ class TeamAnalyticsWidget extends Widget {
         }).join('');
     }
     
+    escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
     setupEventListeners() {
         if (!window.CRM?.EventBus) return;
         
@@ -252,13 +287,6 @@ class TeamAnalyticsWidget extends Widget {
         this.clearCache();
         await this.render();
     }
-}
-
-function escapeHtml(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
 }
 
 // Регистрируем виджет
