@@ -426,8 +426,9 @@
     
     <!-- Инициализация дашборда -->
     <script type="module">
+        // Сначала импортируем и инициализируем сессию
+        import { checkSupabaseSession, getCurrentSupabaseUser } from '../js/core/supabase-session.js';
         import DashboardContainer from '../js/components/dashboard-container.js';
-        import { getCurrentSupabaseUser } from '../js/core/supabase-session.js';
         
         async function initDashboard() {
             console.log('[dashboard] Инициализация дашборда...');
@@ -435,51 +436,26 @@
             const dashboardRoot = document.getElementById('dashboardRoot');
             if (!dashboardRoot) return;
             
-            // Ждём загрузки пользователя через событие userLoaded
-            const waitForUser = () => {
-                return new Promise((resolve) => {
-                    // Если пользователь уже загружен
-                    const existingUser = getCurrentSupabaseUser();
-                    if (existingUser) {
-                        console.log('[dashboard] Пользователь уже загружен:', existingUser.name);
-                        resolve(existingUser);
-                        return;
-                    }
-                    
-                    // Ждём событие userLoaded
-                    console.log('[dashboard] Ожидание события userLoaded...');
-                    const timeout = setTimeout(() => {
-                        window.removeEventListener('userLoaded', handler);
-                        console.warn('[dashboard] Таймаут ожидания пользователя');
-                        resolve(null);
-                    }, 10000);
-                    
-                    const handler = (event) => {
-                        clearTimeout(timeout);
-                        window.removeEventListener('userLoaded', handler);
-                        console.log('[dashboard] Получено событие userLoaded:', event.detail?.name);
-                        resolve(event.detail);
-                    };
-                    
-                    window.addEventListener('userLoaded', handler);
-                });
-            };
-            
-            const user = await waitForUser();
-            
-            if (!user) {
-                dashboardRoot.innerHTML = `
-                    <div class="dashboard-empty" style="text-align: center; padding: 60px 20px;">
-                        <i class="fas fa-exclamation-triangle" style="font-size: 64px; color: #ff6b6b;"></i>
-                        <h3>Ошибка авторизации</h3>
-                        <p>Не удалось загрузить данные пользователя</p>
-                        <button onclick="location.href='../auth-supabase.html'" class="dashboard-btn primary" style="margin-top: 20px;">Войти</button>
-                    </div>
-                `;
-                return;
-            }
-            
             try {
+                // Принудительно проверяем сессию и ждём пользователя
+                console.log('[dashboard] Проверка сессии Supabase...');
+                const user = await checkSupabaseSession();
+                
+                if (!user) {
+                    console.warn('[dashboard] Пользователь не авторизован');
+                    dashboardRoot.innerHTML = `
+                        <div class="dashboard-empty" style="text-align: center; padding: 60px 20px;">
+                            <i class="fas fa-exclamation-triangle" style="font-size: 64px; color: #ff6b6b;"></i>
+                            <h3>Ошибка авторизации</h3>
+                            <p>Не удалось загрузить данные пользователя</p>
+                            <button onclick="location.href='../auth-supabase.html'" class="dashboard-btn primary" style="margin-top: 20px;">Войти</button>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                console.log('[dashboard] Пользователь загружен:', user.name);
+                
                 const dashboard = new DashboardContainer(dashboardRoot);
                 await dashboard.init();
                 console.log('[dashboard] Дашборд загружен');
@@ -499,7 +475,7 @@
         // Запускаем инициализацию
         initDashboard();
     </script>
-    
+        
     <!-- Инициализация бокового меню -->
     <script type="module">
         import * as sidebar from '../layout.js';
