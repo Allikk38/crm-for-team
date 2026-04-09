@@ -13,9 +13,12 @@
  * ЗАВИСИМОСТИ:
  *   - js/core/supabase.js
  *   - js/core/supabase-session.js
+ *   - js/core/permissions.js
  * 
  * ИСТОРИЯ:
  *   - 27.03.2026: Создание файла, вынос логики из manager-supabase.html
+ *   - 09.04.2026: Переход с role на permission_sets (canViewTeamKpi)
+ *   - 09.04.2026: Убрана глобальная функция window.goToTask
  * ============================================
  */
 
@@ -25,6 +28,7 @@ import {
     requireSupabaseAuth, 
     updateSupabaseUserInterface 
 } from '../core/supabase-session.js';
+import { canViewTeamKpi, isAdmin } from '../core/permissions.js';
 
 // Состояние страницы
 let allTasks = [];
@@ -54,7 +58,6 @@ function showToast(type, message) {
 // ========== ЗАГРУЗКА ДАННЫХ ==========
 
 async function loadTasks() {
-    // Для админа и менеджера - все задачи (без фильтра по user_id)
     const { data, error } = await supabase
         .from('tasks')
         .select('*');
@@ -71,7 +74,11 @@ async function loadTasks() {
 async function loadUsers() {
     const { data, error } = await supabase.from('profiles').select('*');
     if (!error && data) {
-        allUsers = data.filter(u => u.role === 'agent');
+        // Фильтруем агентов по permission_sets, а не по role
+        allUsers = data.filter(u => 
+            u.permission_sets?.includes('AGENT') || 
+            u.role === 'agent' // fallback
+        );
         console.log(`[manager] Загружено ${allUsers.length} агентов`);
         updateUserSelect();
     }
@@ -201,7 +208,7 @@ function renderOverdueTasks(overdueList) {
         const daysOverdue = Math.floor((new Date(today) - new Date(task.due_date)) / (1000 * 60 * 60 * 24));
         
         html += `
-            <div class="overdue-task">
+            <div class="overdue-task" data-task-id="${task.id}">
                 <div>
                     <div class="overdue-title">${escapeHtml(task.title)}</div>
                     <div style="font-size: 0.75rem; opacity: 0.7; margin-top: 4px;">
@@ -209,11 +216,20 @@ function renderOverdueTasks(overdueList) {
                         <i class="fas fa-calendar"></i> просрочено на ${daysOverdue} дн.
                     </div>
                 </div>
-                <button class="action-btn" onclick="window.goToTask('${task.id}')">Перейти →</button>
+                <button class="action-btn go-to-task-btn" data-task-id="${task.id}">Перейти →</button>
             </div>
         `;
     }
     container.innerHTML = html;
+    
+    // Навешиваем обработчики
+    container.querySelectorAll('.go-to-task-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const taskId = btn.dataset.taskId;
+            window.location.href = `tasks.html?task=${taskId}`;
+        });
+    });
 }
 
 function renderActivityChart() {
@@ -266,12 +282,6 @@ async function refreshAll() {
     renderActivityChart();
 }
 
-// ========== ПЕРЕХОД К ЗАДАЧЕ ==========
-
-window.goToTask = function(taskId) {
-    window.location.href = `tasks-supabase.html?task=${taskId}`;
-};
-
 // ========== ИНИЦИАЛИЗАЦИЯ ==========
 
 export async function initManagerPage() {
@@ -283,11 +293,10 @@ export async function initManagerPage() {
     currentUser = getCurrentSupabaseUser();
     updateSupabaseUserInterface();
     
-    console.log('[manager] Пользователь:', currentUser?.name, 'роль:', currentUser?.role);
+    console.log('[manager] Пользователь:', currentUser?.name);
     
-    // Проверка прав доступа (только менеджер или админ)
-    const userRole = currentUser?.role?.toLowerCase();
-    if (userRole !== 'manager' && userRole !== 'admin') {
+    // Проверка прав доступа через permission_sets
+    if (!canViewTeamKpi() && !isAdmin()) {
         const main = document.querySelector('.main-content');
         if (main) {
             main.innerHTML = `
@@ -295,7 +304,7 @@ export async function initManagerPage() {
                     <i class="fas fa-lock" style="font-size: 3rem; margin-bottom: 20px;"></i>
                     <h2>Доступ ограничен</h2>
                     <p>Эта страница доступна только менеджерам и администраторам.</p>
-                    <a href="index-supabase.html" class="nav-btn" style="margin-top: 20px; display: inline-block; padding: 10px 20px; background: var(--accent); border-radius: 40px; color: white; text-decoration: none;">Вернуться на главную</a>
+                    <a href="dashboard.html" class="nav-btn" style="margin-top: 20px; display: inline-block; padding: 10px 20px; background: var(--accent); border-radius: 40px; color: white; text-decoration: none;">Вернуться на главную</a>
                 </div>
             `;
         }
@@ -313,10 +322,6 @@ export async function initManagerPage() {
     const sidebar = document.getElementById('sidebar');
     if (sidebar && localStorage.getItem('sidebar_collapsed') === 'true') {
         sidebar.classList.add('collapsed');
-    }
-    
-    if (window.CRM?.ui?.animations) {
-        console.log('[manager] Анимации инициализированы');
     }
     
     console.log('[manager] Инициализация завершена');
