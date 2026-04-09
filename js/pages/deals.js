@@ -42,7 +42,7 @@ import { createDealCard, setupDragAndDrop } from '../components/kanban.js';
 import { createDealCardList, createStageGroup, updateDealCardList } from '../components/deal-card-list.js';
 
 // ========== ОПРЕДЕЛЕНИЕ БАЗОВОГО ПУТИ ДЛЯ GITHUB PAGES ==========
-function getBasePath() {
+function getDealsBasePath() {
     const fullPath = window.location.pathname;
     
     // Проверяем, находимся ли мы в репозитории crm-for-team
@@ -54,12 +54,12 @@ function getBasePath() {
     return '';
 }
 
-const BASE_PATH = getBasePath();
-console.log('[deals] BASE_PATH:', BASE_PATH);
+const DEALS_BASE_PATH = getDealsBasePath();
+console.log('[deals] BASE_PATH:', DEALS_BASE_PATH);
 
 function getDealDetailUrl(dealId) {
-    if (BASE_PATH) {
-        return `${BASE_PATH}/app/deal-detail.html?id=${dealId}`;
+    if (DEALS_BASE_PATH) {
+        return `${DEALS_BASE_PATH}/app/deal-detail.html?id=${dealId}`;
     }
     return `./deal-detail.html?id=${dealId}`;
 }
