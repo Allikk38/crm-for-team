@@ -406,6 +406,9 @@ function renderListView() {
         html += '</div>';
         container.innerHTML = html;
         
+        // 🔧 ВАЖНО: Навешиваем обработчики после рендеринга
+        attachListViewHandlers();
+        
     } else {
         let html = '<div class="ungrouped-view">';
         for (const deal of filteredDeals) {
@@ -427,7 +430,90 @@ function renderListView() {
         }
         html += '</div>';
         container.innerHTML = html;
+        
+        // 🔧 ВАЖНО: Навешиваем обработчики после рендеринга
+        attachListViewHandlers();
     }
+}
+
+// 🔧 НОВАЯ ФУНКЦИЯ: Навешивание обработчиков для списочного режима
+function attachListViewHandlers() {
+    // Обработчики для кнопок "Открыть сделку"
+    document.querySelectorAll('.open-deal-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const dealId = btn.dataset.dealId;
+            if (dealId) {
+                openDealDetail(dealId);
+            }
+        });
+    });
+    
+    // Обработчики для карточек сделок (клик по всей карточке)
+    document.querySelectorAll('.deal-list-card').forEach(card => {
+        card.addEventListener('click', (e) => {
+            // Не открываем, если кликнули на кнопку
+            if (e.target.closest('.open-deal-btn')) return;
+            const dealId = card.dataset.dealId;
+            if (dealId) {
+                openDealDetail(dealId);
+            }
+        });
+    });
+    
+    // 🔧 ВАЖНО: Восстанавливаем обработчики сворачивания групп
+    document.querySelectorAll('.stage-group-header').forEach(header => {
+        // Удаляем старые обработчики, чтобы не дублировались
+        header.removeEventListener('click', header._clickHandler);
+        
+        const clickHandler = () => {
+            const group = header.closest('.stage-group');
+            const content = group?.querySelector('.stage-group-content');
+            const icon = header.querySelector('.group-toggle-icon');
+            const groupId = header.dataset.group;
+            
+            if (content) {
+                if (content.style.display === 'none') {
+                    content.style.display = 'block';
+                    icon?.classList.remove('fa-chevron-right');
+                    icon?.classList.add('fa-chevron-down');
+                    localStorage.setItem(groupId, 'expanded');
+                } else {
+                    content.style.display = 'none';
+                    icon?.classList.remove('fa-chevron-down');
+                    icon?.classList.add('fa-chevron-right');
+                    localStorage.setItem(groupId, 'collapsed');
+                }
+            }
+        };
+        
+        header._clickHandler = clickHandler;
+        header.addEventListener('click', clickHandler);
+    });
+}
+
+// 🔧 ИСПРАВЛЕННАЯ ФУНКЦИЯ: Создание группы с сохранением состояния
+export function createStageGroup(stageName, count = 0) {
+    const group = document.createElement('div');
+    group.className = 'stage-group';
+    group.setAttribute('data-stage', stageName);
+    
+    const groupId = `group-${stageName}`;
+    const isExpanded = localStorage.getItem(groupId) !== 'collapsed';
+    
+    group.innerHTML = `
+        <div class="stage-group-header" data-group="${groupId}">
+            <div class="stage-group-title">
+                <i class="fas fa-chevron-${isExpanded ? 'down' : 'right'} group-toggle-icon"></i>
+                <span class="stage-name">${escapeHtml(STAGE_NAMES[stageName] || stageName)}</span>
+                <span class="stage-count">${count}</span>
+            </div>
+        </div>
+        <div class="stage-group-content" style="display: ${isExpanded ? 'block' : 'none'};">
+        </div>
+    `;
+    
+    return group;
 }
 
 // ========== УПРАВЛЕНИЕ РЕЖИМАМИ ==========
