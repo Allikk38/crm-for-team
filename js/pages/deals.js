@@ -20,6 +20,7 @@
  * ИСТОРИЯ:
  *   - 31.03.2026: Добавлен двухрежимный интерфейс
  *   - 30.03.2026: Создание файла
+ *   - 09.04.2026: Исправлен путь для открытия деталей сделки (GitHub Pages)
  * ============================================
  */
 
@@ -39,6 +40,29 @@ import {
 } from '../services/deals-supabase.js';
 import { createDealCard, setupDragAndDrop } from '../components/kanban.js';
 import { createDealCardList, createStageGroup, updateDealCardList } from '../components/deal-card-list.js';
+
+// ========== ОПРЕДЕЛЕНИЕ БАЗОВОГО ПУТИ ДЛЯ GITHUB PAGES ==========
+function getBasePath() {
+    const fullPath = window.location.pathname;
+    
+    // Проверяем, находимся ли мы в репозитории crm-for-team
+    if (fullPath.includes('/crm-for-team/')) {
+        return '/crm-for-team';
+    }
+    
+    // Для локальной разработки
+    return '';
+}
+
+const BASE_PATH = getBasePath();
+console.log('[deals] BASE_PATH:', BASE_PATH);
+
+function getDealDetailUrl(dealId) {
+    if (BASE_PATH) {
+        return `${BASE_PATH}/app/deal-detail.html?id=${dealId}`;
+    }
+    return `./deal-detail.html?id=${dealId}`;
+}
 
 // Состояние страницы
 let dealsData = [];
@@ -323,9 +347,11 @@ function renderKanban() {
 }
 
 // ========== СПИСОЧНЫЙ РЕЖИМ ==========
+
 function openDealDetail(dealId) {
-    // Используем относительный путь вместо абсолютного
-    window.location.href = `./deal-detail.html?id=${dealId}`;
+    const url = getDealDetailUrl(dealId);
+    console.log('[deals] Переход к деталям сделки:', url);
+    window.location.href = url;
 }
 
 function renderListView() {
@@ -335,7 +361,6 @@ function renderListView() {
     const filteredDeals = getFilteredDeals();
     
     if (currentGrouping === 'stage') {
-        // Группировка по этапам
         const groupedDeals = {};
         for (const deal of filteredDeals) {
             const stage = deal.status || 'new';
@@ -345,7 +370,6 @@ function renderListView() {
             groupedDeals[stage].push(deal);
         }
         
-        // Порядок этапов для отображения
         const stageOrder = ['new', 'selection', 'matching', 'showing', 'negotiation', 'documents', 'mortgage', 'deal', 'keys', 'closed', 'cancelled'];
         
         let html = '<div class="list-view-container">';
@@ -382,7 +406,6 @@ function renderListView() {
         container.innerHTML = html;
         
     } else {
-        // Без группировки
         let html = '<div class="ungrouped-view">';
         for (const deal of filteredDeals) {
             const dealWithNames = {
@@ -412,7 +435,6 @@ function setMode(mode) {
     currentMode = mode;
     localStorage.setItem('deals_view_mode', mode);
     
-    // Обновляем активную кнопку
     document.querySelectorAll('.mode-btn').forEach(btn => {
         if (btn.dataset.mode === mode) {
             btn.classList.add('active');
@@ -421,7 +443,6 @@ function setMode(mode) {
         }
     });
     
-    // Показываем/скрываем фильтр группировки
     const groupingFilter = document.getElementById('groupingFilter');
     if (groupingFilter) {
         groupingFilter.style.display = mode === 'list' ? 'inline-block' : 'none';
@@ -574,14 +595,13 @@ export async function initDealsPage() {
     
     currentUser = getCurrentSupabaseUser();
     updateSupabaseUserInterface();
-    console.log('[deals] Текущий пользователь:', currentUser?.name, 'роль:', currentUser?.role);
+    console.log('[deals] Текущий пользователь:', currentUser?.name);
     
     await loadComplexes();
     await loadCounterparties();
     await loadUsers();
     await loadDealsData();
     
-    // Настройка переключателя режимов
     const modeBtns = document.querySelectorAll('.mode-btn');
     modeBtns.forEach(btn => {
         btn.addEventListener('click', () => {
@@ -589,7 +609,6 @@ export async function initDealsPage() {
         });
     });
     
-    // Настройка фильтра группировки (для списочного режима)
     const groupingFilter = document.getElementById('groupingFilter');
     if (groupingFilter) {
         groupingFilter.value = currentGrouping;
@@ -598,13 +617,11 @@ export async function initDealsPage() {
         });
     }
     
-    // Кнопка добавления
     const addBtn = document.getElementById('addDealBtn');
     if (addBtn) {
         addBtn.addEventListener('click', () => openDealModal());
     }
     
-    // Фильтры
     const searchInput = document.getElementById('searchInput');
     if (searchInput) {
         searchInput.addEventListener('input', () => renderCurrentView());
@@ -620,10 +637,8 @@ export async function initDealsPage() {
         agentFilter.addEventListener('change', () => renderCurrentView());
     }
     
-    // Восстанавливаем активный режим
     setMode(currentMode);
     
-    // Сворачивание сайдбара
     const sidebar = document.getElementById('sidebar');
     if (sidebar && localStorage.getItem('sidebar_collapsed') === 'true') {
         sidebar.classList.add('collapsed');
