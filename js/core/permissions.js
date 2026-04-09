@@ -16,7 +16,7 @@
  *   - 30.03.2026: Создание файла
  *   - 09.04.2026: Полный переход на права, чистые ES6 экспорты
  *   - 09.04.2026: Добавлены хелперы isAdmin, isManager, isAgent
- *   - 09.04.2026: Убрана зависимость от window.currentSupabaseUser
+ *   - 09.04.2026: Исправлено дублирование updatePermissionsCache
  * ============================================
  */
 
@@ -96,8 +96,6 @@ let cachedUser = null;
 
 /**
  * Получить все разрешения из наборов
- * @param {Array} permissionSets - массив названий наборов
- * @returns {Set} Set разрешений
  */
 function getAllPermissionsFromSets(permissionSets) {
     const permissions = new Set();
@@ -128,10 +126,9 @@ function getAllPermissionsFromSets(permissionSets) {
 }
 
 /**
- * Обновить кэш прав пользователя
- * @param {Object} user - пользователь
+ * Обновить кэш прав пользователя (внутренняя функция)
  */
-function updatePermissionsCache(user) {
+function refreshPermissionsCache(user) {
     if (!user) {
         cachedPermissions = null;
         cachedUser = null;
@@ -150,7 +147,6 @@ function updatePermissionsCache(user) {
         permissions = getAllPermissionsFromSets(user.permission_sets);
         console.log('[permissions] Загружены разрешения из наборов:', Array.from(permissions));
     } else {
-        // Fallback: если нет permission_sets, даем BASE
         if (PERMISSION_SETS.BASE && PERMISSION_SETS.BASE.permissions) {
             PERMISSION_SETS.BASE.permissions.forEach(p => permissions.add(p));
         }
@@ -165,8 +161,6 @@ function updatePermissionsCache(user) {
 
 /**
  * Проверить наличие разрешения
- * @param {string} permission - название разрешения
- * @returns {boolean}
  */
 export function hasPermission(permission) {
     const user = getCurrentSupabaseUser();
@@ -177,7 +171,7 @@ export function hasPermission(permission) {
     }
     
     if (!cachedPermissions || cachedUser?.id !== user.id) {
-        updatePermissionsCache(user);
+        refreshPermissionsCache(user);
     }
     
     return cachedPermissions ? cachedPermissions.has(permission) : false;
@@ -185,8 +179,6 @@ export function hasPermission(permission) {
 
 /**
  * Проверить наличие любого из разрешений
- * @param {Array} permissions - массив разрешений
- * @returns {boolean}
  */
 export function hasAnyPermission(permissions) {
     return permissions.some(p => hasPermission(p));
@@ -194,8 +186,6 @@ export function hasAnyPermission(permissions) {
 
 /**
  * Проверить наличие всех разрешений
- * @param {Array} permissions - массив разрешений
- * @returns {boolean}
  */
 export function hasAllPermissions(permissions) {
     return permissions.every(p => hasPermission(p));
@@ -203,129 +193,77 @@ export function hasAllPermissions(permissions) {
 
 /**
  * Получить все разрешения текущего пользователя
- * @returns {Array}
  */
 export function getUserPermissions() {
     const user = getCurrentSupabaseUser();
     if (!user) return [];
     
     if (!cachedPermissions || cachedUser?.id !== user.id) {
-        updatePermissionsCache(user);
+        refreshPermissionsCache(user);
     }
     return cachedPermissions ? Array.from(cachedPermissions) : [];
 }
 
 // ========== ХЕЛПЕРЫ ДЛЯ ЗАМЕНЫ РОЛЕЙ ==========
 
-/**
- * Проверить, является ли пользователь администратором (по правам)
- * Заменяет: user.role === 'admin'
- */
 export function isAdmin() {
     return hasPermission('manage_users');
 }
 
-/**
- * Проверить, является ли пользователь менеджером (по правам)
- * Заменяет: user.role === 'manager'
- */
 export function isManager() {
     return hasPermission('view_team_tasks') || hasPermission('manage_team');
 }
 
-/**
- * Проверить, является ли пользователь агентом (по правам)
- * Заменяет: user.role === 'agent'
- */
 export function isAgent() {
     return hasPermission('view_own_deals') && !hasPermission('view_team_tasks');
 }
 
-/**
- * Проверить, может ли пользователь редактировать все объекты
- * Заменяет: user.role === 'admin' || user.role === 'manager'
- */
 export function canEditAllComplexes() {
     return hasPermission('edit_all_complexes');
 }
 
-/**
- * Проверить, может ли пользователь просматривать все объекты
- * Заменяет: user.role === 'admin' || user.role === 'manager'
- */
 export function canViewAllComplexes() {
     return hasPermission('view_all_complexes');
 }
 
-/**
- * Проверить, может ли пользователь просматривать всех контрагентов
- * Заменяет: user.role === 'admin' || user.role === 'manager'
- */
 export function canViewAllCounterparties() {
     return hasPermission('view_all_counterparties') || hasPermission('manage_users');
 }
 
-/**
- * Проверить, может ли пользователь редактировать всех контрагентов
- */
 export function canEditAllCounterparties() {
     return hasPermission('edit_all_counterparties') || hasPermission('manage_users');
 }
 
-/**
- * Проверить, может ли пользователь создавать контрагентов
- */
 export function canCreateCounterparties() {
     return hasPermission('create_counterparties') || hasPermission('manage_users');
 }
 
-/**
- * Проверить, может ли пользователь экспортировать контрагентов
- */
 export function canExportCounterparties() {
     return hasPermission('export_counterparties') || hasPermission('manage_users');
 }
 
-/**
- * Проверить, может ли пользователь управлять командой
- */
 export function canManageTeam() {
     return hasPermission('manage_team') || hasPermission('manage_users');
 }
 
-/**
- * Проверить, может ли пользователь просматривать KPI команды
- */
 export function canViewTeamKpi() {
     return hasPermission('view_team_kpi') || hasPermission('manage_users');
 }
 
-/**
- * Проверить, может ли пользователь просматривать задачи команды
- */
 export function canViewTeamTasks() {
     return hasPermission('view_team_tasks') || hasPermission('manage_users');
 }
 
-/**
- * Проверить, может ли пользователь назначать задачи
- */
 export function canAssignTasks() {
     return hasPermission('assign_tasks') || hasPermission('manage_users');
 }
 
-/**
- * Проверить, может ли пользователь редактировать любую задачу
- */
 export function canEditAnyTask() {
     return hasPermission('edit_any_task') || hasPermission('manage_users');
 }
 
 // ========== DEPRECATED: ДЛЯ ОБРАТНОЙ СОВМЕСТИМОСТИ ==========
 
-/**
- * @deprecated Используйте isAdmin() вместо role === 'admin'
- */
 export function getUserRole() {
     const user = getCurrentSupabaseUser();
     if (isAdmin()) return 'admin';
@@ -334,9 +272,6 @@ export function getUserRole() {
     return user?.role || 'viewer';
 }
 
-/**
- * @deprecated Используйте isAdmin() или hasPermission()
- */
 export function hasRole(role) {
     console.warn('[permissions] hasRole() устарел, используйте isAdmin(), isManager() или hasPermission()');
     const currentRole = getUserRole();
@@ -384,13 +319,13 @@ export function getAllPermissionSets() {
     return { ...PERMISSION_SETS };
 }
 
-// ========== ОБНОВЛЕНИЕ КЭША ==========
+// ========== ПУБЛИЧНОЕ ОБНОВЛЕНИЕ КЭША ==========
 
 export function refreshUserPermissions() {
     const user = getCurrentSupabaseUser();
     if (user) {
         console.log('[permissions] Принудительное обновление прав пользователя');
-        updatePermissionsCache(user);
+        refreshPermissionsCache(user);
         
         window.dispatchEvent(new CustomEvent('permissionsReady', { 
             detail: { user, permissions: getUserPermissions() }
@@ -401,9 +336,8 @@ export function refreshUserPermissions() {
     return false;
 }
 
-export function updatePermissionsCache(user) {
-    updatePermissionsCache(user);
-}
+// Экспортируем внутреннюю функцию для обратной совместимости
+export { refreshPermissionsCache as updatePermissionsCache };
 
 // ========== ПОДПИСКА НА СОБЫТИЯ ==========
 
@@ -411,7 +345,7 @@ if (typeof window !== 'undefined') {
     window.addEventListener('userLoaded', (event) => {
         const user = event.detail;
         console.log('[permissions] Получено событие userLoaded, обновляем права');
-        updatePermissionsCache(user);
+        refreshPermissionsCache(user);
         
         window.dispatchEvent(new CustomEvent('permissionsReady', { 
             detail: { user, permissions: getUserPermissions() }
@@ -461,7 +395,7 @@ if (typeof window !== 'undefined') {
         getPermissionSetInfo,
         getAllPermissionSets,
         refreshUserPermissions,
-        updatePermissionsCache
+        updatePermissionsCache: refreshPermissionsCache
     };
 }
 
