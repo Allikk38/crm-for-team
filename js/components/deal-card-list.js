@@ -15,48 +15,11 @@
  * 
  * ИСТОРИЯ:
  *   - 31.03.2026: Создание компонента
- *   - 09.04.2026: Исправлен путь для открытия сделки
+ *   - 09.04.2026: Исправлен конфликт BASE_PATH (убрано дублирование)
  * ============================================
  */
 
-import { escapeHtml, formatDate, showToast } from '../utils/helpers.js';
-
-// ========== ОПРЕДЕЛЕНИЕ БАЗОВОГО ПУТИ ==========
-// ========== ОПРЕДЕЛЕНИЕ БАЗОВОГО ПУТИ ==========
-function getBasePath() {
-    const path = window.location.pathname;
-    
-    // Проверяем, находимся ли мы в репозитории crm-for-team
-    if (path.includes('/crm-for-team/')) {
-        return '/crm-for-team';
-    }
-    
-    // Проверяем для локальной разработки
-    if (path.startsWith('/app/') || path === '/' || path.endsWith('.html')) {
-        return '';
-    }
-    
-    return '';
-}
-
-const BASE_PATH = getBasePath();
-console.log('[deal-card-list] BASE_PATH:', BASE_PATH);
-
-function getDealDetailUrl(dealId) {
-    if (BASE_PATH) {
-        return `${BASE_PATH}/app/deal-detail.html?id=${dealId}`;
-    }
-    return `./deal-detail.html?id=${dealId}`;
-}
-
-const BASE_PATH = getBasePath();
-
-function getDealDetailUrl(dealId) {
-    if (BASE_PATH) {
-        return `${BASE_PATH}/app/deal-detail.html?id=${dealId}`;
-    }
-    return `./deal-detail.html?id=${dealId}`;
-}
+import { escapeHtml, formatDate } from '../utils/helpers.js';
 
 /**
  * Получить тип сделки с иконкой
@@ -77,9 +40,6 @@ function getTypeIcon(type) {
 
 /**
  * Рассчитать прогресс прохождения этапов
- * @param {Object} stages - Объект с этапами
- * @param {Array} stageOrder - Порядок этапов
- * @returns {Object} { completed, total, percent }
  */
 function calculateProgress(stages, stageOrder) {
     if (!stages || !stageOrder || stageOrder.length === 0) {
@@ -177,11 +137,6 @@ function getWarnings(deal) {
 
 /**
  * Создать карточку сделки
- * @param {Object} deal - Данные сделки
- * @param {Object} options - Опции
- * @param {Function} options.onOpen - Коллбэк при открытии
- * @param {Array} options.stageOrder - Порядок этапов для типа сделки
- * @returns {HTMLElement}
  */
 export function createDealCardList(deal, options = {}) {
     const {
@@ -270,19 +225,17 @@ export function createDealCardList(deal, options = {}) {
         </div>
     `;
     
-    // Обработчик открытия - используем правильный URL
     const openBtn = card.querySelector('.open-deal-btn');
-    if (openBtn) {
+    if (openBtn && onOpen) {
         openBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            window.location.href = getDealDetailUrl(deal.id);
+            onOpen(deal.id);
         });
     }
     
-    // Клик по карточке
     card.addEventListener('click', (e) => {
-        if (!e.target.closest('.open-deal-btn')) {
-            window.location.href = getDealDetailUrl(deal.id);
+        if (!e.target.closest('.open-deal-btn') && onOpen) {
+            onOpen(deal.id);
         }
     });
     
@@ -290,7 +243,7 @@ export function createDealCardList(deal, options = {}) {
 }
 
 /**
- * Обновить существующую карточку (для оптимизации)
+ * Обновить существующую карточку
  */
 export function updateDealCardList(card, deal, options = {}) {
     if (!card || !deal) return;
