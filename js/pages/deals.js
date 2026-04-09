@@ -21,6 +21,7 @@
  *   - 31.03.2026: Добавлен двухрежимный интерфейс
  *   - 30.03.2026: Создание файла
  *   - 09.04.2026: Исправлен путь для открытия деталей сделки (GitHub Pages)
+ *   - 09.04.2026: Переименован BASE_PATH для избежания конфликта
  * ============================================
  */
 
@@ -70,8 +71,8 @@ let complexesData = [];
 let counterpartiesData = [];
 let usersData = [];
 let currentUser = null;
-let currentMode = localStorage.getItem('deals_view_mode') || 'kanban'; // 'kanban' or 'list'
-let currentGrouping = localStorage.getItem('deals_grouping') || 'stage'; // 'none' or 'stage'
+let currentMode = localStorage.getItem('deals_view_mode') || 'kanban';
+let currentGrouping = localStorage.getItem('deals_grouping') || 'stage';
 
 // Статусы сделок для Kanban
 const DEAL_STATUSES = [
