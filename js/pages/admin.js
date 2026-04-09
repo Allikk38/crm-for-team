@@ -9,14 +9,17 @@
  *   - Сброс пин-кода
  *   - Изменение роли пользователя
  *   - Удаление пользователя
- *   - Только для администраторов
+ *   - Только для администраторов (проверка по правам)
  * 
  * ЗАВИСИМОСТИ:
  *   - js/core/supabase.js
  *   - js/core/supabase-session.js
+ *   - js/core/permissions.js
  * 
  * ИСТОРИЯ:
  *   - 27.03.2026: Создание файла, вынос логики из admin-supabase.html
+ *   - 09.04.2026: Переход с role на permission_sets (isAdmin)
+ *   - 09.04.2026: Убраны глобальные функции, переход на addEventListener
  * ============================================
  */
 
@@ -26,6 +29,7 @@ import {
     requireSupabaseAuth, 
     updateSupabaseUserInterface 
 } from '../core/supabase-session.js';
+import { isAdmin } from '../core/permissions.js';
 
 // Состояние страницы
 let usersList = [];
@@ -134,7 +138,7 @@ function renderUsersTable() {
                 <td>${escapeHtml(user.github_username || '—')}</td>
                 <td>${escapeHtml(user.name)}</td>
                 <td>
-                    <select class="role-select" data-user-id="${user.id}" onchange="window.changeUserRole('${user.id}', this.value)">
+                    <select class="role-select" data-user-id="${user.id}">
                         <option value="agent" ${user.role === 'agent' ? 'selected' : ''}>Агент</option>
                         <option value="manager" ${user.role === 'manager' ? 'selected' : ''}>Менеджер</option>
                         <option value="viewer" ${user.role === 'viewer' ? 'selected' : ''}>Наблюдатель</option>
@@ -144,11 +148,11 @@ function renderUsersTable() {
                 <td>${escapeHtml(user.email || '—')}</td>
                 <td>${escapeHtml(user.created_at ? user.created_at.split('T')[0] : '—')}</td>
                 <td>
-                    <button class="action-btn" onclick="window.openResetPinModal('${user.id}', '${escapeHtml(user.name)}')" title="Сбросить пин-код">
+                    <button class="action-btn reset-pin-btn" data-user-id="${user.id}" data-user-name="${escapeHtml(user.name)}" title="Сбросить пин-код">
                         <i class="fas fa-key"></i>
                     </button>
                     ${canDelete ? `
-                    <button class="action-btn danger" onclick="window.deleteUser('${user.id}')" title="Удалить пользователя">
+                    <button class="action-btn danger delete-user-btn" data-user-id="${user.id}" data-user-name="${escapeHtml(user.name)}" title="Удалить пользователя">
                         <i class="fas fa-trash"></i>
                     </button>
                     ` : ''}
@@ -159,7 +163,40 @@ function renderUsersTable() {
     
     html += '</tbody></table>';
     container.innerHTML = html;
+    
+    // Навешиваем обработчики
+    attachTableHandlers();
+    
     console.log('[admin] Таблица отрисована');
+}
+
+function attachTableHandlers() {
+    // Обработчики изменения роли
+    document.querySelectorAll('.role-select').forEach(select => {
+        select.addEventListener('change', async (e) => {
+            const userId = select.dataset.userId;
+            const newRole = select.value;
+            await updateUserRole(userId, newRole);
+        });
+    });
+    
+    // Обработчики сброса пин-кода
+    document.querySelectorAll('.reset-pin-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const userId = btn.dataset.userId;
+            const userName = btn.dataset.userName;
+            openResetPinModal(userId, userName);
+        });
+    });
+    
+    // Обработчики удаления
+    document.querySelectorAll('.delete-user-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const userId = btn.dataset.userId;
+            const userName = btn.dataset.userName;
+            deleteUser(userId, userName);
+        });
+    });
 }
 
 // ========== CRUD ОПЕРАЦИИ ==========
@@ -246,7 +283,29 @@ async function deleteUserById(userId) {
     return { success: true };
 }
 
+async function deleteUser(userId, userName) {
+    if (!confirm(`Вы уверены, что хотите удалить пользователя "${userName}"? Это действие необратимо.`)) return;
+    
+    console.log('[admin] Удаление пользователя:', userName);
+    
+    const row = document.querySelector(`tr[data-user-id="${userId}"]`);
+    if (row) row.classList.add('row-removing');
+    
+    setTimeout(async () => {
+        const result = await deleteUserById(userId);
+        if (result.success) {
+            showToast('success', 'Пользователь удалён');
+            await loadUsers();
+        } else {
+            showToast('error', result.error || 'Ошибка удаления');
+            if (row) row.classList.remove('row-removing');
+        }
+    }, 200);
+}
+
 // ========== МОДАЛЬНЫЕ ОКНА ==========
+
+let currentResetUserId = null;
 
 function openAddUserModal() {
     const modal = document.getElementById('addUserModal');
@@ -294,7 +353,7 @@ async function addUser() {
 }
 
 function openResetPinModal(userId, userName) {
-    document.getElementById('resetUserId').value = userId;
+    currentResetUserId = userId;
     document.getElementById('resetUserName').textContent = userName;
     const modal = document.getElementById('resetPinModal');
     modal.style.display = 'flex';
@@ -304,13 +363,15 @@ function openResetPinModal(userId, userName) {
 function closeResetPinModal() {
     const modal = document.getElementById('resetPinModal');
     modal.style.display = 'none';
+    currentResetUserId = null;
 }
 
 async function resetPin() {
-    const userId = document.getElementById('resetUserId').value;
-    console.log('[admin] Сброс пин-кода для пользователя:', userId);
+    if (!currentResetUserId) return;
     
-    const result = await resetUserPin(userId);
+    console.log('[admin] Сброс пин-кода для пользователя:', currentResetUserId);
+    
+    const result = await resetUserPin(currentResetUserId);
     
     if (result.success) {
         showToast('success', `Пин-код сброшен! Новый пин-код: ${result.newPin}`, 5000);
@@ -320,43 +381,6 @@ async function resetPin() {
         showToast('error', result.error || 'Ошибка сброса');
     }
 }
-
-async function deleteUser(userId) {
-    const user = usersList.find(u => u.id === userId);
-    if (!user) return;
-    
-    if (!confirm(`Вы уверены, что хотите удалить пользователя "${user.name}"? Это действие необратимо.`)) return;
-    
-    console.log('[admin] Удаление пользователя:', user.name);
-    
-    const row = document.querySelector(`tr[data-user-id="${userId}"]`);
-    if (row) row.classList.add('row-removing');
-    
-    setTimeout(async () => {
-        const result = await deleteUserById(userId);
-        if (result.success) {
-            showToast('success', 'Пользователь удалён');
-            await loadUsers();
-        } else {
-            showToast('error', result.error || 'Ошибка удаления');
-            if (row) row.classList.remove('row-removing');
-        }
-    }, 200);
-}
-
-// ========== ЭКСПОРТ ГЛОБАЛЬНЫХ ФУНКЦИЙ ДЛЯ HTML ==========
-
-window.changeUserRole = async (userId, newRole) => {
-    await updateUserRole(userId, newRole);
-};
-
-window.openResetPinModal = openResetPinModal;
-window.closeResetPinModal = closeResetPinModal;
-window.resetPin = resetPin;
-window.deleteUser = deleteUser;
-window.openAddUserModal = openAddUserModal;
-window.closeAddUserModal = closeAddUserModal;
-window.addUser = addUser;
 
 // ========== ИНИЦИАЛИЗАЦИЯ ==========
 
@@ -368,10 +392,10 @@ export async function initAdminPage() {
     
     currentAdmin = getCurrentSupabaseUser();
     updateSupabaseUserInterface();
-    console.log('[admin] Текущий пользователь:', currentAdmin?.name, 'роль:', currentAdmin?.role);
+    console.log('[admin] Текущий пользователь:', currentAdmin?.name);
     
-    // Проверка прав доступа (только администратор)
-    if (currentAdmin.role !== 'admin') {
+    // Проверка прав доступа (через permission_sets)
+    if (!isAdmin()) {
         const main = document.querySelector('.main-content');
         if (main) {
             main.innerHTML = `
@@ -379,7 +403,7 @@ export async function initAdminPage() {
                     <i class="fas fa-lock" style="font-size: 3rem; margin-bottom: 20px;"></i>
                     <h2>Доступ ограничен</h2>
                     <p>Эта страница доступна только администраторам.</p>
-                    <a href="index-supabase.html" class="nav-btn" style="margin-top: 20px; display: inline-block; padding: 10px 20px; background: var(--accent); border-radius: 40px; color: white; text-decoration: none;">Вернуться на главную</a>
+                    <a href="dashboard.html" class="nav-btn" style="margin-top: 20px; display: inline-block; padding: 10px 20px; background: var(--accent); border-radius: 40px; color: white; text-decoration: none;">Вернуться на главную</a>
                 </div>
             `;
         }
@@ -388,26 +412,28 @@ export async function initAdminPage() {
     
     await loadUsers();
     
-    // Обработчики кнопок
+    // Навешиваем обработчики на кнопки
     document.getElementById('addUserBtn')?.addEventListener('click', openAddUserModal);
     document.getElementById('confirmAddUserBtn')?.addEventListener('click', addUser);
     document.getElementById('confirmResetPinBtn')?.addEventListener('click', resetPin);
     
+    // Кнопки закрытия модальных окон
+    document.querySelector('#addUserModal .modal-close')?.addEventListener('click', closeAddUserModal);
+    document.querySelector('#addUserModal .modal-cancel')?.addEventListener('click', closeAddUserModal);
+    document.querySelector('#resetPinModal .modal-close')?.addEventListener('click', closeResetPinModal);
+    document.querySelector('#resetPinModal .modal-cancel')?.addEventListener('click', closeResetPinModal);
+    
     // Закрытие модальных окон по клику вне
-    window.onclick = function(event) {
+    window.addEventListener('click', (event) => {
         const addModal = document.getElementById('addUserModal');
         const resetModal = document.getElementById('resetPinModal');
         if (event.target === addModal) closeAddUserModal();
         if (event.target === resetModal) closeResetPinModal();
-    };
+    });
     
     const sidebar = document.getElementById('sidebar');
     if (sidebar && localStorage.getItem('sidebar_collapsed') === 'true') {
         sidebar.classList.add('collapsed');
-    }
-    
-    if (window.CRM?.ui?.animations) {
-        console.log('[admin] Анимации инициализированы');
     }
     
     console.log('[admin] Инициализация завершена');
