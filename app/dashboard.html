@@ -18,6 +18,7 @@
       - 27.03.2026: Создание supabase-версии дашборда
       - 30.03.2026: Замена статического контента на динамические виджеты
       - 30.03.2026: Перенос в папку app, исправление путей
+      - 09.04.2026: Исправлен race condition с window.currentSupabaseUser
     ============================================
     -->
     
@@ -41,7 +42,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300..32,400;14..32,500;14..32,600;14..32,700&family=Montserrat:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     
-    <!-- CSS модули (исправленные пути) -->
+    <!-- CSS модули -->
     <link rel="stylesheet" href="../css/base.css">
     <link rel="stylesheet" href="../css/theme.css">
     <link rel="stylesheet" href="../css/components.css">
@@ -360,7 +361,7 @@
         }
         
         @keyframes skeletonLoading {
-            0% { background-position: 200% 0;
+            0% { background-position: 200% 0; }
             100% { background-position: -200% 0; }
         }
         
@@ -374,7 +375,6 @@
             }
         }
         
-        /* Стили для динамического контейнера */
         .dashboard-root {
             animation: fadeInUp 0.4s ease;
         }
@@ -428,43 +428,51 @@
         </main>
     </div>
     
-    <!-- ========== УНИВЕРСАЛЬНЫЙ ЗАГРУЗЧИК МОДУЛЕЙ ========== -->
-    <script type="module" src="../js/core/moduleLoader.js"></script>
-    
-    <!-- Инициализация дашборда -->
+    <!-- ========== ИНИЦИАЛИЗАЦИЯ ДАШБОРДА ========== -->
     <script type="module">
         import DashboardContainer from '../js/components/dashboard-container.js';
+        import { getCurrentSupabaseUser } from '../js/core/supabase-session.js';
         
-        window.addEventListener('load', async () => {
+        async function initDashboard() {
             console.log('[dashboard] Инициализация дашборда...');
             
-            const waitForUser = (maxAttempts = 100) => {
+            const dashboardRoot = document.getElementById('dashboardRoot');
+            if (!dashboardRoot) return;
+            
+            // Ждём загрузки пользователя через правильный API
+            const waitForUser = (maxWaitMs = 5000) => {
                 return new Promise((resolve) => {
-                    let attempts = 0;
+                    const startTime = Date.now();
+                    
                     const check = () => {
-                        attempts++;
-                        if (window.currentSupabaseUser) {
-                            resolve(true);
-                        } else if (attempts >= maxAttempts) {
-                            resolve(false);
-                        } else {
-                            setTimeout(check, 100);
+                        const user = getCurrentSupabaseUser();
+                        if (user) {
+                            console.log('[dashboard] Пользователь загружен:', user.name);
+                            resolve(user);
+                            return;
                         }
+                        
+                        if (Date.now() - startTime >= maxWaitMs) {
+                            console.warn('[dashboard] Таймаут ожидания пользователя');
+                            resolve(null);
+                            return;
+                        }
+                        
+                        setTimeout(check, 100);
                     };
+                    
                     check();
                 });
             };
             
-            const userLoaded = await waitForUser();
-            const dashboardRoot = document.getElementById('dashboardRoot');
+            const user = await waitForUser();
             
-            if (!dashboardRoot) return;
-            
-            if (!userLoaded) {
+            if (!user) {
                 dashboardRoot.innerHTML = `
                     <div class="dashboard-empty" style="text-align: center; padding: 60px 20px;">
                         <i class="fas fa-exclamation-triangle" style="font-size: 64px; color: #ff6b6b;"></i>
                         <h3>Ошибка авторизации</h3>
+                        <p>Не удалось загрузить данные пользователя</p>
                         <button onclick="location.href='../auth-supabase.html'" class="dashboard-btn primary" style="margin-top: 20px;">Войти</button>
                     </div>
                 `;
@@ -476,16 +484,20 @@
                 await dashboard.init();
                 console.log('[dashboard] Дашборд загружен');
             } catch (error) {
-                console.error('[dashboard] Ошибка:', error);
+                console.error('[dashboard] Ошибка загрузки дашборда:', error);
                 dashboardRoot.innerHTML = `
                     <div class="dashboard-empty" style="text-align: center; padding: 60px 20px;">
                         <i class="fas fa-exclamation-triangle" style="font-size: 64px; color: #ff6b6b;"></i>
                         <h3>Ошибка загрузки</h3>
-                        <button onclick="location.reload()" class="dashboard-btn" style="margin-top: 20px;">Обновить</button>
+                        <p>${error.message || 'Неизвестная ошибка'}</p>
+                        <button onclick="location.reload()" class="dashboard-btn primary" style="margin-top: 20px;">Обновить</button>
                     </div>
                 `;
             }
-        });
+        }
+        
+        // Запускаем инициализацию
+        initDashboard();
     </script>
     
     <!-- Инициализация бокового меню -->
