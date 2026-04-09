@@ -10,18 +10,9 @@
  *   - Создание/редактирование сделок
  *   - Фильтрация по поиску, типу, агенту
  * 
- * ЗАВИСИМОСТИ:
- *   - js/core/supabase.js
- *   - js/core/supabase-session.js
- *   - js/services/deals-supabase.js
- *   - js/components/kanban.js
- *   - js/components/deal-card-list.js
- * 
  * ИСТОРИЯ:
  *   - 31.03.2026: Добавлен двухрежимный интерфейс
- *   - 30.03.2026: Создание файла
- *   - 09.04.2026: Исправлен путь для открытия деталей сделки (GitHub Pages)
- *   - 09.04.2026: Переименован BASE_PATH для избежания конфликта
+ *   - 09.04.2026: Исправлен списочный режим, обработчики кликов
  * ============================================
  */
 
@@ -40,18 +31,14 @@ import {
     addDealLog
 } from '../services/deals-supabase.js';
 import { createDealCard, setupDragAndDrop } from '../components/kanban.js';
-import { createDealCardList, createStageGroup, updateDealCardList } from '../components/deal-card-list.js';
+import { createDealCardList } from '../components/deal-card-list.js';
 
-// ========== ОПРЕДЕЛЕНИЕ БАЗОВОГО ПУТИ ДЛЯ GITHUB PAGES ==========
+// ========== ОПРЕДЕЛЕНИЕ БАЗОВОГО ПУТИ ==========
 function getDealsBasePath() {
     const fullPath = window.location.pathname;
-    
-    // Проверяем, находимся ли мы в репозитории crm-for-team
     if (fullPath.includes('/crm-for-team/')) {
         return '/crm-for-team';
     }
-    
-    // Для локальной разработки
     return '';
 }
 
@@ -89,7 +76,7 @@ const DEAL_STATUSES = [
     { id: 'cancelled', name: 'Отказ', icon: '❌', color: '#9e9e9e' }
 ];
 
-// Названия этапов для группировки
+// Названия этапов
 const STAGE_NAMES = {
     'new': 'Новая заявка',
     'selection': 'Подбор',
@@ -127,18 +114,12 @@ function showToast(type, message) {
 
 async function loadComplexes() {
     const { data, error } = await supabase.from('complexes').select('*');
-    if (!error && data) {
-        complexesData = data;
-        console.log('[deals] Загружено объектов:', complexesData.length);
-    }
+    if (!error && data) { complexesData = data; }
 }
 
 async function loadCounterparties() {
     const { data, error } = await supabase.from('counterparties').select('*');
-    if (!error && data) {
-        counterpartiesData = data;
-        console.log('[deals] Загружено контрагентов:', counterpartiesData.length);
-    }
+    if (!error && data) { counterpartiesData = data; }
 }
 
 async function loadUsers() {
@@ -147,7 +128,6 @@ async function loadUsers() {
         usersData = data;
         updateAgentSelects();
         updateAgentFilter();
-        console.log('[deals] Загружено пользователей:', usersData.length);
     }
 }
 
@@ -177,14 +157,13 @@ function updateComplexSelect() {
     if (!select) return;
     select.innerHTML = '<option value="">Выберите объект</option>';
     for (const c of complexesData) {
-        select.innerHTML += `<option value="${c.id}">${escapeHtml(c.name)} (${escapeHtml(c.address || '')})</option>`;
+        select.innerHTML += `<option value="${c.id}">${escapeHtml(c.name)}</option>`;
     }
 }
 
 function updateCounterpartySelects() {
     const sellerSelect = document.getElementById('dealSeller');
     const buyerSelect = document.getElementById('dealBuyer');
-    
     if (sellerSelect) {
         sellerSelect.innerHTML = '<option value="">Выберите продавца</option>';
         for (const c of counterpartiesData) {
@@ -193,7 +172,6 @@ function updateCounterpartySelects() {
             }
         }
     }
-    
     if (buyerSelect) {
         buyerSelect.innerHTML = '<option value="">Выберите покупателя</option>';
         for (const c of counterpartiesData) {
@@ -213,9 +191,7 @@ function updateAgentSelects() {
             agentSelect.innerHTML += `<option value="${u.github_username}">${escapeHtml(u.name)}</option>`;
         }
     }
-    if (currentUser) {
-        agentSelect.value = currentUser.github_username;
-    }
+    if (currentUser) agentSelect.value = currentUser.github_username;
 }
 
 function updateAgentFilter() {
@@ -251,8 +227,6 @@ function getFilteredDeals() {
 // ========== KANBAN РЕЖИМ ==========
 
 async function handleUpdateDealStatus(dealId, newStatus) {
-    console.log(`[deals] Изменение статуса: ${dealId} → ${newStatus}`);
-    
     const deal = dealsData.find(d => d.id == dealId);
     if (!deal || deal.status === newStatus) return;
     
@@ -263,7 +237,7 @@ async function handleUpdateDealStatus(dealId, newStatus) {
         const updated = await updateDealStatus(dealId, newStatus);
         if (updated) {
             await addDealLog(dealId, 'status_changed', { old_status: oldStatus, new_status: newStatus });
-            showToast('success', `Статус изменён на "${DEAL_STATUSES.find(s => s.id === newStatus)?.name || newStatus}"`);
+            showToast('success', `Статус изменён`);
             renderKanban();
         } else {
             deal.status = oldStatus;
@@ -271,7 +245,6 @@ async function handleUpdateDealStatus(dealId, newStatus) {
         }
     } catch (error) {
         deal.status = oldStatus;
-        console.error('[deals] Ошибка обновления статуса:', error);
         showToast('error', 'Ошибка изменения статуса');
     }
 }
@@ -281,16 +254,12 @@ function renderKanban() {
     if (!container) return;
     
     const filteredDeals = getFilteredDeals();
-    
     const dealsByStatus = {};
     for (const s of DEAL_STATUSES) dealsByStatus[s.id] = [];
     for (const deal of filteredDeals) {
         const status = deal.status || 'new';
-        if (dealsByStatus[status]) {
-            dealsByStatus[status].push(deal);
-        } else {
-            dealsByStatus['new'].push(deal);
-        }
+        if (dealsByStatus[status]) dealsByStatus[status].push(deal);
+        else dealsByStatus['new'].push(deal);
     }
     
     let html = '<div class="kanban-board-deals">';
@@ -299,7 +268,7 @@ function renderKanban() {
         html += `
             <div class="deal-column" data-status="${status.id}">
                 <div class="deal-column-header" style="border-top: 3px solid ${status.color};">
-                    <span><span class="status-icon">${status.icon}</span> ${status.name}</span>
+                    <span>${status.icon} ${status.name}</span>
                     <span class="count">${statusDeals.length}</span>
                 </div>
                 <div class="deals-container" data-status="${status.id}" id="container-${status.id}"></div>
@@ -323,7 +292,7 @@ function renderKanban() {
                 const card = createDealCard(dealWithNames, { canEdit: true });
                 card.setAttribute('data-deal-id', deal.id);
                 card.addEventListener('click', (e) => {
-                    if (!e.target.classList.contains('delete-deal') && !e.target.closest('.delete-deal')) {
+                    if (!e.target.closest('.delete-deal')) {
                         openDealDetail(deal.id);
                     }
                 });
@@ -337,7 +306,7 @@ function renderKanban() {
                 containerEl.appendChild(card);
             }
             if (statusDeals.length === 0) {
-                containerEl.innerHTML = '<div class="empty-deals"><i class="fas fa-inbox"></i><p>Нет заявок</p></div>';
+                containerEl.innerHTML = '<div class="empty-deals">Нет заявок</div>';
             }
         }
     }
@@ -355,145 +324,7 @@ function openDealDetail(dealId) {
     window.location.href = url;
 }
 
-function renderListView() {
-    const container = document.getElementById('dealsContent');
-    if (!container) return;
-    
-    const filteredDeals = getFilteredDeals();
-    
-    if (currentGrouping === 'stage') {
-        const groupedDeals = {};
-        for (const deal of filteredDeals) {
-            const stage = deal.status || 'new';
-            if (!groupedDeals[stage]) {
-                groupedDeals[stage] = [];
-            }
-            groupedDeals[stage].push(deal);
-        }
-        
-        const stageOrder = ['new', 'selection', 'matching', 'showing', 'negotiation', 'documents', 'mortgage', 'deal', 'keys', 'closed', 'cancelled'];
-        
-        let html = '<div class="list-view-container">';
-        for (const stageName of stageOrder) {
-            const deals = groupedDeals[stageName];
-            if (!deals || deals.length === 0) continue;
-            
-            const group = createStageGroup(STAGE_NAMES[stageName] || stageName, deals.length);
-            const groupContent = group.querySelector('.stage-group-content');
-            
-            for (const deal of deals) {
-                const dealWithNames = {
-                    ...deal,
-                    complex_name: getComplexName(deal.complex_id),
-                    seller_name: getCounterpartyName(deal.seller_id),
-                    buyer_name: getCounterpartyName(deal.buyer_id),
-                    agent_name: getUserName(deal.agent_id)
-                };
-                const card = createDealCardList(dealWithNames, {
-                    onOpen: (id) => openDealDetail(id),
-                    stageOrder: deal.stage_order?.[deal.type]
-                });
-                groupContent.appendChild(card);
-            }
-            
-            html += group.outerHTML;
-        }
-        
-        if (Object.keys(groupedDeals).length === 0) {
-            html += '<div class="empty-deals"><i class="fas fa-inbox"></i><p>Нет заявок</p></div>';
-        }
-        
-        html += '</div>';
-        container.innerHTML = html;
-        
-        // 🔧 ВАЖНО: Навешиваем обработчики после рендеринга
-        attachListViewHandlers();
-        
-    } else {
-        let html = '<div class="ungrouped-view">';
-        for (const deal of filteredDeals) {
-            const dealWithNames = {
-                ...deal,
-                complex_name: getComplexName(deal.complex_id),
-                seller_name: getCounterpartyName(deal.seller_id),
-                buyer_name: getCounterpartyName(deal.buyer_id),
-                agent_name: getUserName(deal.agent_id)
-            };
-            const card = createDealCardList(dealWithNames, {
-                onOpen: (id) => openDealDetail(id),
-                stageOrder: deal.stage_order?.[deal.type]
-            });
-            html += card.outerHTML;
-        }
-        if (filteredDeals.length === 0) {
-            html += '<div class="empty-deals"><i class="fas fa-inbox"></i><p>Нет заявок</p></div>';
-        }
-        html += '</div>';
-        container.innerHTML = html;
-        
-        // 🔧 ВАЖНО: Навешиваем обработчики после рендеринга
-        attachListViewHandlers();
-    }
-}
-
-// 🔧 НОВАЯ ФУНКЦИЯ: Навешивание обработчиков для списочного режима
-function attachListViewHandlers() {
-    // Обработчики для кнопок "Открыть сделку"
-    document.querySelectorAll('.open-deal-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const dealId = btn.dataset.dealId;
-            if (dealId) {
-                openDealDetail(dealId);
-            }
-        });
-    });
-    
-    // Обработчики для карточек сделок (клик по всей карточке)
-    document.querySelectorAll('.deal-list-card').forEach(card => {
-        card.addEventListener('click', (e) => {
-            // Не открываем, если кликнули на кнопку
-            if (e.target.closest('.open-deal-btn')) return;
-            const dealId = card.dataset.dealId;
-            if (dealId) {
-                openDealDetail(dealId);
-            }
-        });
-    });
-    
-    // 🔧 ВАЖНО: Восстанавливаем обработчики сворачивания групп
-    document.querySelectorAll('.stage-group-header').forEach(header => {
-        // Удаляем старые обработчики, чтобы не дублировались
-        header.removeEventListener('click', header._clickHandler);
-        
-        const clickHandler = () => {
-            const group = header.closest('.stage-group');
-            const content = group?.querySelector('.stage-group-content');
-            const icon = header.querySelector('.group-toggle-icon');
-            const groupId = header.dataset.group;
-            
-            if (content) {
-                if (content.style.display === 'none') {
-                    content.style.display = 'block';
-                    icon?.classList.remove('fa-chevron-right');
-                    icon?.classList.add('fa-chevron-down');
-                    localStorage.setItem(groupId, 'expanded');
-                } else {
-                    content.style.display = 'none';
-                    icon?.classList.remove('fa-chevron-down');
-                    icon?.classList.add('fa-chevron-right');
-                    localStorage.setItem(groupId, 'collapsed');
-                }
-            }
-        };
-        
-        header._clickHandler = clickHandler;
-        header.addEventListener('click', clickHandler);
-    });
-}
-
-// 🔧 ИСПРАВЛЕННАЯ ФУНКЦИЯ: Создание группы с сохранением состояния
-export function createStageGroup(stageName, count = 0) {
+function createStageGroupElement(stageName, count = 0) {
     const group = document.createElement('div');
     group.className = 'stage-group';
     group.setAttribute('data-stage', stageName);
@@ -505,15 +336,151 @@ export function createStageGroup(stageName, count = 0) {
         <div class="stage-group-header" data-group="${groupId}">
             <div class="stage-group-title">
                 <i class="fas fa-chevron-${isExpanded ? 'down' : 'right'} group-toggle-icon"></i>
-                <span class="stage-name">${escapeHtml(STAGE_NAMES[stageName] || stageName)}</span>
+                <span class="stage-name">${escapeHtml(stageName)}</span>
                 <span class="stage-count">${count}</span>
             </div>
         </div>
-        <div class="stage-group-content" style="display: ${isExpanded ? 'block' : 'none'};">
-        </div>
+        <div class="stage-group-content" style="display: ${isExpanded ? 'block' : 'none'};"></div>
     `;
-    
     return group;
+}
+
+function attachGroupToggleHandlers() {
+    document.querySelectorAll('.stage-group-header').forEach(header => {
+        if (header._clickHandler) {
+            header.removeEventListener('click', header._clickHandler);
+        }
+        
+        const clickHandler = (e) => {
+            e.stopPropagation();
+            const group = header.closest('.stage-group');
+            if (!group) return;
+            
+            const content = group.querySelector('.stage-group-content');
+            const icon = header.querySelector('.group-toggle-icon, .fa-chevron-down, .fa-chevron-right');
+            const groupId = header.dataset.group || `group-${group.dataset.stage}`;
+            
+            if (content) {
+                const isHidden = content.style.display === 'none';
+                if (isHidden) {
+                    content.style.display = 'block';
+                    if (icon) { icon.classList.remove('fa-chevron-right'); icon.classList.add('fa-chevron-down'); }
+                    localStorage.setItem(groupId, 'expanded');
+                } else {
+                    content.style.display = 'none';
+                    if (icon) { icon.classList.remove('fa-chevron-down'); icon.classList.add('fa-chevron-right'); }
+                    localStorage.setItem(groupId, 'collapsed');
+                }
+            }
+        };
+        
+        header._clickHandler = clickHandler;
+        header.addEventListener('click', clickHandler);
+    });
+}
+
+function renderListView() {
+    const container = document.getElementById('dealsContent');
+    if (!container) return;
+    
+    const filteredDeals = getFilteredDeals();
+    
+    if (filteredDeals.length === 0) {
+        container.innerHTML = '<div class="empty-deals">Нет заявок</div>';
+        return;
+    }
+    
+    if (currentGrouping === 'stage') {
+        const groupedDeals = {};
+        for (const deal of filteredDeals) {
+            const stage = deal.status || 'new';
+            if (!groupedDeals[stage]) groupedDeals[stage] = [];
+            groupedDeals[stage].push(deal);
+        }
+        
+        const stageOrder = ['new', 'selection', 'matching', 'showing', 'negotiation', 'documents', 'mortgage', 'deal', 'keys', 'closed', 'cancelled'];
+        
+        let html = '<div class="list-view-container">';
+        let hasDeals = false;
+        
+        for (const stageName of stageOrder) {
+            const deals = groupedDeals[stageName];
+            if (!deals || deals.length === 0) continue;
+            hasDeals = true;
+            
+            const group = createStageGroupElement(STAGE_NAMES[stageName] || stageName, deals.length);
+            const groupContent = group.querySelector('.stage-group-content');
+            
+            for (const deal of deals) {
+                const dealWithNames = {
+                    ...deal,
+                    complex_name: getComplexName(deal.complex_id),
+                    seller_name: getCounterpartyName(deal.seller_id),
+                    buyer_name: getCounterpartyName(deal.buyer_id),
+                    agent_name: getUserName(deal.agent_id)
+                };
+                
+                const card = createDealCardList(dealWithNames, { stageOrder: deal.stage_order?.[deal.type] });
+                card.style.cursor = 'pointer';
+                
+                const openBtn = card.querySelector('.open-deal-btn');
+                if (openBtn) {
+                    openBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        openDealDetail(deal.id);
+                    });
+                }
+                
+                card.addEventListener('click', (e) => {
+                    if (!e.target.closest('.open-deal-btn')) {
+                        openDealDetail(deal.id);
+                    }
+                });
+                
+                groupContent.appendChild(card);
+            }
+            
+            html += group.outerHTML;
+        }
+        
+        if (!hasDeals) html += '<div class="empty-deals">Нет заявок</div>';
+        html += '</div>';
+        container.innerHTML = html;
+        attachGroupToggleHandlers();
+        
+    } else {
+        let html = '<div class="ungrouped-view">';
+        for (const deal of filteredDeals) {
+            const dealWithNames = {
+                ...deal,
+                complex_name: getComplexName(deal.complex_id),
+                seller_name: getCounterpartyName(deal.seller_id),
+                buyer_name: getCounterpartyName(deal.buyer_id),
+                agent_name: getUserName(deal.agent_id)
+            };
+            
+            const card = createDealCardList(dealWithNames, { stageOrder: deal.stage_order?.[deal.type] });
+            card.style.cursor = 'pointer';
+            
+            const openBtn = card.querySelector('.open-deal-btn');
+            if (openBtn) {
+                openBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    openDealDetail(deal.id);
+                });
+            }
+            
+            card.addEventListener('click', (e) => {
+                if (!e.target.closest('.open-deal-btn')) {
+                    openDealDetail(deal.id);
+                }
+            });
+            
+            html += card.outerHTML;
+        }
+        html += '</div>';
+        container.innerHTML = html;
+    }
 }
 
 // ========== УПРАВЛЕНИЕ РЕЖИМАМИ ==========
@@ -521,20 +488,11 @@ export function createStageGroup(stageName, count = 0) {
 function setMode(mode) {
     currentMode = mode;
     localStorage.setItem('deals_view_mode', mode);
-    
     document.querySelectorAll('.mode-btn').forEach(btn => {
-        if (btn.dataset.mode === mode) {
-            btn.classList.add('active');
-        } else {
-            btn.classList.remove('active');
-        }
+        btn.classList.toggle('active', btn.dataset.mode === mode);
     });
-    
     const groupingFilter = document.getElementById('groupingFilter');
-    if (groupingFilter) {
-        groupingFilter.style.display = mode === 'list' ? 'inline-block' : 'none';
-    }
-    
+    if (groupingFilter) groupingFilter.style.display = mode === 'list' ? 'inline-block' : 'none';
     renderCurrentView();
 }
 
@@ -545,29 +503,21 @@ function setGrouping(grouping) {
 }
 
 function renderCurrentView() {
-    if (currentMode === 'kanban') {
-        renderKanban();
-    } else {
-        renderListView();
-    }
+    if (currentMode === 'kanban') renderKanban();
+    else renderListView();
 }
 
 // ========== CRUD ОПЕРАЦИИ ==========
 
 window.deleteDeal = async function(dealId) {
-    const deal = dealsData.find(d => d.id == dealId);
-    if (!deal) return;
-    
-    if (confirm(`Удалить заявку N${deal.id}?`)) {
-        const success = await deleteDeal(dealId);
-        if (success) {
-            const index = dealsData.findIndex(d => d.id == dealId);
-            if (index !== -1) dealsData.splice(index, 1);
-            renderCurrentView();
-            showToast('success', 'Заявка удалена');
-        } else {
-            showToast('error', 'Ошибка удаления');
-        }
+    if (!confirm(`Удалить заявку?`)) return;
+    const success = await deleteDeal(dealId);
+    if (success) {
+        dealsData = dealsData.filter(d => d.id != dealId);
+        renderCurrentView();
+        showToast('success', 'Заявка удалена');
+    } else {
+        showToast('error', 'Ошибка удаления');
     }
 };
 
@@ -594,9 +544,9 @@ async function openDealModal(dealId = null) {
             document.getElementById('dealBuyer').value = deal.buyer_id || '';
             document.getElementById('dealType').value = deal.type;
             document.getElementById('dealAgent').value = deal.agent_id || '';
-            document.getElementById('dealPriceInitial').value = deal.price_initial;
-            document.getElementById('dealPriceCurrent').value = deal.price_current;
-            document.getElementById('dealCommission').value = deal.commission;
+            document.getElementById('dealPriceInitial').value = deal.price_initial || '';
+            document.getElementById('dealPriceCurrent').value = deal.price_current || '';
+            document.getElementById('dealCommission').value = deal.commission || 3;
             document.getElementById('dealDeadline').value = deal.deadline || '';
             document.getElementById('dealBank').value = deal.bank || '';
             document.getElementById('dealMortgageApproved').value = deal.mortgage_approved ? 'true' : 'false';
@@ -651,9 +601,7 @@ window.saveDeal = async function() {
         result = await updateDeal(dealId, dealData);
         if (result) {
             const index = dealsData.findIndex(d => d.id == dealId);
-            if (index !== -1) {
-                dealsData[index] = { ...dealsData[index], ...dealData };
-            }
+            if (index !== -1) dealsData[index] = { ...dealsData[index], ...dealData };
             window.closeDealModal();
             renderCurrentView();
             showToast('success', 'Заявка обновлена');
@@ -667,9 +615,7 @@ window.saveDeal = async function() {
         }
     }
     
-    if (!result) {
-        showToast('error', 'Ошибка сохранения');
-    }
+    if (!result) showToast('error', 'Ошибка сохранения');
 };
 
 // ========== ИНИЦИАЛИЗАЦИЯ ==========
@@ -682,47 +628,26 @@ export async function initDealsPage() {
     
     currentUser = getCurrentSupabaseUser();
     updateSupabaseUserInterface();
-    console.log('[deals] Текущий пользователь:', currentUser?.name);
     
     await loadComplexes();
     await loadCounterparties();
     await loadUsers();
     await loadDealsData();
     
-    const modeBtns = document.querySelectorAll('.mode-btn');
-    modeBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            setMode(btn.dataset.mode);
-        });
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+        btn.addEventListener('click', () => setMode(btn.dataset.mode));
     });
     
     const groupingFilter = document.getElementById('groupingFilter');
     if (groupingFilter) {
         groupingFilter.value = currentGrouping;
-        groupingFilter.addEventListener('change', (e) => {
-            setGrouping(e.target.value);
-        });
+        groupingFilter.addEventListener('change', (e) => setGrouping(e.target.value));
     }
     
-    const addBtn = document.getElementById('addDealBtn');
-    if (addBtn) {
-        addBtn.addEventListener('click', () => openDealModal());
-    }
-    
-    const searchInput = document.getElementById('searchInput');
-    if (searchInput) {
-        searchInput.addEventListener('input', () => renderCurrentView());
-    }
-    
-    const typeFilter = document.getElementById('typeFilter');
-    if (typeFilter) {
-        typeFilter.addEventListener('change', () => renderCurrentView());
-    }
-    
-    const agentFilter = document.getElementById('agentFilter');
-    if (agentFilter) {
-        agentFilter.addEventListener('change', () => renderCurrentView());
-    }
+    document.getElementById('addDealBtn')?.addEventListener('click', () => openDealModal());
+    document.getElementById('searchInput')?.addEventListener('input', () => renderCurrentView());
+    document.getElementById('typeFilter')?.addEventListener('change', () => renderCurrentView());
+    document.getElementById('agentFilter')?.addEventListener('change', () => renderCurrentView());
     
     setMode(currentMode);
     
