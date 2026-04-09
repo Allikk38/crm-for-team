@@ -13,9 +13,12 @@
  * ЗАВИСИМОСТИ:
  *   - js/core/supabase.js
  *   - js/core/supabase-session.js
+ *   - js/core/permissions.js
  * 
  * ИСТОРИЯ:
  *   - 27.03.2026: Создание файла, вынос логики из complexes-supabase.html
+ *   - 09.04.2026: Переход с role на permission_sets (canEditAllComplexes)
+ *   - 09.04.2026: Убраны глобальные функции, переход на addEventListener
  * ============================================
  */
 
@@ -25,6 +28,7 @@ import {
     requireSupabaseAuth, 
     updateSupabaseUserInterface 
 } from '../core/supabase-session.js';
+import { isAdmin, canEditAllComplexes, hasPermission } from '../core/permissions.js';
 
 // Состояние страницы
 let complexes = [];
@@ -92,8 +96,8 @@ function getComplexTasks(complexId) {
 
 function canEditComplex(complex) {
     if (!currentUser) return false;
-    if (currentUser.role === 'admin') return true;
-    if (currentUser.role === 'manager') return true;
+    // Проверка через права
+    if (isAdmin() || canEditAllComplexes()) return true;
     return complex.assigned_to === currentUser.github_username;
 }
 
@@ -101,6 +105,8 @@ function canEditComplex(complex) {
 
 function renderComplexes() {
     const grid = document.getElementById('complexesGrid');
+    if (!grid) return;
+    
     const searchText = document.getElementById('searchInput')?.value.toLowerCase() || '';
     const statusFilter = document.getElementById('statusFilter')?.value || 'all';
     const agentFilter = document.getElementById('agentFilter')?.value || 'all';
@@ -138,7 +144,7 @@ function renderComplexes() {
         const publicBadge = c.is_public ? '<span class="public-badge"><i class="fas fa-globe"></i> Публичный</span>' : '<span class="private-badge"><i class="fas fa-lock"></i> Приватный</span>';
         const canEdit = canEditComplex(c);
         
-        return `<div class="complex-card" onclick="window.openComplexModal('${c.id}')">
+        return `<div class="complex-card" data-complex-id="${c.id}">
             <div class="complex-card-header">
                 <div class="complex-card-image"><i class="fas fa-building"></i></div>
                 <div class="complex-card-info">
@@ -162,12 +168,15 @@ function renderComplexes() {
                 </div>
             </div>
             <div class="complex-card-footer">
-                <button class="complex-btn" onclick="event.stopPropagation(); window.createTaskForComplex('${c.id}')"><i class="fas fa-plus"></i> Задача</button>
-                <button class="complex-btn" onclick="event.stopPropagation(); window.copyComplexLink('${c.id}')"><i class="fas fa-link"></i> Ссылка</button>
-                ${canEdit ? `<button class="complex-btn" onclick="event.stopPropagation(); window.editComplex('${c.id}')"><i class="fas fa-edit"></i> Ред.</button>` : ''}
+                <button class="complex-btn create-task-btn" data-complex-id="${c.id}"><i class="fas fa-plus"></i> Задача</button>
+                <button class="complex-btn copy-link-btn" data-complex-id="${c.id}"><i class="fas fa-link"></i> Ссылка</button>
+                ${canEdit ? `<button class="complex-btn edit-complex-btn" data-complex-id="${c.id}"><i class="fas fa-edit"></i> Ред.</button>` : ''}
             </div>
         </div>`;
     }).join('');
+    
+    // Навешиваем обработчики на карточки
+    attachCardHandlers();
     
     document.querySelectorAll('.sort-btn').forEach(btn => {
         if (btn.dataset.sort === currentSort) btn.classList.add('active');
@@ -179,12 +188,54 @@ function renderComplexes() {
     console.log('[complexes] Отрисовано объектов:', filtered.length);
 }
 
+function attachCardHandlers() {
+    // Открытие карточки
+    document.querySelectorAll('.complex-card').forEach(card => {
+        card.addEventListener('click', (e) => {
+            // Не открываем если кликнули на кнопку
+            if (e.target.closest('.complex-btn')) return;
+            const complexId = card.dataset.complexId;
+            openComplexModal(complexId);
+        });
+    });
+    
+    // Кнопка "Задача"
+    document.querySelectorAll('.create-task-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const complexId = btn.dataset.complexId;
+            window.location.href = `tasks.html?complex=${complexId}`;
+        });
+    });
+    
+    // Кнопка "Ссылка"
+    document.querySelectorAll('.copy-link-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const complexId = btn.dataset.complexId;
+            const url = `${window.location.origin}${window.location.pathname}?complex=${complexId}`;
+            navigator.clipboard.writeText(url);
+            showToast('success', 'Ссылка скопирована');
+        });
+    });
+    
+    // Кнопка "Ред."
+    document.querySelectorAll('.edit-complex-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const complexId = btn.dataset.complexId;
+            editComplex(complexId);
+        });
+    });
+}
+
 // ========== МОДАЛЬНЫЕ ОКНА ==========
 
-window.openComplexModal = async function(complexId) {
+function openComplexModal(complexId) {
     const complex = complexes.find(c => c.id == complexId);
     if (!complex) return;
     
+    const modal = document.getElementById('complexModal');
     const modalBody = document.getElementById('complexModalBody');
     const editBtn = document.getElementById('editComplexBtn');
     const statusText = complex.status === 'active' ? 'Активен' : complex.status === 'in_progress' ? 'В работе' : 'Архив';
@@ -202,23 +253,27 @@ window.openComplexModal = async function(complexId) {
         <div class="complex-detail-row"><div class="complex-detail-label">Связанные задачи:</div><div class="complex-detail-value tasks-list">${complexTasks.map(t => `<div class="task-item"><span>${escapeHtml(t.title)}</span><span>${t.status === 'completed' ? '✓ Выполнена' : '○ Активна'}</span></div>`).join('') || '<p>Нет задач</p>'}</div></div>
     `;
     
-    editBtn.onclick = () => { window.closeComplexModal(); window.editComplex(complex.id); };
+    editBtn.onclick = () => {
+        closeComplexModal();
+        editComplex(complex.id);
+    };
     editBtn.style.display = canEditComplex(complex) ? 'block' : 'none';
-    document.getElementById('complexModal').classList.add('active');
+    modal.classList.add('active');
     console.log('[complexes] Открыта карточка объекта:', complex.name);
-};
+}
 
-window.closeComplexModal = function() {
+function closeComplexModal() {
     document.getElementById('complexModal').classList.remove('active');
-};
+}
 
-window.closeComplexFormModal = function() {
+function closeComplexFormModal() {
     document.getElementById('complexFormModal').classList.remove('active');
-};
+}
 
-window.editComplex = function(complexId) {
+function editComplex(complexId) {
     const complex = complexes.find(c => c.id == complexId);
     if (!complex) return;
+    
     document.getElementById('complexFormTitle').innerHTML = 'Редактировать объект';
     document.getElementById('complexId').value = complex.id;
     document.getElementById('complexTitle').value = complex.name;
@@ -233,9 +288,9 @@ window.editComplex = function(complexId) {
     document.getElementById('complexPublic').checked = complex.is_public;
     document.getElementById('complexFormModal').classList.add('active');
     console.log('[complexes] Открыта форма редактирования:', complex.name);
-};
+}
 
-window.saveComplex = async function() {
+async function saveComplex() {
     const id = document.getElementById('complexId').value;
     const data = {
         name: document.getElementById('complexTitle').value,
@@ -250,7 +305,11 @@ window.saveComplex = async function() {
         is_public: document.getElementById('complexPublic').checked,
         user_id: currentUser.id
     };
-    if (!data.name || !data.address) { alert('Заполните название и адрес'); return; }
+    
+    if (!data.name || !data.address) {
+        alert('Заполните название и адрес');
+        return;
+    }
     
     console.log('[complexes] Сохранение объекта:', id || 'новый', data.name);
     
@@ -262,44 +321,48 @@ window.saveComplex = async function() {
         const result = await supabase.from('complexes').insert([data]);
         error = result.error;
     }
+    
     if (!error) {
-        window.closeComplexFormModal();
+        closeComplexFormModal();
         await loadComplexes();
         showToast('success', id ? 'Объект обновлен' : 'Объект создан');
     } else {
         console.error('[complexes] Ошибка сохранения:', error);
         alert('Ошибка сохранения');
     }
-};
-
-window.createTaskForComplex = (complexId) => {
-    console.log('[complexes] Создание задачи для объекта:', complexId);
-    window.location.href = `tasks-supabase.html?complex=${complexId}`;
-};
-
-window.copyComplexLink = (complexId) => {
-    const url = `${window.location.origin}${window.location.pathname}?complex=${complexId}`;
-    navigator.clipboard.writeText(url);
-    showToast('success', 'Ссылка скопирована');
-};
+}
 
 // ========== ОБНОВЛЕНИЕ UI ==========
 
 function updateFiltersUI() {
+    // Фильтруем пользователей по permission_sets, а не по role
+    const availableUsers = users.filter(u => 
+        hasPermission('view_complexes', u) || 
+        u.role === 'agent' || u.role === 'manager' // fallback
+    );
+    
     const agentSelect = document.getElementById('agentFilter');
     if (agentSelect) {
         agentSelect.innerHTML = '<option value="all">Все агенты</option>';
-        users.forEach(u => { if (u.role === 'agent' || u.role === 'manager') agentSelect.innerHTML += `<option value="${u.github_username}">${escapeHtml(u.name)}</option>`; });
+        availableUsers.forEach(u => {
+            agentSelect.innerHTML += `<option value="${u.github_username}">${escapeHtml(u.name)}</option>`;
+        });
     }
+    
     const quickAssignee = document.getElementById('quickAssignee');
     if (quickAssignee) {
         quickAssignee.innerHTML = '<option value="">Ответственный агент</option>';
-        users.forEach(u => { if (u.role === 'agent' || u.role === 'manager') quickAssignee.innerHTML += `<option value="${u.github_username}">${escapeHtml(u.name)}</option>`; });
+        availableUsers.forEach(u => {
+            quickAssignee.innerHTML += `<option value="${u.github_username}">${escapeHtml(u.name)}</option>`;
+        });
     }
+    
     const assigneeSelect = document.getElementById('complexAssignee');
     if (assigneeSelect) {
         assigneeSelect.innerHTML = '<option value="">Ответственный агент</option>';
-        users.forEach(u => { if (u.role === 'agent' || u.role === 'manager') assigneeSelect.innerHTML += `<option value="${u.github_username}">${escapeHtml(u.name)}</option>`; });
+        availableUsers.forEach(u => {
+            assigneeSelect.innerHTML += `<option value="${u.github_username}">${escapeHtml(u.name)}</option>`;
+        });
     }
 }
 
@@ -313,14 +376,15 @@ export async function initComplexesPage() {
     
     currentUser = getCurrentSupabaseUser();
     updateSupabaseUserInterface();
-    console.log('[complexes] Текущий пользователь:', currentUser?.name, 'роль:', currentUser?.role);
+    console.log('[complexes] Текущий пользователь:', currentUser?.name);
     
     await loadUsers();
     await loadTasks();
     await loadComplexes();
     updateFiltersUI();
     
-    document.getElementById('addComplexBtn').addEventListener('click', () => {
+    // Навешиваем обработчики
+    document.getElementById('addComplexBtn')?.addEventListener('click', () => {
         document.getElementById('complexFormTitle').innerHTML = 'Новый объект';
         document.getElementById('complexId').value = '';
         document.getElementById('complexTitle').value = '';
@@ -334,7 +398,6 @@ export async function initComplexesPage() {
         document.getElementById('complexDescription').value = '';
         document.getElementById('complexPublic').checked = true;
         document.getElementById('complexFormModal').classList.add('active');
-        console.log('[complexes] Открыта форма создания объекта');
     });
     
     document.getElementById('quickSaveBtn')?.addEventListener('click', async () => {
@@ -348,7 +411,10 @@ export async function initComplexesPage() {
             is_public: true,
             user_id: currentUser.id
         };
-        if (!data.name || !data.address) { alert('Заполните название и адрес'); return; }
+        if (!data.name || !data.address) {
+            alert('Заполните название и адрес');
+            return;
+        }
         const { error } = await supabase.from('complexes').insert([data]);
         if (!error) {
             document.getElementById('quickTitle').value = '';
@@ -358,35 +424,50 @@ export async function initComplexesPage() {
             document.getElementById('quickAddPanel').classList.remove('active');
             await loadComplexes();
             showToast('success', 'Объект создан');
-            console.log('[complexes] Объект создан через быструю панель');
         } else {
             console.error('[complexes] Ошибка быстрого создания:', error);
             alert('Ошибка сохранения');
         }
     });
     
+    // Кнопки закрытия модалок
+    document.querySelector('#complexModal .modal-close')?.addEventListener('click', closeComplexModal);
+    document.querySelector('#complexModal .modal-cancel')?.addEventListener('click', closeComplexModal);
+    document.querySelector('#complexFormModal .modal-close')?.addEventListener('click', closeComplexFormModal);
+    document.querySelector('#complexFormModal .modal-cancel')?.addEventListener('click', closeComplexFormModal);
+    document.querySelector('#complexFormModal .primary')?.addEventListener('click', saveComplex);
+    
+    // Закрытие по клику вне модалки
+    document.getElementById('complexModal')?.addEventListener('click', (e) => {
+        if (e.target.classList.contains('modal')) closeComplexModal();
+    });
+    document.getElementById('complexFormModal')?.addEventListener('click', (e) => {
+        if (e.target.classList.contains('modal')) closeComplexFormModal();
+    });
+    
+    // Фильтры
     document.getElementById('searchInput')?.addEventListener('input', renderComplexes);
     document.getElementById('statusFilter')?.addEventListener('change', renderComplexes);
     document.getElementById('agentFilter')?.addEventListener('change', renderComplexes);
-    document.getElementById('myObjectsToggle')?.addEventListener('click', () => { 
-        showMyObjectsOnly = !showMyObjectsOnly; 
+    document.getElementById('myObjectsToggle')?.addEventListener('click', () => {
+        showMyObjectsOnly = !showMyObjectsOnly;
         renderComplexes();
-        console.log('[complexes] Фильтр "Мои объекты":', showMyObjectsOnly);
     });
+    
+    // Сортировка
     document.querySelectorAll('.sort-btn').forEach(btn => btn.addEventListener('click', () => {
-        if (currentSort === btn.dataset.sort) sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
-        else { currentSort = btn.dataset.sort; sortDirection = 'asc'; }
+        if (currentSort === btn.dataset.sort) {
+            sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            currentSort = btn.dataset.sort;
+            sortDirection = 'asc';
+        }
         renderComplexes();
-        console.log('[complexes] Сортировка:', currentSort, sortDirection);
     }));
     
     const sidebar = document.getElementById('sidebar');
     if (sidebar && localStorage.getItem('sidebar_collapsed') === 'true') {
         sidebar.classList.add('collapsed');
-    }
-    
-    if (window.CRM?.ui?.animations) {
-        console.log('[complexes] Анимации инициализированы');
     }
     
     console.log('[complexes] Инициализация завершена');
