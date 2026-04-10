@@ -19,6 +19,8 @@
  *   - 27.03.2026: Создание файла
  *   - 09.04.2026: Переход с role на permission_sets
  *   - 09.04.2026: Убраны глобальные функции, переход на addEventListener
+ *   - 10.04.2026: ПОЛНОЕ УДАЛЕНИЕ ГЛОБАЛЬНЫХ ФУНКЦИЙ (window.closeCounterpartyFormModal, window.saveCounterparty)
+ *                 Вся привязка событий через addEventListener.
  * ============================================
  */
 
@@ -135,10 +137,8 @@ function getDealsByCounterparty(counterpartyId) {
 function filterByPermissions(list) {
     if (!currentUser) return [];
     
-    // Админ или менеджер (с правом просмотра всех) видят всё
     if (isAdmin() || canViewAllCounterparties()) return list;
     
-    // Агент видит только контрагентов из своих сделок
     if (hasPermission('view_own_deals')) {
         const agentDeals = deals.filter(d => d.agent_id === currentUser.github_username);
         const counterpartyIds = new Set();
@@ -155,13 +155,11 @@ function filterByPermissions(list) {
 function canEditCounterparty(counterparty) {
     if (!currentUser) return false;
     if (isAdmin() || canEditAllCounterparties()) return true;
-    // Агент может редактировать только своих контрагентов (из своих сделок)
     const agentDeals = deals.filter(d => d.agent_id === currentUser.github_username);
     return agentDeals.some(d => d.seller_id == counterparty.id || d.buyer_id == counterparty.id);
 }
 
 function canDeleteCounterparty(counterparty) {
-    // Только админ или менеджер с правами могут удалять
     return isAdmin() || canEditAllCounterparties();
 }
 
@@ -238,8 +236,6 @@ function renderCounterparties() {
     }
     
     grid.innerHTML = html;
-    
-    // Навешиваем обработчики
     attachCardHandlers();
     
     console.log('[counterparties] Отрисовано контрагентов:', filtered.length);
@@ -325,7 +321,6 @@ function openCounterpartyModal(counterpartyId = null) {
                     </div>
                 `).join('');
                 
-                // Обработчики для сделок
                 dealsContainer.querySelectorAll('.deal-item').forEach(item => {
                     item.addEventListener('click', () => {
                         window.location.href = `deals.html?deal=${item.dataset.dealId}`;
@@ -416,7 +411,6 @@ async function deleteCounterparty(id, name) {
 // ========== ЭКСПОРТ ==========
 
 function exportCounterparties() {
-    // Проверяем право на экспорт
     if (!canExportCounterparties() && !isAdmin()) {
         showToast('error', 'Недостаточно прав для экспорта');
         return;
@@ -434,7 +428,7 @@ function exportCounterparties() {
     }));
     
     const csv = arrayToCSV(dataToExport);
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' }); // BOM для Excel
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.href = url;
@@ -444,6 +438,37 @@ function exportCounterparties() {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
     showToast('success', 'Экспорт завершён');
+}
+
+// ========== ПРИВЯЗКА СОБЫТИЙ ==========
+
+function bindEvents() {
+    // Фильтры
+    document.getElementById('searchInput')?.addEventListener('input', renderCounterparties);
+    document.getElementById('typeFilter')?.addEventListener('change', renderCounterparties);
+    document.getElementById('personTypeFilter')?.addEventListener('change', renderCounterparties);
+    
+    // Кнопка добавления
+    document.getElementById('addCounterpartyBtn')?.addEventListener('click', () => {
+        if (!canCreateCounterparties() && !isAdmin()) {
+            showToast('error', 'Недостаточно прав для создания контрагента');
+            return;
+        }
+        openCounterpartyModal();
+    });
+    
+    // Кнопка экспорта
+    document.getElementById('exportBtn')?.addEventListener('click', exportCounterparties);
+    
+    // Кнопки в модальном окне
+    document.querySelector('#counterpartyModal .modal-close')?.addEventListener('click', closeCounterpartyModal);
+    document.querySelector('#counterpartyModal .modal-cancel')?.addEventListener('click', closeCounterpartyModal);
+    document.querySelector('#counterpartyModal .primary')?.addEventListener('click', saveCounterparty);
+    
+    // Закрытие по клику вне модалки
+    document.getElementById('counterpartyModal')?.addEventListener('click', (e) => {
+        if (e.target.classList.contains('modal')) closeCounterpartyModal();
+    });
 }
 
 // ========== ИНИЦИАЛИЗАЦИЯ ==========
@@ -461,32 +486,7 @@ export async function initCounterpartiesPage() {
     await loadDeals();
     await loadCounterparties();
     renderCounterparties();
-    
-    // Навешиваем обработчики
-    document.getElementById('searchInput')?.addEventListener('input', renderCounterparties);
-    document.getElementById('typeFilter')?.addEventListener('change', renderCounterparties);
-    document.getElementById('personTypeFilter')?.addEventListener('change', renderCounterparties);
-    
-    document.getElementById('addCounterpartyBtn')?.addEventListener('click', () => {
-        // Проверяем право на создание
-        if (!canCreateCounterparties() && !isAdmin()) {
-            showToast('error', 'Недостаточно прав для создания контрагента');
-            return;
-        }
-        openCounterpartyModal();
-    });
-    
-    document.getElementById('exportBtn')?.addEventListener('click', exportCounterparties);
-    
-    // Кнопки в модальном окне
-    document.querySelector('#counterpartyModal .modal-close')?.addEventListener('click', closeCounterpartyModal);
-    document.querySelector('#counterpartyModal .modal-cancel')?.addEventListener('click', closeCounterpartyModal);
-    document.querySelector('#counterpartyModal .primary')?.addEventListener('click', saveCounterparty);
-    
-    // Закрытие по клику вне модалки
-    document.getElementById('counterpartyModal')?.addEventListener('click', (e) => {
-        if (e.target.classList.contains('modal')) closeCounterpartyModal();
-    });
+    bindEvents();
     
     const sidebar = document.getElementById('sidebar');
     if (sidebar && localStorage.getItem('sidebar_collapsed') === 'true') {
