@@ -29,7 +29,7 @@ import WelcomeWidget from './widgets/welcome-widget.js';
 import AgentRankingWidget from './widgets/agent-ranking-widget.js';
 import TeamAnalyticsWidget from './widgets/team-analytics-widget.js';
 import QuickTaskWidget from './widgets/quick-task-widget.js';
-import eventBus from '../core/eventBus.js';
+import { eventBus } from '../core/eventBus.js';
 
 console.log('[dashboard-container] Загрузка...');
 
@@ -943,27 +943,36 @@ class DashboardContainer {
      * Подписаться на события шины событий
      */
     subscribeEvents() {
-        if (!eventBus) return;
-        
+    if (!eventBus) {
+        console.warn('[dashboard-container] EventBus недоступен, события не будут обрабатываться');
+        return;
+    }
+    
+    try {
         eventBus.on('task:created', () => {
+            console.log('[dashboard-container] task:created, обновляем виджеты');
             this.refreshAllWidgets();
         });
         
-        window.CRM.EventBus.on('task:updated', () => {
+        eventBus.on('task:updated', () => {
             this.refreshAllWidgets();
         });
         
-        window.CRM.EventBus.on('task:deleted', () => {
+        eventBus.on('task:deleted', () => {
             this.refreshAllWidgets();
         });
         
-        window.CRM.EventBus.on('complex:created', () => {
+        eventBus.on('complex:created', () => {
             this.refreshAllWidgets();
         });
         
-        window.CRM.EventBus.on('user:created', () => {
+        eventBus.on('user:created', () => {
             this.refreshAllWidgets();
         });
+        
+        console.log('[dashboard-container] Подписки на события активированы');
+    } catch (error) {
+        console.warn('[dashboard-container] Ошибка подписки на события:', error);
     }
 }
 
