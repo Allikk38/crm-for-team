@@ -7,19 +7,16 @@
     <!-- 
     ============================================
     ФАЙЛ: app/admin.html
-    РОЛЬ: Панель администратора
+    РОЛЬ: Панель администратора (оркестратор)
     
     ОСОБЕННОСТИ:
-      - Вкладки: Пользователи, Лицензии, Назначение прав, Статистика
-      - Управление пользователями
-      - Управление лицензиями компании
-      - Назначение модулей пользователям
-      - Статистика использования
+      - Только структура и контейнеры
+      - Ленивая загрузка компонентов через admin.js
+      - Стили вынесены в CSS
     
     ИСТОРИЯ:
-      - 27.03.2026: Создание supabase-версии панели администратора
-      - 30.03.2026: Перенос в папку app, исправление путей
-      - 31.03.2026: Добавлены вкладки и интеграция с модулями
+      - 27.03.2026: Создание страницы
+      - 10.04.2026: ПОЛНЫЙ РЕФАКТОРИНГ — разделение на компоненты
     ============================================
     -->
     
@@ -28,11 +25,11 @@
             try {
                 const savedTheme = localStorage.getItem('crm_theme');
                 if (savedTheme === 'light') {
-                    if (document.documentElement) document.documentElement.classList.add('theme-light');
-                    if (document.body) document.body.classList.add('theme-light');
+                    document.documentElement.classList.add('theme-light');
+                    document.body.classList.add('theme-light');
                 } else if (savedTheme === 'dark') {
-                    if (document.documentElement) document.documentElement.classList.add('theme-dark');
-                    if (document.body) document.body.classList.add('theme-dark');
+                    document.documentElement.classList.add('theme-dark');
+                    document.body.classList.add('theme-dark');
                 }
             } catch(e) {}
         })();
@@ -45,26 +42,34 @@
     <link rel="stylesheet" href="../css/base.css">
     <link rel="stylesheet" href="../css/theme.css">
     <link rel="stylesheet" href="../css/components.css">
-    <link rel="stylesheet" href="../css/dashboard.css">
-    <link rel="stylesheet" href="../css/kanban.css">
-    <link rel="stylesheet" href="../css/manager.css">
-    <link rel="stylesheet" href="../css/calendar.css">
     <link rel="stylesheet" href="../css/modal.css">
     <link rel="stylesheet" href="../css/responsive.css">
     <link rel="stylesheet" href="../css/animations.css">
     
     <style>
+        /* Минимальные стили для структуры */
         .admin-container {
             max-width: 1400px;
             margin: 0 auto;
-            padding: 40px 20px;
+            padding: 24px;
+        }
+        
+        .admin-header {
+            margin-bottom: 24px;
+        }
+        
+        .admin-header h1 {
+            font-size: 1.8rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
         }
         
         .admin-tabs {
             display: flex;
             gap: 8px;
             border-bottom: 1px solid var(--card-border);
-            margin-bottom: 32px;
+            margin-bottom: 24px;
             flex-wrap: wrap;
         }
         
@@ -75,9 +80,14 @@
             color: var(--text-muted);
             cursor: pointer;
             font-weight: 500;
-            transition: all 0.2s;
+            font-size: 0.95rem;
             border-bottom: 2px solid transparent;
             margin-bottom: -1px;
+            transition: all 0.2s;
+        }
+        
+        .tab-btn:hover {
+            color: var(--text-primary);
         }
         
         .tab-btn.active {
@@ -85,284 +95,43 @@
             border-bottom-color: var(--accent);
         }
         
-        .tab-btn:hover:not(.active) {
-            color: var(--text-primary);
-        }
-        
         .tab-content {
-            animation: fadeInUp 0.3s ease;
+            animation: fadeIn 0.3s ease;
         }
         
-        /* Стили для пользователей */
-        .users-table {
-            width: 100%;
-            background: var(--card-bg);
-            border-radius: 24px;
-            border: 1px solid var(--card-border);
-            overflow-x: auto;
-        }
-        
-        .users-table table {
-            width: 100%;
-            border-collapse: collapse;
-            min-width: 700px;
-        }
-        
-        .users-table th,
-        .users-table td {
-            padding: 16px;
-            text-align: left;
-            border-bottom: 1px solid var(--card-border);
-        }
-        
-        .users-table th {
-            background: rgba(108, 108, 255, 0.1);
-            font-weight: 600;
-        }
-        
-        .users-table tbody tr:hover {
-            background: rgba(108, 108, 255, 0.05);
-        }
-        
-        .role-badge {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 0.7rem;
-            font-weight: 500;
-        }
-        
-        .role-admin { background: rgba(108, 108, 255, 0.2); color: #6c6cff; }
-        .role-manager { background: rgba(76, 175, 80, 0.2); color: #4caf50; }
-        .role-agent { background: rgba(255, 193, 68, 0.2); color: #ffc107; }
-        .role-viewer { background: rgba(158, 158, 158, 0.2); color: #9e9e9e; }
-        
-        .action-btn {
-            background: none;
-            border: none;
-            color: var(--accent);
-            cursor: pointer;
-            margin: 0 4px;
-            padding: 4px 8px;
-            border-radius: 8px;
-            transition: all 0.2s ease;
-        }
-        
-        .action-btn:hover {
-            background: rgba(108, 108, 255, 0.2);
-            transform: translateY(-2px);
-        }
-        
-        .action-btn.danger {
-            color: #ff6b6b;
-        }
-        
-        .action-btn.danger:hover {
-            background: rgba(255, 107, 107, 0.2);
-        }
-        
-        /* Стили для лицензий */
-        .licenses-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-            gap: 24px;
-        }
-        
-        .license-card {
-            background: var(--card-bg);
-            border-radius: 20px;
-            border: 1px solid var(--card-border);
-            padding: 20px;
-            transition: all 0.3s ease;
-        }
-        
-        .license-card:hover {
-            transform: translateY(-4px);
-            border-color: var(--accent);
-        }
-        
-        .license-header {
+        .loading-container {
             display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 16px;
-        }
-        
-        .license-icon {
-            width: 48px;
-            height: 48px;
-            background: linear-gradient(135deg, var(--accent), var(--accent-hover));
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
             justify-content: center;
-            color: white;
-            font-size: 1.2rem;
-        }
-        
-        .license-name {
-            font-size: 1.1rem;
-            font-weight: 600;
-        }
-        
-        .license-progress {
-            margin: 16px 0;
-        }
-        
-        .progress-bar {
-            height: 8px;
-            background: var(--input-bg);
-            border-radius: 4px;
-            overflow: hidden;
-        }
-        
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, var(--accent), var(--accent-hover));
-            border-radius: 4px;
-            transition: width 0.3s;
-        }
-        
-        .license-stats {
-            display: flex;
-            justify-content: space-between;
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            margin-top: 8px;
-        }
-        
-        /* Стили для назначения прав */
-        .users-list {
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-        }
-        
-        .user-permissions-card {
-            background: var(--card-bg);
-            border-radius: 20px;
-            border: 1px solid var(--card-border);
-            padding: 20px;
-            transition: all 0.2s;
-        }
-        
-        .user-permissions-card:hover {
-            border-color: var(--accent);
-        }
-        
-        .user-permissions-header {
-            display: flex;
-            justify-content: space-between;
             align-items: center;
-            margin-bottom: 16px;
-            flex-wrap: wrap;
-            gap: 12px;
+            min-height: 300px;
         }
         
-        .user-permissions-name {
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        
-        .modules-checkboxes {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-        }
-        
-        .module-checkbox {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            background: var(--hover-bg);
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-size: 0.75rem;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        
-        .module-checkbox:hover {
-            background: rgba(108, 108, 255, 0.2);
-        }
-        
-        .module-checkbox input {
-            margin: 0;
-            cursor: pointer;
-        }
-        
-        /* Стили для статистики */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 24px;
-            margin-bottom: 32px;
-        }
-        
-        .stat-card {
-            background: var(--card-bg);
-            border-radius: 20px;
-            border: 1px solid var(--card-border);
-            padding: 24px;
-            text-align: center;
-        }
-        
-        .stat-value {
-            font-size: 2rem;
-            font-weight: 700;
-            color: var(--accent);
-        }
-        
-        .stat-label {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-            margin-top: 8px;
-        }
-        
-        .add-user-btn {
-            background: linear-gradient(135deg, var(--accent), var(--accent-hover));
-            border: none;
-            padding: 10px 20px;
-            border-radius: 40px;
-            color: white;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            font-weight: 500;
-            transition: all 0.2s;
-        }
-        
-        .add-user-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(108, 108, 255, 0.4);
-        }
-        
-        .empty-state {
-            text-align: center;
-            padding: 60px;
-            color: var(--text-muted);
-        }
-        
-        .loading-state {
-            text-align: center;
-            padding: 60px;
-            color: var(--text-muted);
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
         
         @media (max-width: 768px) {
+            .admin-container {
+                padding: 16px;
+            }
+            
             .admin-tabs {
                 flex-direction: column;
                 border-bottom: none;
+                gap: 4px;
             }
+            
             .tab-btn {
+                text-align: left;
                 border-bottom: 1px solid var(--card-border);
-                text-align: center;
+                border-left: 2px solid transparent;
+                margin-bottom: 0;
             }
+            
             .tab-btn.active {
-                border-bottom-color: var(--accent);
+                border-bottom-color: var(--card-border);
+                border-left-color: var(--accent);
             }
         }
     </style>
@@ -380,7 +149,7 @@
                     <i class="fas fa-chevron-left"></i>
                     <span>Свернуть</span>
                 </button>
-                <button class="logout-btn" onclick="window.sidebar?.logout()" style="margin-top: 12px; width: 100%; padding: 10px; background: rgba(255, 107, 107, 0.2); border: none; border-radius: 12px; color: #ff6b6b; cursor: pointer;">
+                <button class="logout-btn" onclick="window.sidebar?.logout()">
                     <i class="fas fa-sign-out-alt"></i> Выйти
                 </button>
             </div>
@@ -400,582 +169,73 @@
             </div>
             
             <div class="admin-container">
+                <div class="admin-header">
+                    <h1>
+                        <i class="fas fa-shield-alt"></i>
+                        Управление системой
+                    </h1>
+                </div>
+                
+                <!-- Вкладки -->
                 <div class="admin-tabs">
-                    <button class="tab-btn active" data-tab="users">👥 Пользователи</button>
-                    <button class="tab-btn" data-tab="licenses">📦 Лицензии</button>
-                    <button class="tab-btn" data-tab="permissions">👤 Назначение прав</button>
-                    <button class="tab-btn" data-tab="stats">📊 Статистика</button>
+                    <button class="tab-btn active" data-tab="users">
+                        <i class="fas fa-users"></i> Пользователи
+                    </button>
+                    <button class="tab-btn" data-tab="licenses">
+                        <i class="fas fa-key"></i> Лицензии
+                    </button>
+                    <button class="tab-btn" data-tab="permissions">
+                        <i class="fas fa-lock"></i> Права доступа
+                    </button>
+                    <button class="tab-btn" data-tab="stats">
+                        <i class="fas fa-chart-bar"></i> Статистика
+                    </button>
                 </div>
                 
-                <!-- Вкладка: Пользователи -->
+                <!-- Контейнеры для компонентов -->
                 <div id="tabUsers" class="tab-content">
-                    <div style="display: flex; justify-content: flex-end; margin-bottom: 20px;">
-                        <button id="addUserBtn" class="add-user-btn">
-                            <i class="fas fa-plus"></i> Добавить пользователя
-                        </button>
-                    </div>
-                    <div id="usersTable" class="users-table">
-                        <div class="loading-state">
-                            <i class="fas fa-spinner fa-pulse"></i>
-                            <p>Загрузка пользователей...</p>
-                        </div>
+                    <div class="loading-container">
+                        <i class="fas fa-spinner fa-pulse fa-2x" style="color: var(--text-muted);"></i>
                     </div>
                 </div>
                 
-                <!-- Вкладка: Лицензии -->
                 <div id="tabLicenses" class="tab-content" style="display: none;">
-                    <div id="licensesGrid" class="licenses-grid">
-                        <div class="loading-state">
-                            <i class="fas fa-spinner fa-pulse"></i>
-                            <p>Загрузка лицензий...</p>
-                        </div>
+                    <div class="loading-container">
+                        <i class="fas fa-spinner fa-pulse fa-2x" style="color: var(--text-muted);"></i>
                     </div>
                 </div>
                 
-                <!-- Вкладка: Назначение прав -->
                 <div id="tabPermissions" class="tab-content" style="display: none;">
-                    <div id="permissionsList" class="users-list">
-                        <div class="loading-state">
-                            <i class="fas fa-spinner fa-pulse"></i>
-                            <p>Загрузка пользователей...</p>
-                        </div>
+                    <div class="loading-container">
+                        <i class="fas fa-spinner fa-pulse fa-2x" style="color: var(--text-muted);"></i>
                     </div>
                 </div>
                 
-                <!-- Вкладка: Статистика -->
                 <div id="tabStats" class="tab-content" style="display: none;">
-                    <div class="stats-grid" id="statsGrid">
-                        <div class="loading-state">
-                            <i class="fas fa-spinner fa-pulse"></i>
-                            <p>Загрузка статистики...</p>
-                        </div>
+                    <div class="loading-container">
+                        <i class="fas fa-spinner fa-pulse fa-2x" style="color: var(--text-muted);"></i>
                     </div>
                 </div>
             </div>
         </main>
     </div>
     
-    <!-- Модальное окно добавления пользователя -->
-    <div id="addUserModal" class="modal" style="display: none;">
-        <div class="modal-content">
-            <h3><i class="fas fa-user-plus"></i> Добавить пользователя</h3>
-            <input type="text" id="newUsername" placeholder="Логин (github_username)" required>
-            <input type="text" id="newName" placeholder="Полное имя" required>
-            <select id="newRole">
-                <option value="agent">Агент</option>
-                <option value="manager">Менеджер</option>
-                <option value="viewer">Наблюдатель</option>
-                <option value="admin">Администратор</option>
-            </select>
-            <input type="email" id="newEmail" placeholder="Email">
-            <div class="modal-buttons">
-                <button onclick="closeAddUserModal()">Отмена</button>
-                <button class="primary" id="confirmAddUserBtn">Создать</button>
-            </div>
-        </div>
-    </div>
-    
-    <!-- ========== УНИВЕРСАЛЬНЫЙ ЗАГРУЗЧИК МОДУЛЕЙ ========== -->
+    <!-- Универсальный загрузчик модулей -->
     <script type="module" src="../js/core/moduleLoader.js"></script>
     
+    <!-- Инициализация страницы -->
     <script type="module">
-        import { getCurrentSupabaseUser, requireSupabaseAuth, updateSupabaseUserInterface } from '../js/core/supabase-session.js';
-        import { supabase } from '../js/core/supabase.js';
+        import { initAdminPage } from '../js/pages/admin.js';
+        import * as sidebar from '../layout.js';
         
-        let currentUser = null;
-        let users = [];
-        let licenses = [];
-        let modules = [];
-        let assignments = {};
-        
-        // ========== ВСПОМОГАТЕЛЬНЫЕ ==========
-        
-        function escapeHtml(text) {
-            if (!text) return '';
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-        
-        function showToast(message, type = 'info') {
-            const toast = document.createElement('div');
-            toast.className = `toast toast-${type}`;
-            toast.innerHTML = `<span>${escapeHtml(message)}</span>`;
-            document.body.appendChild(toast);
-            setTimeout(() => toast.remove(), 3000);
-        }
-        
-        function getRoleBadgeClass(role) {
-            switch (role) {
-                case 'admin': return 'role-admin';
-                case 'manager': return 'role-manager';
-                case 'agent': return 'role-agent';
-                default: return '';
-            }
-        }
-        
-        function getRoleLabel(role) {
-            switch (role) {
-                case 'admin': return 'Администратор';
-                case 'manager': return 'Менеджер';
-                case 'agent': return 'Агент';
-                default: return role;
-            }
-        }
-        
-        // ========== ЗАГРУЗКА ДАННЫХ ==========
-        
-        async function loadUsers() {
-            const { data, error } = await supabase
-                .from('profiles')
-                .select('id, name, email, role, github_username, permission_sets')
-                .order('name');
-            
-            if (!error && data) {
-                users = data;
-                return users;
-            }
-            return [];
-        }
-        
-        async function loadModules() {
-            const { data, error } = await supabase
-                .from('modules')
-                .select('id, name, icon, is_team_module')
-                .order('name');
-            
-            if (!error && data) {
-                modules = data;
-                return modules;
-            }
-            return [];
-        }
-        
-        async function loadLicenses() {
-            const { data, error } = await supabase
-                .from('company_licenses')
-                .select('*, modules:module_id(*)')
-                .eq('status', 'active');
-            
-            if (!error && data) {
-                licenses = data;
-                return licenses;
-            }
-            return [];
-        }
-        
-        async function loadAssignments() {
-            const { data, error } = await supabase
-                .from('user_module_assignments')
-                .select('user_id, module_id')
-                .eq('status', 'active');
-            
-            if (!error && data) {
-                assignments = {};
-                for (const item of data) {
-                    if (!assignments[item.user_id]) {
-                        assignments[item.user_id] = new Set();
-                    }
-                    assignments[item.user_id].add(item.module_id);
-                }
-            }
-        }
-        
-        // ========== УПРАВЛЕНИЕ ПРАВАМИ ==========
-        
-        async function updateUserPermissions(userId) {
-            const { data: assignmentsData } = await supabase
-                .from('user_module_assignments')
-                .select('modules:module_id(permissions)')
-                .eq('user_id', userId)
-                .eq('status', 'active');
-            
-            let allPermissions = [];
-            for (const a of assignmentsData || []) {
-                if (a.modules && a.modules.permissions) {
-                    allPermissions.push(...a.modules.permissions);
-                }
-            }
-            
-            const basePermissions = [
-                'view_tasks', 'view_calendar', 'view_profile', 'edit_own_profile',
-                'view_dashboard', 'view_statistics'
-            ];
-            allPermissions.push(...basePermissions);
-            
-            const uniquePermissions = [...new Set(allPermissions)];
-            
-            await supabase
-                .from('profiles')
-                .update({ permission_sets: uniquePermissions })
-                .eq('id', userId);
-        }
-        
-        async function updateUserModules(userId, moduleIds) {
-            const { data: current } = await supabase
-                .from('user_module_assignments')
-                .select('module_id')
-                .eq('user_id', userId)
-                .eq('status', 'active');
-            
-            const currentSet = new Set(current?.map(c => c.module_id) || []);
-            const newSet = new Set(moduleIds);
-            
-            for (const moduleId of moduleIds) {
-                if (!currentSet.has(moduleId)) {
-                    await supabase
-                        .from('user_module_assignments')
-                        .insert({
-                            user_id: userId,
-                            module_id: moduleId,
-                            assigned_by: currentUser.id
-                        });
-                }
-            }
-            
-            for (const moduleId of currentSet) {
-                if (!newSet.has(moduleId)) {
-                    await supabase
-                        .from('user_module_assignments')
-                        .delete()
-                        .eq('user_id', userId)
-                        .eq('module_id', moduleId);
-                }
-            }
-            
-            await updateUserPermissions(userId);
-        }
-        
-        // ========== РЕНДЕРИНГ ==========
-        
-        async function renderUsersTable() {
-            const container = document.getElementById('usersTable');
-            if (!container) return;
-            
-            await loadUsers();
-            
-            if (users.length === 0) {
-                container.innerHTML = '<div class="empty-state">Нет пользователей</div>';
-                return;
-            }
-            
-            let html = `
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Пользователь</th>
-                            <th>Email</th>
-                            <th>Роль</th>
-                            <th>Действия</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-            `;
-            
-            for (const user of users) {
-                html += `
-                    <tr>
-                        <td>
-                            <strong>${escapeHtml(user.name)}</strong>
-                            <div style="font-size: 0.7rem; color: var(--text-muted);">@${escapeHtml(user.github_username)}</div>
-                        </td>
-                        <td>${escapeHtml(user.email || '—')}</td>
-                        <td><span class="role-badge ${getRoleBadgeClass(user.role)}">${getRoleLabel(user.role)}</span></td>
-                        <td>
-                            <button class="action-btn" data-action="edit" data-user-id="${user.id}"><i class="fas fa-edit"></i></button>
-                            ${user.id !== currentUser?.id ? `<button class="action-btn danger" data-action="delete" data-user-id="${user.id}"><i class="fas fa-trash"></i></button>` : ''}
-                        </td>
-                    </tr>
-                `;
-            }
-            
-            html += `</tbody></table>`;
-            container.innerHTML = html;
-            
-            container.querySelectorAll('[data-action="edit"]').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    showToast('Редактирование пользователя в разработке', 'info');
-                });
-            });
-            
-            container.querySelectorAll('[data-action="delete"]').forEach(btn => {
-                btn.addEventListener('click', async () => {
-                    const userId = btn.dataset.userId;
-                    if (confirm('Удалить пользователя? Это действие необратимо.')) {
-                        const { error } = await supabase
-                            .from('profiles')
-                            .delete()
-                            .eq('id', userId);
-                        
-                        if (!error) {
-                            showToast('Пользователь удален', 'success');
-                            await renderUsersTable();
-                        } else {
-                            showToast('Ошибка удаления', 'error');
-                        }
-                    }
-                });
-            });
-        }
-        
-        async function renderLicenses() {
-            const container = document.getElementById('licensesGrid');
-            if (!container) return;
-            
-            await loadLicenses();
-            
-            if (licenses.length === 0) {
-                container.innerHTML = '<div class="empty-state">Нет приобретенных лицензий</div>';
-                return;
-            }
-            
-            const { data: assignmentsData } = await supabase
-                .from('user_module_assignments')
-                .select('module_id, user_id')
-                .eq('status', 'active');
-            
-            const usedCount = {};
-            for (const a of assignmentsData || []) {
-                usedCount[a.module_id] = (usedCount[a.module_id] || 0) + 1;
-            }
-            
-            container.innerHTML = licenses.map(license => {
-                const module = license.modules;
-                const used = usedCount[license.module_id] || 0;
-                const percent = (used / license.max_users) * 100;
-                
-                return `
-                    <div class="license-card">
-                        <div class="license-header">
-                            <div class="license-icon">
-                                <i class="fas ${module?.icon || 'fa-puzzle-piece'}"></i>
-                            </div>
-                            <div class="license-name">${escapeHtml(module?.name || license.module_id)}</div>
-                        </div>
-                        <div class="license-progress">
-                            <div class="progress-bar">
-                                <div class="progress-fill" style="width: ${percent}%"></div>
-                            </div>
-                            <div class="license-stats">
-                                <span>Использовано: ${used}/${license.max_users}</span>
-                                <span>До: ${new Date(license.expires_at).toLocaleDateString()}</span>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        }
-        
-        async function renderPermissions() {
-            const container = document.getElementById('permissionsList');
-            if (!container) return;
-            
-            await Promise.all([loadUsers(), loadModules(), loadAssignments()]);
-            
-            const teamModules = modules.filter(m => m.is_team_module !== false);
-            
-            if (users.length === 0) {
-                container.innerHTML = '<div class="empty-state">Нет пользователей</div>';
-                return;
-            }
-            
-            container.innerHTML = users.map(user => {
-                const userModules = assignments[user.id] || new Set();
-                
-                return `
-                    <div class="user-permissions-card" data-user-id="${user.id}">
-                        <div class="user-permissions-header">
-                            <div class="user-permissions-name">
-                                <i class="fas fa-user-circle"></i>
-                                ${escapeHtml(user.name)}
-                                <span class="role-badge ${getRoleBadgeClass(user.role)}" style="font-size: 0.65rem;">${getRoleLabel(user.role)}</span>
-                            </div>
-                            <button class="save-permissions-btn" data-user-id="${user.id}">Сохранить</button>
-                        </div>
-                        <div class="modules-checkboxes" data-user-id="${user.id}">
-                            ${teamModules.map(module => `
-                                <label class="module-checkbox">
-                                    <input type="checkbox" 
-                                           data-module-id="${module.id}"
-                                           ${userModules.has(module.id) ? 'checked' : ''}>
-                                    <i class="fas ${module.icon || 'fa-puzzle-piece'}"></i>
-                                    ${escapeHtml(module.name)}
-                                </label>
-                            `).join('')}
-                        </div>
-                    </div>
-                `;
-            }).join('');
-            
-            document.querySelectorAll('.save-permissions-btn').forEach(btn => {
-                btn.addEventListener('click', async (e) => {
-                    const userId = btn.dataset.userId;
-                    const container = document.querySelector(`.modules-checkboxes[data-user-id="${userId}"]`);
-                    const checkboxes = container.querySelectorAll('input[type="checkbox"]');
-                    
-                    const selectedModules = [];
-                    checkboxes.forEach(cb => {
-                        if (cb.checked) {
-                            selectedModules.push(cb.dataset.moduleId);
-                        }
-                    });
-                    
-                    await updateUserModules(userId, selectedModules);
-                    showToast('Права сохранены', 'success');
-                });
-            });
-        }
-        
-        async function renderStats() {
-            const container = document.getElementById('statsGrid');
-            if (!container) return;
-            
-            const [usersData, licensesData, assignmentsData] = await Promise.all([
-                loadUsers(),
-                loadLicenses(),
-                supabase.from('user_module_assignments').select('*', { count: 'exact', head: true })
-            ]);
-            
-            const totalUsers = usersData.length;
-            const totalLicenses = licensesData.length;
-            const totalAssignments = assignmentsData.count || 0;
-            const usedLicenses = new Set(assignmentsData?.data?.map(a => a.module_id) || []).size;
-            
-            container.innerHTML = `
-                <div class="stat-card">
-                    <div class="stat-value">${totalUsers}</div>
-                    <div class="stat-label">Пользователей</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value">${totalLicenses}</div>
-                    <div class="stat-label">Активных лицензий</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value">${totalAssignments}</div>
-                    <div class="stat-label">Назначений прав</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value">${usedLicenses}/${totalLicenses}</div>
-                    <div class="stat-label">Использовано лицензий</div>
-                </div>
-            `;
-        }
-        
-        // ========== ПЕРЕКЛЮЧЕНИЕ ВКЛАДОК ==========
-        
-        function setupTabs() {
-            document.querySelectorAll('.tab-btn').forEach(btn => {
-                btn.addEventListener('click', async () => {
-                    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-                    btn.classList.add('active');
-                    
-                    const tabName = btn.dataset.tab;
-                    document.getElementById('tabUsers').style.display = tabName === 'users' ? 'block' : 'none';
-                    document.getElementById('tabLicenses').style.display = tabName === 'licenses' ? 'block' : 'none';
-                    document.getElementById('tabPermissions').style.display = tabName === 'permissions' ? 'block' : 'none';
-                    document.getElementById('tabStats').style.display = tabName === 'stats' ? 'block' : 'none';
-                    
-                    if (tabName === 'users') await renderUsersTable();
-                    if (tabName === 'licenses') await renderLicenses();
-                    if (tabName === 'permissions') await renderPermissions();
-                    if (tabName === 'stats') await renderStats();
-                });
-            });
-        }
-        
-        // ========== МОДАЛЬНОЕ ОКНО ==========
-        
-        function openAddUserModal() {
-            document.getElementById('addUserModal').classList.add('active');
-        }
-        
-        function closeAddUserModal() {
-            document.getElementById('addUserModal').classList.remove('active');
-        }
-        
-        async function createUser() {
-            const username = document.getElementById('newUsername').value.trim();
-            const name = document.getElementById('newName').value.trim();
-            const role = document.getElementById('newRole').value;
-            const email = document.getElementById('newEmail').value.trim();
-            
-            if (!username || !name) {
-                showToast('Заполните логин и имя', 'error');
-                return;
-            }
-            
-            const { error } = await supabase
-                .from('profiles')
-                .insert({
-                    github_username: username,
-                    name: name,
-                    role: role,
-                    email: email || null,
-                    permission_sets: []
-                });
-            
-            if (!error) {
-                showToast('Пользователь создан', 'success');
-                closeAddUserModal();
-                document.getElementById('newUsername').value = '';
-                document.getElementById('newName').value = '';
-                document.getElementById('newEmail').value = '';
-                await renderUsersTable();
-            } else {
-                showToast('Ошибка создания: ' + error.message, 'error');
-            }
-        }
-        
-        // ========== ИНИЦИАЛИЗАЦИЯ ==========
+        window.sidebar = sidebar;
         
         async function init() {
-            const isAuth = await requireSupabaseAuth('../auth-supabase.html');
-            if (!isAuth) return;
-            
-            currentUser = getCurrentSupabaseUser();
-            updateSupabaseUserInterface();
-            
-            if (currentUser?.role !== 'admin') {
-                const container = document.querySelector('.admin-container');
-                if (container) {
-                    container.innerHTML = `
-                        <div class="empty-state">
-                            <i class="fas fa-lock" style="font-size: 3rem;"></i>
-                            <h2>Доступ ограничен</h2>
-                            <p>Эта страница доступна только администраторам.</p>
-                            <a href="dashboard.html" style="margin-top: 20px; display: inline-block; padding: 10px 20px; background: var(--accent); border-radius: 40px; color: white; text-decoration: none;">Вернуться на главную</a>
-                        </div>
-                    `;
-                }
-                return;
-            }
-            
-            await renderUsersTable();
-            setupTabs();
-            
-            const addUserBtn = document.getElementById('addUserBtn');
-            if (addUserBtn) {
-                addUserBtn.addEventListener('click', openAddUserModal);
-            }
-            
-            const confirmAddBtn = document.getElementById('confirmAddUserBtn');
-            if (confirmAddBtn) {
-                confirmAddBtn.addEventListener('click', createUser);
-            }
-            
-            window.closeAddUserModal = closeAddUserModal;
-            
-            console.log('[admin] Страница загружена');
+            await sidebar.initSidebar();
+            await initAdminPage();
         }
         
         init();
-    </script>
-    
-    <!-- Инициализация бокового меню -->
-    <script type="module">
-        import * as sidebar from '../layout.js';
-        window.sidebar = sidebar;
-        sidebar.initSidebar();
     </script>
 </body>
 </html>
