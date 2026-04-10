@@ -1,23 +1,23 @@
 /**
  * ============================================
  * ФАЙЛ: js/core/permissions.js
- * РОЛЬ: Единая система прав доступа (полный переход от ролей к permission_sets)
+ * РОЛЬ: Единая система прав доступа (интеграция с маркетплейсом)
  * 
  * ОСОБЕННОСТИ:
- *   - Полный отказ от проверки role в пользу permission_sets
- *   - Хелперы isAdmin(), isManager(), isAgent() на основе прав
+ *   - Проверка доступа через marketplace-service
  *   - Кэширование прав при загрузке пользователя
  *   - ЧИСТЫЕ ES6 ЭКСПОРТЫ (БЕЗ ГЛОБАЛЬНЫХ ОБЪЕКТОВ)
  * 
  * ЗАВИСИМОСТИ:
- *   - getCurrentSupabaseUser из supabase-session.js (импорт)
+ *   - getCurrentSupabaseUser из supabase-session.js
+ *   - marketplace-service (динамический импорт)
  * 
  * ИСТОРИЯ:
  *   - 30.03.2026: Создание файла
  *   - 09.04.2026: Полный переход на права, чистые ES6 экспорты
  *   - 09.04.2026: Добавлены хелперы isAdmin, isManager, isAgent
- *   - 09.04.2026: Исправлено дублирование updatePermissionsCache
- *   - 10.04.2026: УДАЛЁН ГЛОБАЛЬНЫЙ ОБЪЕКТ window.CRM.Permissions (правило №5)
+ *   - 10.04.2026: УДАЛЁН ГЛОБАЛЬНЫЙ ОБЪЕКТ window.CRM.Permissions
+ *   - 10.04.2026: ИНТЕГРАЦИЯ С НОВОЙ СИСТЕМОЙ МАРКЕТПЛЕЙСА
  * ============================================
  */
 
@@ -25,157 +25,111 @@ import { getCurrentSupabaseUser } from './supabase-session.js';
 
 console.log('[permissions] Загрузка модуля...');
 
-// ========== ОПРЕДЕЛЕНИЯ НАБОРОВ РАЗРЕШЕНИЙ ==========
+// ========== КЭШ ДОСТУПОВ ==========
 
-const PERMISSION_SETS = {
-    BASE: {
-        name: 'Базовый',
-        permissions: [
-            'view_dashboard',
-            'view_tasks',
-            'view_calendar',
-            'view_profile',
-            'edit_own_profile',
-            'view_statistics',
-            'view_team',
-            'view_notes'
-        ]
-    },
-    AGENT: {
-        name: 'Агент',
-        extends: 'BASE',
-        permissions: [
-            'create_tasks',
-            'edit_own_tasks',
-            'delete_own_tasks',
-            'view_own_deals',
-            'create_deals',
-            'edit_own_deals',
-            'view_complexes',
-            'add_comments',
-            'view_counterparties'
-        ]
-    },
-    MANAGER: {
-        name: 'Менеджер',
-        extends: 'AGENT',
-        permissions: [
-            'view_team_tasks',
-            'assign_tasks',
-            'edit_any_task',
-            'view_team_deals',
-            'edit_any_deal',
-            'view_team_kpi',
-            'manage_team',
-            'view_all_complexes',
-            'edit_all_complexes',
-            'create_counterparties',
-            'edit_all_counterparties',
-            'export_counterparties'
-        ]
-    },
-    ADMIN: {
-        name: 'Администратор',
-        extends: 'MANAGER',
-        permissions: [
-            'manage_users',
-            'manage_roles',
-            'manage_permissions',
-            'manage_plans',
-            'system_settings',
-            'view_all_data',
-            'delete_any_data',
-            'delete_counterparties'
-        ]
-    }
-};
-
-// ========== КЭШ ПРАВ ПОЛЬЗОВАТЕЛЯ ==========
-
-let cachedPermissions = null;
+let cachedAccess = new Map();      // userId -> Set разрешённых module_id
 let cachedUser = null;
+let marketplaceService = null;
 
 /**
- * Получить все разрешения из наборов
+ * Ленивая загрузка marketplace-service
  */
-function getAllPermissionsFromSets(permissionSets) {
-    const permissions = new Set();
-    
-    if (!permissionSets || !Array.isArray(permissionSets)) {
-        return permissions;
-    }
-    
-    for (const setName of permissionSets) {
-        const setDef = PERMISSION_SETS[setName];
-        if (setDef) {
-            if (setDef.permissions) {
-                setDef.permissions.forEach(p => permissions.add(p));
-            }
-            
-            let parentSet = setDef.extends;
-            while (parentSet && PERMISSION_SETS[parentSet]) {
-                const parent = PERMISSION_SETS[parentSet];
-                if (parent.permissions) {
-                    parent.permissions.forEach(p => permissions.add(p));
-                }
-                parentSet = parent.extends;
-            }
+async function getMarketplaceService() {
+    if (!marketplaceService) {
+        try {
+            marketplaceService = await import('../services/marketplace-service.js');
+        } catch (e) {
+            console.error('[permissions] Ошибка загрузки marketplace-service:', e);
+            return null;
         }
     }
-    
-    return permissions;
+    return marketplaceService;
 }
 
 /**
- * Обновить кэш прав пользователя (внутренняя функция)
+ * Проверить доступ к модулю через маркетплейс
  */
-function refreshPermissionsCache(user) {
+async function checkMarketplaceAccess(userId, moduleId) {
+    const service = await getMarketplaceService();
+    if (!service) return false;
+    
+    try {
+        return await service.hasAccess(moduleId, userId);
+    } catch (e) {
+        console.error('[permissions] Ошибка проверки доступа:', e);
+        return false;
+    }
+}
+
+/**
+ * Обновить кэш доступов пользователя
+ */
+async function refreshAccessCache(user) {
     if (!user) {
-        cachedPermissions = null;
+        cachedAccess.clear();
         cachedUser = null;
         return;
     }
     
     // Проверяем, изменился ли пользователь
-    if (cachedUser && cachedUser.id === user.id && 
-        JSON.stringify(cachedUser.permission_sets) === JSON.stringify(user.permission_sets)) {
+    if (cachedUser && cachedUser.id === user.id) {
         return;
     }
     
-    let permissions = new Set();
+    cachedUser = { ...user };
+    cachedAccess.clear();
     
-    if (user.permission_sets && Array.isArray(user.permission_sets) && user.permission_sets.length > 0) {
-        permissions = getAllPermissionsFromSets(user.permission_sets);
-        console.log('[permissions] Загружены разрешения из наборов:', Array.from(permissions));
-    } else {
-        if (PERMISSION_SETS.BASE && PERMISSION_SETS.BASE.permissions) {
-            PERMISSION_SETS.BASE.permissions.forEach(p => permissions.add(p));
-        }
-        console.log('[permissions] Использованы минимальные права (BASE)');
+    // Администратор имеет доступ ко всем модулям
+    if (user.permission_sets?.includes('ADMIN') || user.role === 'admin') {
+        console.log('[permissions] Администратор — полный доступ');
+        // Не заполняем кэш, isAdmin() будет возвращать true
+        return;
     }
     
-    cachedPermissions = permissions;
-    cachedUser = { ...user };
+    // Для обычных пользователей — загружаем доступы через marketplace
+    const service = await getMarketplaceService();
+    if (!service) return;
     
-    console.log('[permissions] Кэш прав обновлен для пользователя:', user.name);
+    try {
+        const catalog = await service.getCatalog();
+        const accessibleIds = [];
+        
+        for (const item of catalog) {
+            const hasAccess = await service.hasAccess(item.identifier, user.id);
+            if (hasAccess) {
+                accessibleIds.push(item.identifier);
+            }
+        }
+        
+        cachedAccess.set(user.id, new Set(accessibleIds));
+        console.log('[permissions] Загружены доступы:', accessibleIds);
+    } catch (e) {
+        console.error('[permissions] Ошибка загрузки доступов:', e);
+    }
 }
+
+// ========== ПРОВЕРКА ДОСТУПА ==========
 
 /**
  * Проверить наличие разрешения
  */
 export function hasPermission(permission) {
     const user = getCurrentSupabaseUser();
+    if (!user) return false;
     
-    if (!user) {
-        console.warn('[permissions] Нет пользователя для проверки права:', permission);
-        return false;
+    // Администратор имеет все права
+    if (user.permission_sets?.includes('ADMIN') || user.role === 'admin') {
+        return true;
     }
     
-    if (!cachedPermissions || cachedUser?.id !== user.id) {
-        refreshPermissionsCache(user);
+    // Проверяем permission_sets (старая система)
+    if (user.permission_sets?.includes(permission)) {
+        return true;
     }
     
-    return cachedPermissions ? cachedPermissions.has(permission) : false;
+    // TODO: добавить маппинг permission -> module
+    
+    return false;
 }
 
 /**
@@ -199,92 +153,82 @@ export function getUserPermissions() {
     const user = getCurrentSupabaseUser();
     if (!user) return [];
     
-    if (!cachedPermissions || cachedUser?.id !== user.id) {
-        refreshPermissionsCache(user);
+    if (user.permission_sets?.includes('ADMIN') || user.role === 'admin') {
+        return ['*']; // Все права
     }
-    return cachedPermissions ? Array.from(cachedPermissions) : [];
+    
+    return user.permission_sets || [];
 }
 
-// ========== ХЕЛПЕРЫ ДЛЯ ЗАМЕНЫ РОЛЕЙ ==========
+// ========== ХЕЛПЕРЫ ДЛЯ РОЛЕЙ ==========
 
 export function isAdmin() {
-    return hasPermission('manage_users');
+    const user = getCurrentSupabaseUser();
+    if (!user) return false;
+    return user.permission_sets?.includes('ADMIN') || user.role === 'admin';
 }
 
 export function isManager() {
-    return hasPermission('view_team_tasks') || hasPermission('manage_team');
+    const user = getCurrentSupabaseUser();
+    if (!user) return false;
+    return user.permission_sets?.includes('MANAGER') || user.role === 'manager';
 }
 
 export function isAgent() {
-    return hasPermission('view_own_deals') && !hasPermission('view_team_tasks');
-}
-
-export function canEditAllComplexes() {
-    return hasPermission('edit_all_complexes');
-}
-
-export function canViewAllComplexes() {
-    return hasPermission('view_all_complexes');
-}
-
-export function canViewAllCounterparties() {
-    return hasPermission('view_all_counterparties') || hasPermission('manage_users');
-}
-
-export function canEditAllCounterparties() {
-    return hasPermission('edit_all_counterparties') || hasPermission('manage_users');
-}
-
-export function canCreateCounterparties() {
-    return hasPermission('create_counterparties') || hasPermission('manage_users');
-}
-
-export function canExportCounterparties() {
-    return hasPermission('export_counterparties') || hasPermission('manage_users');
-}
-
-export function canManageTeam() {
-    return hasPermission('manage_team') || hasPermission('manage_users');
-}
-
-export function canViewTeamKpi() {
-    return hasPermission('view_team_kpi') || hasPermission('manage_users');
-}
-
-export function canViewTeamTasks() {
-    return hasPermission('view_team_tasks') || hasPermission('manage_users');
-}
-
-export function canAssignTasks() {
-    return hasPermission('assign_tasks') || hasPermission('manage_users');
-}
-
-export function canEditAnyTask() {
-    return hasPermission('edit_any_task') || hasPermission('manage_users');
-}
-
-// ========== DEPRECATED: ДЛЯ ОБРАТНОЙ СОВМЕСТИМОСТИ ==========
-
-export function getUserRole() {
     const user = getCurrentSupabaseUser();
-    if (isAdmin()) return 'admin';
-    if (isManager()) return 'manager';
-    if (isAgent()) return 'agent';
-    return user?.role || 'viewer';
-}
-
-export function hasRole(role) {
-    console.warn('[permissions] hasRole() устарел, используйте isAdmin(), isManager() или hasPermission()');
-    const currentRole = getUserRole();
-    
-    if (role === 'admin') return isAdmin();
-    if (role === 'manager') return isManager() || isAdmin();
-    if (role === 'agent') return isAgent() || isManager() || isAdmin();
-    
-    return currentRole === role;
+    if (!user) return false;
+    return user.permission_sets?.includes('AGENT') || user.role === 'agent';
 }
 
 // ========== ПРОВЕРКА ДОСТУПА К МОДУЛЯМ ==========
+
+/**
+ * Проверить доступ к модулю (основной метод)
+ * @param {string} moduleId - идентификатор модуля (tasks, deals, finance, ...)
+ * @returns {Promise<boolean>}
+ */
+export async function canAccessModule(moduleId) {
+    const user = getCurrentSupabaseUser();
+    if (!user) return false;
+    
+    // Администратор имеет доступ ко всем модулям
+    if (isAdmin()) return true;
+    
+    // Проверяем кэш
+    const userAccess = cachedAccess.get(user.id);
+    if (userAccess) {
+        return userAccess.has(moduleId);
+    }
+    
+    // Загружаем доступы
+    await refreshAccessCache(user);
+    return cachedAccess.get(user.id)?.has(moduleId) || false;
+}
+
+/**
+ * Синхронная версия (использует кэш)
+ */
+export function canAccessModuleSync(moduleId) {
+    const user = getCurrentSupabaseUser();
+    if (!user) return false;
+    if (isAdmin()) return true;
+    
+    return cachedAccess.get(user.id)?.has(moduleId) || false;
+}
+
+/**
+ * Получить все доступные модули
+ */
+export async function getAccessibleModules() {
+    const user = getCurrentSupabaseUser();
+    if (!user) return [];
+    if (isAdmin()) return ['*'];
+    
+    await refreshAccessCache(user);
+    return Array.from(cachedAccess.get(user.id) || []);
+}
+
+// ========== УСТАРЕВШИЕ ФУНКЦИИ (ДЛЯ СОВМЕСТИМОСТИ) ==========
 
 const MODULE_PERMISSIONS = {
     'tasks': 'view_tasks',
@@ -297,20 +241,99 @@ const MODULE_PERMISSIONS = {
     'team': 'view_team',
     'counterparties': 'view_counterparties',
     'notes': 'view_notes',
-    'analytics': 'view_statistics'
+    'analytics': 'view_statistics',
+    'finance': 'view_finance'
 };
 
-export function canAccessModule(moduleId) {
-    const required = MODULE_PERMISSIONS[moduleId];
-    if (!required) return true;
-    return hasPermission(required);
+/**
+ * @deprecated Используйте canAccessModule()
+ */
+export function canAccessModuleLegacy(moduleId) {
+    console.warn('[permissions] canAccessModuleLegacy() устарел, используйте canAccessModule()');
+    return canAccessModuleSync(moduleId);
 }
 
-export function getAccessibleModules() {
-    return Object.keys(MODULE_PERMISSIONS).filter(module => canAccessModule(module));
+/**
+ * @deprecated Используйте getAccessibleModules()
+ */
+export function getAccessibleModulesLegacy() {
+    console.warn('[permissions] getAccessibleModulesLegacy() устарел');
+    return Object.keys(MODULE_PERMISSIONS).filter(module => canAccessModuleSync(module));
+}
+
+// ========== ХЕЛПЕРЫ ДЛЯ БИЗНЕС-ЛОГИКИ ==========
+
+export function canEditAllComplexes() {
+    return isAdmin() || isManager();
+}
+
+export function canViewAllComplexes() {
+    return isAdmin() || isManager();
+}
+
+export function canViewAllCounterparties() {
+    return isAdmin() || isManager();
+}
+
+export function canEditAllCounterparties() {
+    return isAdmin() || isManager();
+}
+
+export function canCreateCounterparties() {
+    return true; // Любой агент может создавать
+}
+
+export function canExportCounterparties() {
+    return isAdmin() || isManager();
+}
+
+export function canManageTeam() {
+    return isAdmin();
+}
+
+export function canViewTeamKpi() {
+    return isAdmin() || isManager();
+}
+
+export function canViewTeamTasks() {
+    return isAdmin() || isManager();
+}
+
+export function canAssignTasks() {
+    return isAdmin() || isManager();
+}
+
+export function canEditAnyTask() {
+    return isAdmin() || isManager();
+}
+
+// ========== DEPRECATED ==========
+
+export function getUserRole() {
+    const user = getCurrentSupabaseUser();
+    if (isAdmin()) return 'admin';
+    if (isManager()) return 'manager';
+    if (isAgent()) return 'agent';
+    return user?.role || 'viewer';
+}
+
+export function hasRole(role) {
+    console.warn('[permissions] hasRole() устарел');
+    const currentRole = getUserRole();
+    if (role === 'admin') return isAdmin();
+    if (role === 'manager') return isManager() || isAdmin();
+    if (role === 'agent') return isAgent() || isManager() || isAdmin();
+    return currentRole === role;
 }
 
 // ========== ИНФОРМАЦИЯ О НАБОРАХ ==========
+
+const PERMISSION_SETS = {
+    BASE: { name: 'Базовый', permissions: [] },
+    AGENT: { name: 'Агент', extends: 'BASE', permissions: [] },
+    MANAGER: { name: 'Менеджер', extends: 'AGENT', permissions: [] },
+    ADMIN: { name: 'Администратор', extends: 'MANAGER', permissions: ['*'] }
+};
 
 export function getPermissionSetInfo(setName) {
     return PERMISSION_SETS[setName] || null;
@@ -320,16 +343,16 @@ export function getAllPermissionSets() {
     return { ...PERMISSION_SETS };
 }
 
-// ========== ПУБЛИЧНОЕ ОБНОВЛЕНИЕ КЭША ==========
+// ========== ОБНОВЛЕНИЕ КЭША ==========
 
-export function refreshUserPermissions() {
+export async function refreshUserPermissions() {
     const user = getCurrentSupabaseUser();
     if (user) {
-        console.log('[permissions] Принудительное обновление прав пользователя');
-        refreshPermissionsCache(user);
+        console.log('[permissions] Принудительное обновление доступов');
+        await refreshAccessCache(user);
         
         window.dispatchEvent(new CustomEvent('permissionsReady', { 
-            detail: { user, permissions: getUserPermissions() }
+            detail: { user, modules: getAccessibleModules() }
         }));
         
         return true;
@@ -337,33 +360,39 @@ export function refreshUserPermissions() {
     return false;
 }
 
-// Экспортируем внутреннюю функцию для обратной совместимости
-export { refreshPermissionsCache as updatePermissionsCache };
+export { refreshAccessCache as updatePermissionsCache };
 
 // ========== ПОДПИСКА НА СОБЫТИЯ ==========
 
 if (typeof window !== 'undefined') {
-    window.addEventListener('userLoaded', (event) => {
+    window.addEventListener('userLoaded', async (event) => {
         const user = event.detail;
-        console.log('[permissions] Получено событие userLoaded, обновляем права');
-        refreshPermissionsCache(user);
+        console.log('[permissions] userLoaded, обновляем доступы');
+        await refreshAccessCache(user);
         
         window.dispatchEvent(new CustomEvent('permissionsReady', { 
-            detail: { user, permissions: getUserPermissions() }
+            detail: { user, modules: await getAccessibleModules() }
         }));
+    });
+    
+    // Событие после покупки лицензии
+    window.addEventListener('license:purchased', async () => {
+        console.log('[permissions] license:purchased, сбрасываем кэш');
+        cachedAccess.clear();
+        await refreshUserPermissions();
     });
 }
 
 // Периодическая проверка изменения пользователя
 let lastUserId = null;
-setInterval(() => {
+setInterval(async () => {
     const user = getCurrentSupabaseUser();
     const currentUserId = user?.id;
     if (currentUserId && currentUserId !== lastUserId) {
         lastUserId = currentUserId;
-        console.log('[permissions] Обнаружено изменение пользователя, обновляем права');
-        refreshUserPermissions();
+        console.log('[permissions] Пользователь изменился, обновляем доступы');
+        await refreshUserPermissions();
     }
 }, 1000);
 
-console.log('[permissions] Модуль загружен. Доступные хелперы: isAdmin(), isManager(), isAgent(), canEditAllComplexes() и др.');
+console.log('[permissions] Модуль загружен (интеграция с маркетплейсом)');
