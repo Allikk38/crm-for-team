@@ -6,6 +6,9 @@
  *   - css/animations.css (стили анимаций)
  * ИСПОЛЬЗУЕТСЯ В:
  *   - Все страницы CRM
+ * 
+ * ИСТОРИЯ:
+ *   - 10.04.2026: УДАЛЁН ГЛОБАЛЬНЫЙ ОБЪЕКТ window.CRM.ui.animations и window.animations (правило №5)
  * ============================================
  */
 
@@ -236,12 +239,8 @@ if (document.readyState === 'loading') {
     animationManager = new AnimationManager();
 }
 
-// Экспорт в глобальный объект
-window.CRM = window.CRM || {};
-window.CRM.ui = window.CRM.ui || {};
-window.CRM.ui.animations = animationManager;
-
-// Для обратной совместимости
-window.animations = animationManager;
+// Экспорт для использования в других модулях
+export { animationManager, AnimationManager };
+export default animationManager;
 
 console.log('[js/ui/animations.js] Загружен');
