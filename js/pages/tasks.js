@@ -1,1029 +1,291 @@
 /**
  * ============================================
  * ФАЙЛ: js/pages/tasks.js
- * РОЛЬ: Логика страницы доски задач (Kanban)
+ * РОЛЬ: Логика страницы доски задач (Kanban) - ОРКЕСТРАТОР
  * 
  * ОСОБЕННОСТИ:
- *   - Kanban-доска с 3 статусами (pending, in_progress, completed)
- *   - Drag-and-drop для изменения статуса
- *   - Создание/редактирование задач
- *   - Комментарии к задачам с @упоминаниями
- *   - Приватные задачи
- *   - Привязка к объектам недвижимости
- *   - Фильтры: поиск, исполнитель, приоритет, объект
- *   - Статистика задач
+ *   - Использует компоненты TaskKanban и TaskModal
+ *   - Управляет жизненным циклом страницы
+ *   - Координирует взаимодействие между компонентами
+ *   - Загружает начальные данные
+ *   - ЧИСТЫЙ ES6, БЕЗ ГЛОБАЛЬНЫХ ФУНКЦИЙ
  * 
  * ЗАВИСИМОСТИ:
+ *   - js/components/task-kanban.js
+ *   - js/components/task-modal.js
  *   - js/core/supabase.js
  *   - js/core/supabase-session.js
  *   - js/services/tasks-supabase.js
- *   - js/components/kanban.js
  * 
  * ИСТОРИЯ:
  *   - 27.03.2026: Создание файла, вынос логики из tasks-supabase.html
  *   - 28.03.2026: Добавлен автокомплит для @упоминаний в комментариях
  *   - 28.03.2026: Исправлена загрузка пользователей и комментариев
  *   - 28.03.2026: Добавлена панель фильтров и статистика
+ *   - 10.04.2026: ПОЛНЫЙ РЕФАКТОРИНГ — переход на компонентную архитектуру
+ *   - 10.04.2026: Убраны все глобальные функции (window.xxx)
+ *   - 10.04.2026: Выделены TaskKanban и TaskModal в отдельные компоненты
  * ============================================
  */
-// В начале tasks.js добавить:
-import { createTaskCard, setupDragAndDrop } from '../components/kanban.js';
+
 import { supabase } from '../core/supabase.js';
 import { 
     getCurrentSupabaseUser, 
     requireSupabaseAuth, 
     updateSupabaseUserInterface 
 } from '../core/supabase-session.js';
-import { 
-    getTasks as getTasksFromDB, 
-    createTask as createTaskInDB, 
-    updateTask as updateTaskInDB, 
-    updateTaskStatus as updateTaskStatusInDB, 
-    deleteTask as deleteTaskFromDB 
-} from '../services/tasks-supabase.js';
+import { deleteTask } from '../services/tasks-supabase.js';
+import { TaskKanban } from '../components/task-kanban.js';
+import { TaskModal } from '../components/task-modal.js';
+import { showToast } from '../utils/helpers.js';
 
-// Состояние страницы
-let tasks = [];
-let users = [];
-let complexes = [];
-let currentUser = null;
-let currentTaskComments = [];
-
-// Состояние для автокомплита
-let mentionSuggestions = [];
-let activeSuggestionIndex = -1;
-
-// Состояние для фильтров
-let filters = {
-    search: '',
-    assignee: 'all',
-    priority: 'all',
-    complex: 'all',
-    quick: 'all'
-};
-
-console.log('[tasks.js] Модуль загружен');
-
-// ========== ВСПОМОГАТЕЛЬНЫЕ ==========
-
-function escapeHtml(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-function formatDate(dateStr) {
-    if (!dateStr) return '';
-    const date = new Date(dateStr);
-    return date.toLocaleString('ru-RU', {
-        day: '2-digit',
-        month: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
-}
-
-// ========== ФИЛЬТРАЦИЯ ЗАДАЧ ==========
-
-function getFilteredTasks() {
-    let filtered = [...tasks];
+/**
+ * Класс-оркестратор страницы задач
+ */
+class TasksPage {
+    // Приватные поля
+    #currentUser = null;
+    #users = [];
+    #complexes = [];
     
-    // Поиск по названию
-    if (filters.search) {
-        filtered = filtered.filter(t => 
-            t.title.toLowerCase().includes(filters.search.toLowerCase())
-        );
+    // Компоненты
+    #kanban = null;
+    #modal = null;
+    
+    // Флаг инициализации
+    #initialized = false;
+
+    constructor() {
+        // Ничего не делаем в конструкторе
     }
-    
-    // Фильтр по исполнителю
-    if (filters.assignee !== 'all') {
-        filtered = filtered.filter(t => t.assigned_to === filters.assignee);
-    }
-    
-    // Фильтр по приоритету
-    if (filters.priority !== 'all') {
-        filtered = filtered.filter(t => t.priority === filters.priority);
-    }
-    
-    // Фильтр по объекту
-    if (filters.complex !== 'all') {
-        filtered = filtered.filter(t => t.complex_id === filters.complex);
-    }
-    
-    // Быстрые фильтры
-    if (filters.quick !== 'all') {
-        const today = new Date().toISOString().split('T')[0];
-        switch (filters.quick) {
-            case 'my':
-                filtered = filtered.filter(t => t.assigned_to === currentUser?.github_username);
-                break;
-            case 'overdue':
-                filtered = filtered.filter(t => {
-                    if (t.status === 'completed') return false;
-                    if (!t.due_date) return false;
-                    return t.due_date < today;
-                });
-                break;
-            case 'today':
-                filtered = filtered.filter(t => t.due_date === today);
-                break;
-            case 'high':
-                filtered = filtered.filter(t => t.priority === 'high');
-                break;
-        }
-    }
-    
-    return filtered;
-}
 
-function updateStats() {
-    const filteredTasks = getFilteredTasks();
-    const total = filteredTasks.length;
-    const pending = filteredTasks.filter(t => t.status === 'pending').length;
-    const inProgress = filteredTasks.filter(t => t.status === 'in_progress').length;
-    const completed = filteredTasks.filter(t => t.status === 'completed').length;
-    const completionPercent = total > 0 ? Math.round((completed / total) * 100) : 0;
-    
-    document.getElementById('statTotal').textContent = total;
-    document.getElementById('statPending').textContent = pending;
-    document.getElementById('statProgress').textContent = inProgress;
-    document.getElementById('statCompleted').textContent = completed;
-    document.getElementById('statCompletion').textContent = completionPercent + '%';
-    document.getElementById('statProgressFill').style.width = completionPercent + '%';
-}
-
-// ========== АВТОКОМПЛИТ ДЛЯ @УПОМИНАНИЙ ==========
-
-function getMentionableUsers() {
-    return users.filter(u => u.github_username !== currentUser?.github_username);
-}
-
-function showMentionSuggestions(text, cursorPos) {
-    const beforeCursor = text.substring(0, cursorPos);
-    const lastAtIndex = beforeCursor.lastIndexOf('@');
-    
-    if (lastAtIndex === -1) {
-        hideMentionSuggestions();
-        return;
-    }
-    
-    const charBeforeAt = lastAtIndex > 0 ? beforeCursor[lastAtIndex - 1] : '';
-    if (/[\wа-яё]/i.test(charBeforeAt)) {
-        hideMentionSuggestions();
-        return;
-    }
-    
-    const searchQuery = beforeCursor.substring(lastAtIndex + 1);
-    
-    if (searchQuery.includes(' ')) {
-        hideMentionSuggestions();
-        return;
-    }
-    
-    const filteredUsers = getMentionableUsers().filter(user => 
-        user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        user.github_username.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-    
-    if (filteredUsers.length === 0) {
-        hideMentionSuggestions();
-        return;
-    }
-    
-    mentionSuggestions = filteredUsers;
-    activeSuggestionIndex = -1;
-    renderMentionSuggestions(searchQuery);
-}
-
-function renderMentionSuggestions(searchQuery) {
-    const container = document.getElementById('mentionSuggestions');
-    if (!container) return;
-    
-    if (mentionSuggestions.length === 0) {
-        container.style.display = 'none';
-        container.innerHTML = '';
-        return;
-    }
-    
-    let html = '';
-    for (let i = 0; i < mentionSuggestions.length; i++) {
-        const user = mentionSuggestions[i];
-        const isActive = i === activeSuggestionIndex;
-        const nameHighlight = user.name.toLowerCase().includes(searchQuery.toLowerCase())
-            ? user.name.replace(new RegExp(`(${searchQuery})`, 'gi'), '<mark>$1</mark>')
-            : user.name;
-        const usernameHighlight = user.github_username.toLowerCase().includes(searchQuery.toLowerCase())
-            ? user.github_username.replace(new RegExp(`(${searchQuery})`, 'gi'), '<mark>$1</mark>')
-            : user.github_username;
-        
-        html += `
-            <div class="mention-suggestion-item ${isActive ? 'active' : ''}" 
-                 data-username="${user.github_username}" 
-                 data-name="${escapeHtml(user.name)}"
-                 onclick="window.insertMentionFromSuggestion('${user.github_username}', '${escapeHtml(user.name)}')">
-                <div class="mention-suggestion-avatar">
-                    ${user.name.split(' ').map(n => n[0]).join('').toUpperCase()}
-                </div>
-                <div class="mention-suggestion-info">
-                    <div class="mention-suggestion-name">${nameHighlight}</div>
-                    <div class="mention-suggestion-username">@${usernameHighlight}</div>
-                </div>
-            </div>
-        `;
-    }
-    
-    container.innerHTML = html;
-    container.style.display = 'block';
-    
-    const textarea = document.getElementById('newComment');
-    if (textarea) {
-        const rect = textarea.getBoundingClientRect();
-        container.style.position = 'fixed';
-        container.style.left = rect.left + 'px';
-        container.style.top = (rect.bottom + 5) + 'px';
-        container.style.width = Math.max(rect.width, 280) + 'px';
-    }
-}
-
-function hideMentionSuggestions() {
-    const container = document.getElementById('mentionSuggestions');
-    if (container) {
-        container.style.display = 'none';
-        container.innerHTML = '';
-    }
-    mentionSuggestions = [];
-    activeSuggestionIndex = -1;
-}
-
-function insertMention(user) {
-    const textarea = document.getElementById('newComment');
-    if (!textarea) return;
-    
-    const cursorPos = textarea.selectionStart;
-    const text = textarea.value;
-    
-    const beforeCursor = text.substring(0, cursorPos);
-    const lastAtIndex = beforeCursor.lastIndexOf('@');
-    
-    if (lastAtIndex !== -1) {
-        const beforeAt = text.substring(0, lastAtIndex);
-        const afterCursor = text.substring(cursorPos);
-        const mentionText = `@${user.github_username} `;
-        const newValue = beforeAt + mentionText + afterCursor;
-        
-        textarea.value = newValue;
-        
-        const newCursorPos = lastAtIndex + mentionText.length;
-        textarea.setSelectionRange(newCursorPos, newCursorPos);
-        textarea.focus();
-    }
-    
-    hideMentionSuggestions();
-}
-
-window.insertMentionFromSuggestion = function(username, name) {
-    const textarea = document.getElementById('newComment');
-    if (!textarea) return;
-    
-    const cursorPos = textarea.selectionStart;
-    const text = textarea.value;
-    
-    const beforeCursor = text.substring(0, cursorPos);
-    const lastAtIndex = beforeCursor.lastIndexOf('@');
-    
-    if (lastAtIndex !== -1) {
-        const beforeAt = text.substring(0, lastAtIndex);
-        const afterCursor = text.substring(cursorPos);
-        const mentionText = `@${username} `;
-        const newValue = beforeAt + mentionText + afterCursor;
-        
-        textarea.value = newValue;
-        
-        const newCursorPos = lastAtIndex + mentionText.length;
-        textarea.setSelectionRange(newCursorPos, newCursorPos);
-        textarea.focus();
-    }
-    
-    hideMentionSuggestions();
-};
-
-function handleMentionKeydown(e) {
-    if (mentionSuggestions.length === 0) return false;
-    
-    switch (e.key) {
-        case 'ArrowDown':
-            e.preventDefault();
-            activeSuggestionIndex = (activeSuggestionIndex + 1) % mentionSuggestions.length;
-            renderMentionSuggestions(document.getElementById('newComment')?.value.split('@').pop()?.split(' ')[0] || '');
-            break;
-        case 'ArrowUp':
-            e.preventDefault();
-            activeSuggestionIndex = activeSuggestionIndex <= 0 
-                ? mentionSuggestions.length - 1 
-                : activeSuggestionIndex - 1;
-            renderMentionSuggestions(document.getElementById('newComment')?.value.split('@').pop()?.split(' ')[0] || '');
-            break;
-        case 'Enter':
-        case 'Tab':
-            if (activeSuggestionIndex >= 0 && mentionSuggestions[activeSuggestionIndex]) {
-                e.preventDefault();
-                insertMention(mentionSuggestions[activeSuggestionIndex]);
-                return true;
-            }
-            break;
-        case 'Escape':
-            hideMentionSuggestions();
-            break;
-        default:
-            return false;
-    }
-    return true;
-}
-
-// ========== ФУНКЦИИ КОММЕНТАРИЕВ ==========
-
-async function loadComments(taskId) {
-    if (!taskId) return;
-    
-    try {
-        const { data, error } = await supabase
-            .from('comments')
-            .select('*')
-            .eq('task_id', taskId)
-            .order('created_at', { ascending: true });
-        
-        if (error) throw error;
-        currentTaskComments = data || [];
-        renderComments();
-    } catch (error) {
-        console.error('[tasks] Ошибка загрузки комментариев:', error);
-        currentTaskComments = [];
-        renderComments();
-    }
-}
-
-function renderComments() {
-    const container = document.getElementById('commentsList');
-    const countSpan = document.getElementById('commentsCount');
-    
-    if (!container) return;
-    
-    if (!currentTaskComments || currentTaskComments.length === 0) {
-        container.innerHTML = '<div class="comment-empty">Нет комментариев</div>';
-        if (countSpan) countSpan.textContent = '0';
-        return;
-    }
-    
-    if (countSpan) countSpan.textContent = currentTaskComments.length;
-    
-    container.innerHTML = currentTaskComments.map(comment => {
-        let processedText = escapeHtml(comment.text || '');
-        processedText = processedText.replace(/@(\w+)/g, (match, username) => {
-            const mentionedUser = users.find(u => u.github_username === username);
-            if (mentionedUser) {
-                return `<span class="mention-link" onclick="window.goToProfileByUsername('${username}')" title="${escapeHtml(mentionedUser.name)}">@${escapeHtml(username)}</span>`;
-            }
-            return match;
-        });
-        
-        return `
-            <div class="comment-item" data-comment-id="${comment.id}">
-                <div class="comment-header">
-                    <span class="comment-author">
-                        <i class="fas fa-user-circle"></i> ${escapeHtml(comment.author || 'Пользователь')}
-                    </span>
-                    <span class="comment-date">
-                        ${formatDate(comment.created_at)}
-                        ${canDeleteComment(comment) ? `<i class="fas fa-trash-alt delete-comment" onclick="window.deleteComment(${comment.id})"></i>` : ''}
-                    </span>
-                </div>
-                <div class="comment-text">${processedText}</div>
-            </div>
-        `;
-    }).join('');
-}
-
-function canDeleteComment(comment) {
-    if (!currentUser) return false;
-    return comment.author === currentUser.name || currentUser.role === 'admin';
-}
-
-// ========== КОММЕНТАРИИ (ГЛОБАЛЬНЫЕ) ==========
-
-window.goToProfileByUsername = function(username) {
-    window.location.href = `profile-supabase.html?user=${username}`;
-};
-
-window.addComment = async function() {
-    const taskId = document.getElementById('taskId').value;
-    if (!taskId) {
-        alert('Сначала сохраните задачу');
-        return;
-    }
-    
-    const commentText = document.getElementById('newComment').value.trim();
-    if (!commentText) {
-        alert('Введите комментарий');
-        return;
-    }
-    
-    const mentionRegex = /@(\w+)/g;
-    const mentions = [];
-    let match;
-    while ((match = mentionRegex.exec(commentText)) !== null) {
-        const username = match[1];
-        const mentionedUser = users.find(u => u.github_username === username);
-        if (mentionedUser && mentionedUser.id !== currentUser?.id) {
-            mentions.push(username);
-        }
-    }
-    
-    try {
-        const { data, error } = await supabase
-            .from('comments')
-            .insert([{
-                task_id: taskId,
-                user_id: currentUser?.id,
-                author: currentUser?.name || currentUser?.email,
-                text: commentText,
-                mentions: mentions
-            }])
-            .select();
-        
-        if (error) throw error;
-        
-        document.getElementById('newComment').value = '';
-        await loadComments(taskId);
-        hideMentionSuggestions();
-        
-        for (const username of mentions) {
-            const mentionedUser = users.find(u => u.github_username === username);
-            if (mentionedUser && window.createNotification) {
-                await window.createNotification({
-                    user_id: mentionedUser.id,
-                    type: 'mention',
-                    title: 'Упоминание в комментарии',
-                    message: `${currentUser?.name} упомянул вас в комментарии к задаче "${tasks.find(t => t.id == taskId)?.title}"`,
-                    task_id: taskId
-                });
-            }
-        }
-        
-        if (window.showToast) {
-            window.showToast('success', 'Комментарий добавлен');
-        }
-    } catch (error) {
-        console.error('[tasks] Ошибка добавления комментария:', error);
-        alert('Ошибка добавления комментария');
-    }
-};
-
-window.deleteComment = async function(commentId) {
-    if (!confirm('Удалить комментарий?')) return;
-    
-    try {
-        const { error } = await supabase
-            .from('comments')
-            .delete()
-            .eq('id', commentId);
-        
-        if (error) throw error;
-        
-        const taskId = document.getElementById('taskId').value;
-        await loadComments(taskId);
-        
-        if (window.showToast) {
-            window.showToast('success', 'Комментарий удален');
-        }
-    } catch (error) {
-        console.error('[tasks] Ошибка удаления комментария:', error);
-        alert('Ошибка удаления комментария');
-    }
-};
-
-// ========== ГЛОБАЛЬНЫЕ ФУНКЦИИ ==========
-
-window.closeModal = function() {
-    document.getElementById('taskModal').classList.remove('active');
-    currentTaskComments = [];
-    hideMentionSuggestions();
-};
-// ========== АККОРДЕОН КОММЕНТАРИЕВ ==========
-window.toggleComments = function() {
-    const section = document.getElementById('commentsSection');
-    if (section) {
-        section.classList.toggle('collapsed');
-    }
-};
-window.saveTask = async function() {
-    const taskId = document.getElementById('taskId').value;
-    const taskData = {
-        title: document.getElementById('taskTitle').value,
-        description: document.getElementById('taskDescription').value,
-        category: document.getElementById('taskCategory').value,
-        due_date: document.getElementById('taskDueDate').value || null,
-        is_important: document.getElementById('taskImportant').checked,
-        status: document.getElementById('taskStatus').value,
-        is_private: document.getElementById('taskPrivate').checked
-    };
-    
-    // Исполнитель (если есть)
-    const assigneeSelect = document.getElementById('taskAssignee');
-    if (assigneeSelect) {
-        taskData.assigned_to = assigneeSelect.value || null;
-    }
-    
-    if (!taskData.title) {
-        alert('Введите название задачи');
-        return;
-    }
-    
-    let result;
-    if (taskId) {
-        result = await updateTaskInDB(taskId, taskData);
-    } else {
-        result = await createTaskInDB(taskData);
-    }
-    
-    if (result) {
-        window.closeModal();
-        await loadTasksData();
-        if (window.showToast) {
-            window.showToast('success', taskId ? 'Задача обновлена' : 'Задача создана');
-        }
-    } else {
-        alert('Ошибка сохранения задачи');
-    }
-};
-
-window.editTask = function(taskId) {
-    openModal(taskId);
-};
-
-window.deleteTask = async function(taskId) {
-    if (confirm('Вы уверены, что хотите удалить эту задачу?')) {
-        const success = await deleteTaskFromDB(taskId);
-        if (success) {
-            tasks = tasks.filter(t => t.id != taskId);
-            renderKanbanBoard();
-            if (window.showToast) {
-                window.showToast('success', 'Задача удалена');
-            }
-        } else {
-            alert('Ошибка удаления задачи');
-        }
-    }
-};
-
-// ========== РЕНДЕРИНГ КАНБАНА ==========
-
-function renderKanbanBoard() {
-    const todoContainer = document.getElementById('todoTasks');
-    const progressContainer = document.getElementById('progressTasks');
-    const doneContainer = document.getElementById('doneTasks');
-    
-    if (!todoContainer) return;
-    
-    todoContainer.innerHTML = '';
-    progressContainer.innerHTML = '';
-    doneContainer.innerHTML = '';
-    
-    let todoCount = 0, progressCount = 0, doneCount = 0;
-    
-    const filteredTasks = getFilteredTasks();
-    
-    for (const task of filteredTasks) {
-        // Используем обновленную функцию createTaskCard с кнопками
-        const card = createTaskCard(task, {
-            showDelete: true,
-            showEdit: true
-        });
-        
-        // Обработчик клика на карточку (открыть детали)
-        card.addEventListener('click', (e) => {
-            // Не открываем модалку если кликнули на кнопку
-            if (!e.target.closest('.task-btn')) {
-                openModal(task.id);
-            }
-        });
-        
-        // Обработчик кнопки редактирования
-        const editBtn = card.querySelector('.task-edit-btn');
-        if (editBtn) {
-            editBtn.onclick = (e) => {
-                e.stopPropagation();
-                openModal(task.id);
-            };
-        }
-        
-        // Обработчик кнопки удаления
-        const deleteBtn = card.querySelector('.task-delete-btn');
-        if (deleteBtn) {
-            deleteBtn.onclick = (e) => {
-                e.stopPropagation();
-                if (confirm('Вы уверены, что хотите удалить эту задачу?')) {
-                    window.deleteTask(task.id);
-                }
-            };
-        }
-        
-        // Добавляем в нужную колонку
-        if (task.status === 'pending') {
-            todoContainer.appendChild(card);
-            todoCount++;
-        } else if (task.status === 'in_progress') {
-            progressContainer.appendChild(card);
-            progressCount++;
-        } else if (task.status === 'completed') {
-            doneContainer.appendChild(card);
-            doneCount++;
-        }
-    }
-    
-    document.getElementById('todoCount').textContent = todoCount;
-    document.getElementById('progressCount').textContent = progressCount;
-    document.getElementById('doneCount').textContent = doneCount;
-    
-    updateStats();
-    console.log('[tasks] Канбан отрисован, задач:', filteredTasks.length);
-}
-
-async function handleDrop(e, newStatus) {
-    e.preventDefault();
-    const taskId = e.dataTransfer.getData('text/plain');
-    if (taskId) {
-        const task = tasks.find(t => t.id == taskId);
-        if (task && task.status !== newStatus) {
-            console.log('[tasks] Изменение статуса:', taskId, '→', newStatus);
-            await updateTaskStatusInDB(taskId, newStatus);
-            await loadTasksData();
-        }
-    }
-}
-
-function setupDropZones() {
-    const columns = document.querySelectorAll('.kanban-column');
-    
-    columns.forEach(column => {
-        const status = column.getAttribute('data-status');
-        if (!status) return;
-        
-        column.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            column.classList.add('drag-over');
-        });
-        
-        column.addEventListener('dragleave', (e) => {
-            const related = e.relatedTarget;
-            if (!related || !column.contains(related)) {
-                column.classList.remove('drag-over');
-            }
-        });
-        
-        column.addEventListener('drop', async (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            column.classList.remove('drag-over');
-            
-            const taskId = e.dataTransfer.getData('text/plain');
-            if (!taskId) return;
-            
-            const task = tasks.find(t => t.id == taskId);
-            if (!task || task.status === status) return;
-            
-            console.log('[tasks] Перемещение:', taskId, '→', status);
-            
-            const updated = await updateTaskStatusInDB(taskId, status);
-            if (updated) {
-                await loadTasksData();
-                if (window.showToast) {
-                    window.showToast('success', 'Задача перемещена');
-                }
-            }
-        });
-    });
-    
-    console.log('[tasks] Drag-and-drop настроен для', columns.length, 'колонок');
-}
-// ========== НАСТРОЙКА ФИЛЬТРОВ ==========
-
-function setupFilters() {
-    // Поиск
-    const searchInput = document.getElementById('searchInput');
-    if (searchInput) {
-        searchInput.addEventListener('input', debounce(() => {
-            filters.search = searchInput.value;
-            renderKanbanBoard();
-        }, 300));
-    }
-    
-    // Быстрые фильтры
-    document.querySelectorAll('.quick-filter-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('.quick-filter-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            filters.quick = btn.dataset.quick;
-            renderKanbanBoard();
-        });
-    });
-    
-    // Фильтр по исполнителю (динамически обновляется после загрузки пользователей)
-    updateAssigneeFilters();
-    
-    // Фильтр по приоритету (TOGGLE)
-    document.querySelectorAll('.priority-filter').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const priority = btn.dataset.priority;
-            
-            // Если кликнули на уже активный фильтр - сбрасываем
-            if (btn.classList.contains('active')) {
-                btn.classList.remove('active');
-                filters.priority = 'all';
-            } else {
-                // Убираем active у всех, ставим на текущий
-                document.querySelectorAll('.priority-filter').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                filters.priority = priority;
-            }
-            
-            renderKanbanBoard();
-        });
-    });
-    
-    // Фильтр по объекту
-    const complexFilter = document.getElementById('complexFilter');
-    if (complexFilter) {
-        complexFilter.addEventListener('click', () => {
-            // TODO: выпадающий список объектов
-            console.log('[tasks] Фильтр по объекту пока в разработке');
-        });
-    }
-}
-
-function updateAssigneeFilters() {
-    const container = document.getElementById('assigneeFilters');
-    if (!container) return;
-    
-    // Очищаем, оставляя только "Все"
-    container.innerHTML = `
-        <div class="assignee-filter ${filters.assignee === 'all' ? 'active' : ''}" data-assignee="all">
-            <div class="assignee-avatar">👥</div>
-            <span class="assignee-name">Все</span>
-        </div>
-    `;
-    
-    for (const user of users) {
-        if (user.github_username === currentUser?.github_username) continue;
-        const isActive = filters.assignee === user.github_username;
-        container.innerHTML += `
-            <div class="assignee-filter ${isActive ? 'active' : ''}" data-assignee="${user.github_username}">
-                <div class="assignee-avatar">${user.name.split(' ').map(n => n[0]).join('').toUpperCase()}</div>
-                <span class="assignee-name">${escapeHtml(user.name.split(' ')[0])}</span>
-            </div>
-        `;
-    }
-    
-    // Добавляем обработчики
-    container.querySelectorAll('.assignee-filter').forEach(el => {
-        el.addEventListener('click', () => {
-            container.querySelectorAll('.assignee-filter').forEach(e => e.classList.remove('active'));
-            el.classList.add('active');
-            filters.assignee = el.dataset.assignee;
-            renderKanbanBoard();
-        });
-    });
-}
-
-// Дебаунс для поиска
-function debounce(func, wait) {
-    let timeout;
-    return function executedFunction(...args) {
-        const later = () => {
-            clearTimeout(timeout);
-            func(...args);
-        };
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-    };
-}
-
-// ========== ЗАГРУЗКА ДАННЫХ ==========
-
-async function loadUsers() {
-    try {
-        const user = getCurrentSupabaseUser();
-        if (!user) {
-            users = [];
+    /**
+     * Инициализация страницы
+     */
+    async init() {
+        if (this.#initialized) {
+            console.log('[tasks] Страница уже инициализирована');
             return;
         }
         
-        // Получаем company_id текущего пользователя
-        const { data: profile } = await supabase
-            .from('profiles')
-            .select('company_id')
-            .eq('id', user.id)
-            .single();
+        console.log('[tasks] Инициализация страницы...');
         
-        let query = supabase.from('profiles').select('*');
+        // Проверка авторизации
+        const isAuth = await requireSupabaseAuth('../auth-supabase.html');
+        if (!isAuth) return;
         
-        // Если пользователь в компании — показываем только коллег
-        if (profile?.company_id) {
-            query = query.eq('company_id', profile.company_id);
-        } else {
-            // Если нет компании — показываем только себя
-            query = query.eq('id', user.id);
-        }
+        this.#currentUser = getCurrentSupabaseUser();
+        updateSupabaseUserInterface();
+        console.log('[tasks] Текущий пользователь:', this.#currentUser?.name);
         
-        const { data, error } = await query;
+        // Загрузка начальных данных
+        await this.#loadInitialData();
         
-        if (!error && data) {
-            users = data;
-            console.log('[tasks] Загружено пользователей:', users.length);
-            updateAssigneeFilters();
-        } else {
-            console.error('[tasks] Ошибка загрузки пользователей:', error);
-            users = [];
-        }
-    } catch (e) {
-        console.error('Ошибка загрузки пользователей:', e);
-        users = [];
+        // Создание компонентов
+        this.#createComponents();
+        
+        // Привязка событий
+        this.#bindEvents();
+        
+        // Инициализация сайдбара
+        this.#initSidebar();
+        
+        this.#initialized = true;
+        console.log('[tasks] Инициализация завершена');
     }
-}
 
-async function loadComplexes() {
-    try {
-        const { data, error } = await supabase.from('complexes').select('*').eq('user_id', currentUser?.id);
-        if (!error && data) {
-            complexes = data;
-            console.log('[tasks] Загружено объектов:', complexes.length);
-        }
-    } catch (e) {
-        console.error('Ошибка загрузки объектов:', e);
-        complexes = [];
+    /**
+     * Загрузка начальных данных
+     */
+    async #loadInitialData() {
+        await Promise.all([
+            this.#loadUsers(),
+            this.#loadComplexes()
+        ]);
     }
-}
 
-async function loadTasksData() {
-    tasks = await getTasksFromDB();
-    renderKanbanBoard();
-    console.log(`[tasks] Загружено ${tasks.length} задач`);
-}
-
-async function openModal(taskId) {
-    const modal = document.getElementById('taskModal');
-    const modalTitle = document.getElementById('modalTitleText');
-    
-    await loadUsers();
-    
-    // Динамически строим дополнительные поля
-    const dynamicContainer = document.getElementById('dynamicFields');
-    dynamicContainer.innerHTML = '';
-    
-    // Проверяем, есть ли компания (для поля "Исполнитель")
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('company_id')
-        .eq('id', currentUser.id)
-        .single();
-    
-    const hasCompany = profile?.company_id;
-    
-    if (hasCompany && users.length > 1) {
-        // Есть компания и есть коллеги — показываем выбор исполнителя
-        const assigneeHtml = `
-            <div class="form-group">
-                <label><i class="fas fa-user"></i> Исполнитель</label>
-                <select id="taskAssignee">
-                    <option value="">Не назначен</option>
-                    ${users.map(u => `<option value="${u.github_username}">${escapeHtml(u.name)}</option>`).join('')}
-                </select>
-            </div>
-        `;
-        dynamicContainer.innerHTML += assigneeHtml;
-    }
-    
-    // Заполняем поля если редактирование
-    if (taskId) {
-        modalTitle.textContent = 'Редактировать задачу';
-        const task = tasks.find(t => t.id == taskId);
-        if (task) {
-            document.getElementById('taskId').value = task.id;
-            document.getElementById('taskTitle').value = task.title || '';
-            document.getElementById('taskDescription').value = task.description || '';
-            document.getElementById('taskCategory').value = task.category || 'other';
-            document.getElementById('taskDueDate').value = task.due_date || '';
-            document.getElementById('taskImportant').checked = task.is_important || false;
-            document.getElementById('taskStatus').value = task.status || 'pending';
-            document.getElementById('taskPrivate').checked = task.is_private || false;
-            
-            if (hasCompany) {
-                setTimeout(() => {
-                    const assigneeSelect = document.getElementById('taskAssignee');
-                    if (assigneeSelect) assigneeSelect.value = task.assigned_to || '';
-                }, 50);
+    /**
+     * Загрузка пользователей
+     */
+    async #loadUsers() {
+        try {
+            const user = this.#currentUser;
+            if (!user) {
+                this.#users = [];
+                return;
             }
             
-            await loadComments(task.id);
+            // Получаем company_id текущего пользователя
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('company_id')
+                .eq('id', user.id)
+                .single();
+            
+            let query = supabase.from('profiles').select('*');
+            
+            // Если пользователь в компании — показываем только коллег
+            if (profile?.company_id) {
+                query = query.eq('company_id', profile.company_id);
+            } else {
+                // Если нет компании — показываем только себя
+                query = query.eq('id', user.id);
+            }
+            
+            const { data, error } = await query;
+            
+            if (!error && data) {
+                this.#users = data;
+                console.log('[tasks] Загружено пользователей:', this.#users.length);
+            } else {
+                console.error('[tasks] Ошибка загрузки пользователей:', error);
+                this.#users = [];
+            }
+        } catch (e) {
+            console.error('[tasks] Ошибка загрузки пользователей:', e);
+            this.#users = [];
         }
-    } else {
-        modalTitle.textContent = 'Создать задачу';
-        document.getElementById('taskId').value = '';
-        document.getElementById('taskTitle').value = '';
-        document.getElementById('taskDescription').value = '';
-        document.getElementById('taskCategory').value = 'other';
-        document.getElementById('taskDueDate').value = '';
-        document.getElementById('taskImportant').checked = false;
-        document.getElementById('taskStatus').value = 'pending';
-        document.getElementById('taskPrivate').checked = false;
-        currentTaskComments = [];
-        renderComments();
     }
-    
-    // Сбрасываем аккордеон комментариев
-    document.getElementById('commentsSection')?.classList.remove('collapsed');
-    
-    modal.classList.add('active');
-    console.log('[tasks] Модальное окно открыто, taskId:', taskId || 'новая');
-    
-    setTimeout(() => {
-        const commentTextarea = document.getElementById('newComment');
-        if (commentTextarea) {
-            commentTextarea.addEventListener('input', handleCommentInput);
-            commentTextarea.addEventListener('keydown', handleCommentKeydown);
-            commentTextarea.addEventListener('blur', handleCommentBlur);
+
+    /**
+     * Загрузка объектов
+     */
+    async #loadComplexes() {
+        try {
+            const { data, error } = await supabase
+                .from('complexes')
+                .select('*')
+                .eq('user_id', this.#currentUser?.id);
+            
+            if (!error && data) {
+                this.#complexes = data;
+                console.log('[tasks] Загружено объектов:', this.#complexes.length);
+            }
+        } catch (e) {
+            console.error('[tasks] Ошибка загрузки объектов:', e);
+            this.#complexes = [];
         }
-    }, 100);
-}
-
-// ========== ОБРАБОТЧИКИ АВТОКОМПЛИТА ==========
-
-function handleCommentInput(e) {
-    const textarea = e.target;
-    const cursorPos = textarea.selectionStart;
-    showMentionSuggestions(textarea.value, cursorPos);
-}
-
-function handleCommentKeydown(e) {
-    const handled = handleMentionKeydown(e);
-    if (handled) return;
-    
-    if (e.key === 'Enter' && mentionSuggestions.length > 0 && activeSuggestionIndex >= 0) {
-        e.preventDefault();
-        insertMention(mentionSuggestions[activeSuggestionIndex]);
     }
-}
 
-function handleCommentBlur() {
-    setTimeout(() => {
-        hideMentionSuggestions();
-    }, 200);
-}
-
-// ========== ИНИЦИАЛИЗАЦИЯ ==========
-
-export async function initTasksPage() {
-    console.log('[tasks] Инициализация страницы...');
-    
-    const isAuth = await requireSupabaseAuth('auth-supabase.html');
-    if (!isAuth) return;
-    
-    currentUser = getCurrentSupabaseUser();
-    updateSupabaseUserInterface();
-    console.log('[tasks] Текущий пользователь:', currentUser?.name);
-    
-    await loadUsers();
-    await loadComplexes();
-    await loadTasksData();      // Рендерит карточки
-    setupDropZones();            // Настраивает drag-and-drop (и очищает контейнеры!)
-    await loadTasksData();       // Рендерит карточки ЗАНОВО
-    setupFilters();
-    
-    const addTaskBtn = document.getElementById('addTaskBtn');
-    if (addTaskBtn) addTaskBtn.addEventListener('click', () => openModal());
-    
-    const addBtns = document.querySelectorAll('.add-task-btn');
-    addBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            const status = btn.getAttribute('data-status');
-            document.getElementById('taskStatus').value = status;
-            openModal();
+    /**
+     * Создание компонентов
+     */
+    #createComponents() {
+        // Создаём модальное окно
+        this.#modal = new TaskModal(async () => {
+            // Коллбэк после сохранения задачи
+            await this.#kanban.refresh();
         });
-    });
-    
-    const sidebar = document.getElementById('sidebar');
-    if (sidebar && localStorage.getItem('sidebar_collapsed') === 'true') {
-        sidebar.classList.add('collapsed');
+        
+        this.#modal.init(this.#currentUser, this.#users);
+        
+        // Создаём канбан-доску
+        this.#kanban = new TaskKanban({
+            onEdit: (taskId) => {
+                // Открыть модалку на редактирование
+                this.#modal.open(taskId);
+            },
+            onDelete: async (taskId) => {
+                // Удалить задачу
+                const task = this.#kanban.getTaskById(taskId);
+                const confirmMessage = task 
+                    ? `Удалить задачу "${task.title}"?` 
+                    : 'Удалить задачу?';
+                
+                if (confirm(confirmMessage)) {
+                    const success = await deleteTask(taskId);
+                    if (success) {
+                        await this.#kanban.refresh();
+                        showToast('success', 'Задача удалена');
+                    } else {
+                        showToast('error', 'Ошибка удаления задачи');
+                    }
+                }
+            },
+            onAdd: (status) => {
+                // Открыть модалку для создания задачи с предустановленным статусом
+                this.#modal.open(null, { status });
+            }
+        });
+        
+        this.#kanban.init(this.#currentUser, this.#users);
     }
-    
-    // Глобальный обработчик скролла для скрытия подсказок
-    window.addEventListener('scroll', function() {
-        hideMentionSuggestions();
-    }, true);
-    
-    if (window.CRM?.ui?.animations) {
-        console.log('[tasks] Анимации инициализированы');
+
+    /**
+     * Привязка событий
+     */
+    #bindEvents() {
+        // Кнопка "Новая задача" в хедере
+        const addTaskBtn = document.getElementById('addTaskBtn');
+        if (addTaskBtn) {
+            addTaskBtn.addEventListener('click', () => {
+                this.#modal.open(null, { status: 'pending' });
+            });
+        }
+        
+        // Обновление списка пользователей в модалке, если пользователи загрузились позже
+        // (на случай асинхронной загрузки)
+        if (this.#users.length > 0) {
+            this.#modal.updateUsers(this.#users);
+        }
     }
-    
-    console.log('[tasks] Инициализация завершена');
+
+    /**
+     * Инициализация сайдбара
+     */
+    #initSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        if (sidebar && localStorage.getItem('sidebar_collapsed') === 'true') {
+            sidebar.classList.add('collapsed');
+        }
+    }
+
+    // ========== ПУБЛИЧНЫЕ МЕТОДЫ ==========
+
+    /**
+     * Обновить данные страницы
+     */
+    async refresh() {
+        await this.#kanban.refresh();
+    }
+
+    /**
+     * Уничтожить страницу (очистка ресурсов)
+     */
+    destroy() {
+        if (this.#kanban) {
+            this.#kanban.destroy();
+            this.#kanban = null;
+        }
+        if (this.#modal) {
+            this.#modal.destroy();
+            this.#modal = null;
+        }
+        this.#initialized = false;
+        console.log('[tasks] Страница уничтожена');
+    }
 }
+
+// ========== ТОЧКА ВХОДА ==========
+
+/**
+ * Инициализация страницы задач
+ * Вызывается из moduleLoader.js
+ */
+export async function initTasksPage() {
+    const page = new TasksPage();
+    await page.init();
+    
+    // Сохраняем инстанс в глобальную переменную только для отладки
+    // (можно убрать в продакшене)
+    window.__tasksPage = page;
+}
+
+// Для обратной совместимости с старым кодом, который мог использовать глобальные функции
+// (эти функции больше не нужны, но оставляем пустые заглушки с предупреждениями)
+if (typeof window !== 'undefined') {
+    // Все глобальные функции удалены. Используйте TasksPage.
+    console.log('[tasks] Глобальные функции удалены. Используется компонентная архитектура.');
+}
+
+export default TasksPage;
