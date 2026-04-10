@@ -1,44 +1,735 @@
 /**
  * ============================================
  * ФАЙЛ: js/pages/profile.js
- * РОЛЬ: Логика страницы личного кабинета (вынесена из profile-supabase.html)
+ * РОЛЬ: Логика страницы профиля (НОВАЯ ВЕРСИЯ)
  * 
- * ОСОБЕННОСТИ:
- *   - Просмотр и редактирование профиля
- *   - Личная статистика (завершённые, активные, просроченные задачи)
- *   - График активности за неделю
- *   - Список последних завершённых задач
- *   - Настройки интерфейса (сохраняются в localStorage)
+ * ФУНКЦИОНАЛ:
+ *   - Загрузка и отображение профиля
+ *   - Загрузка аватара
+ *   - Смена пароля
+ *   - Статистика продуктивности (помидоры, задачи, streak)
+ *   - Мои модули (личные и командные)
+ *   - Лог активности
+ *   - Настройки интерфейса
+ *   - Удаление аккаунта
  * 
  * ЗАВИСИМОСТИ:
  *   - js/core/supabase.js
  *   - js/core/supabase-session.js
- *   - js/services/tasks-supabase.js
- *   - js/core/permissions.js
+ *   - js/services/marketplace-service.js
+ *   - js/services/pomodoro.js
  * 
  * ИСТОРИЯ:
- *   - 27.03.2026: Создание файла, вынос логики из profile-supabase.html
- *   - 09.04.2026: Переход с role на permission_sets для отображения
- *   - 09.04.2026: Убраны глобальные функции
+ *   - 27.03.2026: Создание файла
+ *   - 10.04.2026: ПОЛНАЯ ПЕРЕРАБОТКА — новый функционал
  * ============================================
  */
 
 import { supabase } from '../core/supabase.js';
-import { 
-    getCurrentSupabaseUser, 
-    requireSupabaseAuth, 
-    updateSupabaseUserInterface
-} from '../core/supabase-session.js';
-import { getTasks } from '../services/tasks-supabase.js';
-import { isAdmin, getUserPermissions } from '../core/permissions.js';
+import { getCurrentSupabaseUser, requireSupabaseAuth, updateSupabaseUserInterface, refreshUserProfile } from '../core/supabase-session.js';
+import * as marketplace from '../services/marketplace-service.js';
+import { getStats } from '../services/pomodoro.js';
 
-// Состояние страницы
+console.log('[profile-page] Загрузка...');
+
+// ========== СОСТОЯНИЕ ==========
+
 let currentUser = null;
-let tasks = [];
+let userProfile = null;
 
-console.log('[profile.js] Модуль загружен');
+// ========== ИНИЦИАЛИЗАЦИЯ ==========
+
+export async function initProfilePage() {
+    console.log('[profile-page] Инициализация...');
+    
+    const isAuth = await requireSupabaseAuth('../auth-supabase.html');
+    if (!isAuth) return;
+    
+    currentUser = getCurrentSupabaseUser();
+    updateSupabaseUserInterface();
+    
+    await loadUserProfile();
+    
+    // Рендеринг всех секций
+    renderProfileInfo();
+    renderProductivityStats();
+    renderMyModules();
+    renderRecentActivity();
+    renderInterfaceSettings();
+    
+    // Привязка событий
+    bindEvents();
+    
+    console.log('[profile-page] Инициализация завершена');
+}
+
+// ========== ЗАГРУЗКА ПРОФИЛЯ ==========
+
+async function loadUserProfile() {
+    const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', currentUser.id)
+        .single();
+    
+    if (!error && data) {
+        userProfile = data;
+        currentUser = { ...currentUser, ...data };
+    }
+}
+
+// ========== РЕНДЕРИНГ ИНФОРМАЦИИ ==========
+
+function renderProfileInfo() {
+    const container = document.getElementById('profileInfo');
+    if (!container) return;
+    
+    const roleLabels = {
+        admin: 'Администратор',
+        manager: 'Менеджер',
+        agent: 'Агент',
+        viewer: 'Наблюдатель'
+    };
+    
+    container.innerHTML = `
+        <div class="info-item">
+            <div class="info-icon"><i class="fas fa-user"></i></div>
+            <div class="info-content">
+                <div class="info-label">Имя</div>
+                <div class="info-value">
+                    <span id="displayName">${escapeHtml(currentUser.name || '—')}</span>
+                    <button class="edit-btn" id="editNameBtn">
+                        <i class="fas fa-pen"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="info-item">
+            <div class="info-icon"><i class="fas fa-envelope"></i></div>
+            <div class="info-content">
+                <div class="info-label">Email</div>
+                <div class="info-value">${escapeHtml(currentUser.email || '—')}</div>
+            </div>
+        </div>
+        
+        <div class="info-item">
+            <div class="info-icon"><i class="fas fa-badge"></i></div>
+            <div class="info-content">
+                <div class="info-label">Роль</div>
+                <div class="info-value">${roleLabels[currentUser.role] || currentUser.role}</div>
+            </div>
+        </div>
+        
+        <div class="info-item">
+            <div class="info-icon"><i class="fab fa-github"></i></div>
+            <div class="info-content">
+                <div class="info-label">GitHub</div>
+                <div class="info-value">${escapeHtml(currentUser.github_username || '—')}</div>
+            </div>
+        </div>
+        
+        <div class="info-item">
+            <div class="info-icon"><i class="fas fa-calendar"></i></div>
+            <div class="info-content">
+                <div class="info-label">Дата регистрации</div>
+                <div class="info-value">${formatDate(currentUser.created_at)}</div>
+            </div>
+        </div>
+    `;
+    
+    // Аватар
+    updateAvatar();
+}
+
+function updateAvatar() {
+    const initials = getInitials(currentUser.name);
+    const avatarInitials = document.getElementById('avatarInitials');
+    const profileAvatar = document.getElementById('profileAvatar');
+    
+    if (avatarInitials) {
+        avatarInitials.textContent = initials;
+    }
+    
+    // Если есть аватар в профиле
+    if (userProfile?.avatar_url) {
+        if (profileAvatar && profileAvatar.tagName === 'IMG') {
+            profileAvatar.src = userProfile.avatar_url;
+        } else if (profileAvatar) {
+            const img = document.createElement('img');
+            img.id = 'profileAvatar';
+            img.className = 'profile-avatar';
+            img.src = userProfile.avatar_url;
+            img.alt = currentUser.name;
+            profileAvatar.replaceWith(img);
+        }
+    }
+}
+
+// ========== СТАТИСТИКА ПРОДУКТИВНОСТИ ==========
+
+async function renderProductivityStats() {
+    // Помидоры сегодня
+    const pomodoroStats = getStats(1);
+    const todayPomodoros = pomodoroStats[0]?.sessions || 0;
+    document.getElementById('pomodoroCount').textContent = todayPomodoros;
+    
+    // Завершённые задачи
+    const { count: tasksCompleted } = await supabase
+        .from('tasks')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', currentUser.id)
+        .eq('status', 'completed');
+    
+    document.getElementById('tasksCompleted').textContent = tasksCompleted || 0;
+    
+    // Streak дней (из помидоро-статистики)
+    const streak = calculateStreak(pomodoroStats);
+    document.getElementById('activeStreak').textContent = streak;
+    
+    if (streak >= 3) {
+        const badge = document.getElementById('streakBadge');
+        const text = document.getElementById('streakText');
+        if (badge && text) {
+            badge.style.display = 'inline-flex';
+            text.textContent = `🔥 ${streak} дней продуктивности!`;
+        }
+    }
+}
+
+function calculateStreak(stats) {
+    let streak = 0;
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Проверяем активность за последние 30 дней
+    for (let i = 0; i < 30; i++) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        const dateStr = date.toISOString().split('T')[0];
+        
+        const dayStats = stats.find(s => s.date === dateStr);
+        if (dayStats && dayStats.sessions > 0) {
+            streak++;
+        } else if (i > 0) {
+            break;
+        }
+    }
+    
+    return streak;
+}
+
+// ========== МОИ МОДУЛИ ==========
+
+async function renderMyModules() {
+    const container = document.getElementById('myModules');
+    if (!container) return;
+    
+    try {
+        const licenses = await marketplace.getUserLicenses();
+        
+        const allModules = [
+            ...licenses.personal.map(l => ({ ...l, source: 'personal' })),
+            ...licenses.team.map(l => ({ ...l, source: 'team' }))
+        ];
+        
+        // Убираем дубликаты (если модуль есть и личный, и командный)
+        const uniqueModules = [];
+        const seen = new Set();
+        for (const m of allModules) {
+            const key = m.item?.identifier;
+            if (!seen.has(key)) {
+                seen.add(key);
+                uniqueModules.push(m);
+            }
+        }
+        
+        if (uniqueModules.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-puzzle-piece"></i>
+                    <p>Нет активных модулей</p>
+                    <a href="marketplace.html" style="margin-top: 12px; display: inline-block; color: var(--accent);">
+                        Перейти в маркетплейс →
+                    </a>
+                </div>
+            `;
+            return;
+        }
+        
+        container.innerHTML = uniqueModules.slice(0, 5).map(m => {
+            const item = m.item || {};
+            const isPersonal = m.source === 'personal';
+            
+            return `
+                <div class="module-item">
+                    <div class="module-icon">
+                        <i class="fas ${item.icon || 'fa-puzzle-piece'}"></i>
+                    </div>
+                    <div class="module-info">
+                        <div class="module-name">${escapeHtml(item.name || 'Модуль')}</div>
+                        <div class="module-source">
+                            ${isPersonal ? '👤 Личная' : '👥 Командная'}
+                        </div>
+                    </div>
+                    <span class="module-badge ${isPersonal ? '' : 'team'}">
+                        ${isPersonal ? 'Активна' : 'Активна'}
+                    </span>
+                </div>
+            `;
+        }).join('');
+        
+    } catch (error) {
+        console.error('[profile] Ошибка загрузки модулей:', error);
+        container.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-exclamation-triangle"></i>
+                <p>Ошибка загрузки</p>
+            </div>
+        `;
+    }
+}
+
+// ========== ЛОГ АКТИВНОСТИ ==========
+
+async function renderRecentActivity() {
+    const container = document.getElementById('recentActivity');
+    if (!container) return;
+    
+    try {
+        const activities = await getRecentActivity(currentUser.id);
+        
+        if (activities.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-history"></i>
+                    <p>Нет недавней активности</p>
+                </div>
+            `;
+            return;
+        }
+        
+        container.innerHTML = `
+            <div class="activity-list">
+                ${activities.map(a => `
+                    <div class="activity-item">
+                        <div class="activity-icon">
+                            <i class="fas ${a.icon}"></i>
+                        </div>
+                        <div class="activity-content">
+                            <div class="activity-text">${escapeHtml(a.text)}</div>
+                            <div class="activity-time">${formatTimeAgo(a.time)}</div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+        
+    } catch (error) {
+        console.error('[profile] Ошибка загрузки активности:', error);
+        container.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-exclamation-triangle"></i>
+                <p>Ошибка загрузки</p>
+            </div>
+        `;
+    }
+}
+
+async function getRecentActivity(userId, limit = 10) {
+    const activities = [];
+    
+    // Задачи (созданные)
+    const { data: tasks } = await supabase
+        .from('tasks')
+        .select('title, created_at')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+    
+    tasks?.forEach(t => {
+        activities.push({
+            icon: 'fa-plus-circle',
+            text: `Создал задачу «${t.title}»`,
+            time: t.created_at
+        });
+    });
+    
+    // Задачи (завершённые)
+    const { data: completedTasks } = await supabase
+        .from('tasks')
+        .select('title, completed_at')
+        .eq('user_id', userId)
+        .eq('status', 'completed')
+        .not('completed_at', 'is', null)
+        .order('completed_at', { ascending: false })
+        .limit(limit);
+    
+    completedTasks?.forEach(t => {
+        activities.push({
+            icon: 'fa-check-circle',
+            text: `Завершил задачу «${t.title}»`,
+            time: t.completed_at
+        });
+    });
+    
+    // Лицензии
+    const { data: licenses } = await supabase
+        .from('licenses')
+        .select('purchased_at, item:item_id(name)')
+        .eq('buyer_user_id', userId)
+        .order('purchased_at', { ascending: false })
+        .limit(limit);
+    
+    licenses?.forEach(l => {
+        activities.push({
+            icon: 'fa-shopping-cart',
+            text: `Купил модуль «${l.item?.name || 'Модуль'}»`,
+            time: l.purchased_at
+        });
+    });
+    
+    // Сортируем по времени
+    return activities
+        .sort((a, b) => new Date(b.time) - new Date(a.time))
+        .slice(0, limit);
+}
+
+// ========== НАСТРОЙКИ ИНТЕРФЕЙСА ==========
+
+function renderInterfaceSettings() {
+    const themeToggle = document.getElementById('themeToggle');
+    const notificationsToggle = document.getElementById('notificationsToggle');
+    const compactModeToggle = document.getElementById('compactModeToggle');
+    
+    // Тема
+    const savedTheme = localStorage.getItem('crm_theme') || 'dark';
+    if (themeToggle) {
+        themeToggle.checked = savedTheme === 'dark';
+        themeToggle.addEventListener('change', () => {
+            const newTheme = themeToggle.checked ? 'dark' : 'light';
+            localStorage.setItem('crm_theme', newTheme);
+            applyTheme(newTheme);
+        });
+    }
+    
+    // Уведомления
+    if (notificationsToggle) {
+        notificationsToggle.checked = localStorage.getItem('crm_notifications') !== 'false';
+        notificationsToggle.addEventListener('change', () => {
+            localStorage.setItem('crm_notifications', notificationsToggle.checked);
+        });
+    }
+    
+    // Компактный режим
+    if (compactModeToggle) {
+        compactModeToggle.checked = localStorage.getItem('crm_compact_mode') === 'true';
+        compactModeToggle.addEventListener('change', () => {
+            localStorage.setItem('crm_compact_mode', compactModeToggle.checked);
+            document.body.classList.toggle('compact-mode', compactModeToggle.checked);
+        });
+    }
+}
+
+function applyTheme(theme) {
+    const root = document.documentElement;
+    root.classList.remove('theme-dark', 'theme-light');
+    root.classList.add(theme === 'dark' ? 'theme-dark' : 'theme-light');
+    document.body.classList.remove('theme-dark', 'theme-light');
+    document.body.classList.add(theme === 'dark' ? 'theme-dark' : 'theme-light');
+}
+
+// ========== ОБРАБОТЧИКИ СОБЫТИЙ ==========
+
+function bindEvents() {
+    // Аватар
+    document.getElementById('avatarWrapper')?.addEventListener('click', () => {
+        document.getElementById('avatarInput')?.click();
+    });
+    
+    document.getElementById('avatarInput')?.addEventListener('change', handleAvatarUpload);
+    
+    // Редактирование имени
+    document.getElementById('editNameBtn')?.addEventListener('click', openEditNameModal);
+    document.getElementById('confirmEditBtn')?.addEventListener('click', saveName);
+    
+    // Смена пароля
+    document.getElementById('changePasswordBtn')?.addEventListener('click', () => {
+        openModal('changePasswordModal');
+    });
+    
+    document.getElementById('confirmPasswordBtn')?.addEventListener('click', changePassword);
+    
+    // 2FA
+    document.getElementById('setup2FABtn')?.addEventListener('click', () => {
+        showToast('🔐 Двухфакторная аутентификация будет доступна в следующем обновлении', 'info');
+    });
+    
+    // Сессии
+    document.getElementById('manageSessionsBtn')?.addEventListener('click', () => {
+        showToast('📱 Управление сессиями будет доступно в следующем обновлении', 'info');
+    });
+    
+    // Выход на всех устройствах
+    document.getElementById('logoutAllBtn')?.addEventListener('click', logoutAll);
+    
+    // Удаление аккаунта
+    document.getElementById('deleteAccountBtn')?.addEventListener('click', deleteAccount);
+    
+    // Загрузка количества сессий
+    loadSessionCount();
+}
+
+// ========== ЗАГРУЗКА АВАТАРА ==========
+
+async function handleAvatarUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    // Проверка размера (макс 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+        showToast('❌ Файл слишком большой (макс 2MB)', 'error');
+        return;
+    }
+    
+    // Проверка типа
+    if (!file.type.startsWith('image/')) {
+        showToast('❌ Только изображения', 'error');
+        return;
+    }
+    
+    try {
+        showToast('⏳ Загрузка аватара...', 'info');
+        
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${currentUser.id}/avatar.${fileExt}`;
+        
+        // Загружаем в Supabase Storage
+        const { error: uploadError } = await supabase.storage
+            .from('avatars')
+            .upload(fileName, file, { upsert: true });
+        
+        if (uploadError) throw uploadError;
+        
+        // Получаем публичный URL
+        const { data: { publicUrl } } = supabase.storage
+            .from('avatars')
+            .getPublicUrl(fileName);
+        
+        // Обновляем профиль
+        const { error: updateError } = await supabase
+            .from('profiles')
+            .update({ avatar_url: publicUrl })
+            .eq('id', currentUser.id);
+        
+        if (updateError) throw updateError;
+        
+        userProfile.avatar_url = publicUrl;
+        updateAvatar();
+        showToast('✅ Аватар обновлён', 'success');
+        
+    } catch (error) {
+        console.error('[profile] Ошибка загрузки аватара:', error);
+        showToast('❌ Ошибка загрузки аватара', 'error');
+    }
+    
+    // Очищаем input
+    event.target.value = '';
+}
+
+// ========== РЕДАКТИРОВАНИЕ ИМЕНИ ==========
+
+function openEditNameModal() {
+    document.getElementById('editName').value = currentUser.name || '';
+    openModal('editProfileModal');
+}
+
+async function saveName() {
+    const newName = document.getElementById('editName').value.trim();
+    
+    if (!newName) {
+        showToast('❌ Имя не может быть пустым', 'error');
+        return;
+    }
+    
+    try {
+        const { error } = await supabase
+            .from('profiles')
+            .update({ name: newName })
+            .eq('id', currentUser.id);
+        
+        if (error) throw error;
+        
+        currentUser.name = newName;
+        document.getElementById('displayName').textContent = newName;
+        updateAvatar();
+        updateSupabaseUserInterface();
+        
+        closeModal('editProfileModal');
+        showToast('✅ Имя обновлено', 'success');
+        
+    } catch (error) {
+        console.error('[profile] Ошибка обновления имени:', error);
+        showToast('❌ Ошибка обновления имени', 'error');
+    }
+}
+
+// ========== СМЕНА ПАРОЛЯ ==========
+
+async function changePassword() {
+    const currentPassword = document.getElementById('currentPassword').value;
+    const newPassword = document.getElementById('newPassword').value;
+    const confirmPassword = document.getElementById('confirmPassword').value;
+    
+    if (!currentPassword || !newPassword || !confirmPassword) {
+        showToast('❌ Заполните все поля', 'error');
+        return;
+    }
+    
+    if (newPassword.length < 6) {
+        showToast('❌ Пароль должен быть не менее 6 символов', 'error');
+        return;
+    }
+    
+    if (newPassword !== confirmPassword) {
+        showToast('❌ Пароли не совпадают', 'error');
+        return;
+    }
+    
+    try {
+        // Сначала аутентифицируем пользователя
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+            email: currentUser.email,
+            password: currentPassword
+        });
+        
+        if (signInError) {
+            showToast('❌ Неверный текущий пароль', 'error');
+            return;
+        }
+        
+        // Меняем пароль
+        const { error: updateError } = await supabase.auth.updateUser({
+            password: newPassword
+        });
+        
+        if (updateError) throw updateError;
+        
+        closeModal('changePasswordModal');
+        document.getElementById('currentPassword').value = '';
+        document.getElementById('newPassword').value = '';
+        document.getElementById('confirmPassword').value = '';
+        
+        showToast('✅ Пароль изменён', 'success');
+        
+    } catch (error) {
+        console.error('[profile] Ошибка смены пароля:', error);
+        showToast('❌ Ошибка смены пароля', 'error');
+    }
+}
+
+// ========== ВЫХОД НА ВСЕХ УСТРОЙСТВАХ ==========
+
+async function logoutAll() {
+    if (!confirm('Выйти на всех устройствах? Придётся заново войти везде.')) return;
+    
+    try {
+        await supabase.auth.signOut({ scope: 'global' });
+        window.location.href = '../auth-supabase.html?logout=all';
+    } catch (error) {
+        console.error('[profile] Ошибка выхода:', error);
+        showToast('❌ Ошибка выхода', 'error');
+    }
+}
+
+// ========== УДАЛЕНИЕ АККАУНТА ==========
+
+async function deleteAccount() {
+    const step1 = confirm('⚠️ Вы уверены? Это действие НЕОБРАТИМО. Все ваши данные будут удалены.');
+    if (!step1) return;
+    
+    const step2 = prompt('Введите "УДАЛИТЬ" для подтверждения:');
+    if (step2 !== 'УДАЛИТЬ') {
+        showToast('❌ Подтверждение неверное. Отмена.', 'error');
+        return;
+    }
+    
+    const password = prompt('Введите ваш пароль для подтверждения:');
+    if (!password) return;
+    
+    try {
+        // Проверяем пароль
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+            email: currentUser.email,
+            password: password
+        });
+        
+        if (signInError) {
+            showToast('❌ Неверный пароль', 'error');
+            return;
+        }
+        
+        showToast('⏳ Удаление аккаунта...', 'info');
+        
+        // Удаляем данные пользователя
+        await supabase.from('tasks').delete().eq('user_id', currentUser.id);
+        await supabase.from('profiles').delete().eq('id', currentUser.id);
+        await supabase.from('licenses').delete().eq('buyer_user_id', currentUser.id);
+        
+        // Удаляем auth пользователя (требует admin rights, в MVP пропускаем)
+        // await supabase.auth.admin.deleteUser(currentUser.id);
+        
+        // Выходим
+        await supabase.auth.signOut();
+        window.location.href = '../auth-supabase.html?deleted=true';
+        
+    } catch (error) {
+        console.error('[profile] Ошибка удаления:', error);
+        showToast('❌ Ошибка удаления аккаунта', 'error');
+    }
+}
+
+// ========== СЕССИИ ==========
+
+async function loadSessionCount() {
+    try {
+        const { data } = await supabase.auth.getSession();
+        // В MVP просто показываем 1
+        document.getElementById('sessionCount').textContent = '1';
+    } catch (e) {
+        document.getElementById('sessionCount').textContent = '—';
+    }
+}
 
 // ========== ВСПОМОГАТЕЛЬНЫЕ ==========
+
+function getInitials(name) {
+    if (!name) return '?';
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '—';
+    return new Date(dateStr).toLocaleDateString('ru-RU');
+}
+
+function formatTimeAgo(dateStr) {
+    if (!dateStr) return '—';
+    
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diff = now - date;
+    
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+    
+    if (minutes < 1) return 'только что';
+    if (minutes < 60) return `${minutes} мин. назад`;
+    if (hours < 24) return `${hours} ч. назад`;
+    if (days < 7) return `${days} дн. назад`;
+    
+    return date.toLocaleDateString('ru-RU');
+}
 
 function escapeHtml(text) {
     if (!text) return '';
@@ -47,7 +738,7 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-function showToast(type, message) {
+function showToast(message, type = 'info') {
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
     toast.innerHTML = `<span>${escapeHtml(message)}</span>`;
@@ -55,321 +746,18 @@ function showToast(type, message) {
     setTimeout(() => toast.remove(), 3000);
 }
 
-// ========== ПОЛУЧЕНИЕ МЕТКИ РОЛИ ПО ПРАВАМ ==========
-
-function getUserRoleLabel() {
-    if (!currentUser) return 'Сотрудник';
-    
-    // Определяем по permission_sets
-    const permissionSets = currentUser.permission_sets || [];
-    
-    if (permissionSets.includes('ADMIN') || isAdmin()) {
-        return 'Администратор';
-    }
-    if (permissionSets.includes('MANAGER')) {
-        return 'Менеджер';
-    }
-    if (permissionSets.includes('AGENT')) {
-        return 'Агент';
-    }
-    
-    // Fallback на старую роль
-    const roleLabels = {
-        'admin': 'Администратор',
-        'manager': 'Менеджер',
-        'agent': 'Агент',
-        'viewer': 'Наблюдатель'
-    };
-    return roleLabels[currentUser.role] || 'Сотрудник';
+function openModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) modal.classList.add('active');
 }
 
-// ========== ЗАГРУЗКА ДАННЫХ ==========
-
-async function loadUserProfile() {
-    console.log('[profile] Загрузка профиля пользователя...');
-    const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', currentUser.id)
-        .single();
-    
-    if (data) {
-        currentUser.name = data.name || currentUser.name;
-        currentUser.role = data.role || currentUser.role;
-        currentUser.github_username = data.github_username || currentUser.github_username;
-        currentUser.permission_sets = data.permission_sets || currentUser.permission_sets;
-        console.log('[profile] Профиль загружен:', { name: currentUser.name });
-    } else if (error) {
-        console.error('[profile] Ошибка загрузки профиля:', error);
-    }
+function closeModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) modal.classList.remove('active');
 }
 
-async function loadUserTasks() {
-    console.log('[profile] Загрузка задач пользователя...');
-    tasks = await getTasks();
-    console.log(`[profile] Загружено ${tasks.length} задач`);
-    updateStats();
-    updateRecentTasks();
-    updateActivityChart();
-}
+window.closeModal = closeModal;
 
-function updateStats() {
-    const completedTasks = tasks.filter(t => t.status === 'completed').length;
-    const activeTasks = tasks.filter(t => t.status !== 'completed').length;
-    const today = new Date().toISOString().split('T')[0];
-    const overdueTasks = tasks.filter(t => {
-        if (t.status === 'completed') return false;
-        if (!t.due_date) return false;
-        return t.due_date < today;
-    }).length;
-    
-    const avgTime = tasks.filter(t => t.status === 'completed' && t.completed_at && t.created_at)
-        .reduce((sum, t) => {
-            const created = new Date(t.created_at);
-            const completed = new Date(t.completed_at);
-            const days = (completed - created) / (1000 * 60 * 60 * 24);
-            return sum + days;
-        }, 0) / (completedTasks || 1);
-    
-    document.getElementById('statCompleted').textContent = completedTasks;
-    document.getElementById('statActive').textContent = activeTasks;
-    document.getElementById('statOverdue').textContent = overdueTasks;
-    document.getElementById('statAvgTime').textContent = Math.round(avgTime);
-    
-    console.log('[profile] Статистика обновлена:', { completedTasks, activeTasks, overdueTasks });
-}
+// ========== ЭКСПОРТ ==========
 
-function updateRecentTasks() {
-    const container = document.getElementById('recentTasks');
-    const recentCompleted = tasks
-        .filter(t => t.status === 'completed' && t.completed_at)
-        .sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at))
-        .slice(0, 5);
-    
-    if (recentCompleted.length === 0) {
-        container.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-muted);">Нет завершённых задач</div>';
-        return;
-    }
-    
-    container.innerHTML = recentCompleted.map(task => `
-        <div class="recent-task-item">
-            <div class="recent-task-title">${escapeHtml(task.title)}</div>
-            <div class="recent-task-date">${task.completed_at ? new Date(task.completed_at).toLocaleDateString() : ''}</div>
-        </div>
-    `).join('');
-}
-
-function updateActivityChart() {
-    const days = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
-    const today = new Date();
-    const startOfWeek = new Date(today);
-    startOfWeek.setDate(today.getDate() - today.getDay() + 1);
-    
-    const weeklyData = days.map((_, index) => {
-        const date = new Date(startOfWeek);
-        date.setDate(startOfWeek.getDate() + index);
-        const dateStr = date.toISOString().split('T')[0];
-        
-        return tasks.filter(t => {
-            if (t.status !== 'completed') return false;
-            if (!t.completed_at) return false;
-            return t.completed_at.split('T')[0] === dateStr;
-        }).length;
-    });
-    
-    const maxValue = Math.max(...weeklyData, 1);
-    const container = document.getElementById('personalChart');
-    
-    container.innerHTML = weeklyData.map(value => {
-        const height = (value / maxValue) * 80 + 20;
-        return `<div class="chart-bar-profile" style="height: ${height}px;" title="${value} задач"></div>`;
-    }).join('');
-}
-
-function updateProfileUI() {
-    const nameEl = document.getElementById('profileName');
-    const emailEl = document.getElementById('profileEmail');
-    const githubEl = document.getElementById('profileGithub');
-    const roleEl = document.getElementById('profileRole');
-    const avatarEl = document.getElementById('profileAvatar');
-    
-    if (!nameEl) return;
-    
-    nameEl.textContent = currentUser.name;
-    emailEl.textContent = currentUser.email;
-    if (githubEl) githubEl.textContent = currentUser.github_username || '—';
-    
-    // Используем новую функцию для получения метки роли
-    if (roleEl) roleEl.textContent = getUserRoleLabel();
-    
-    const initials = currentUser.name.split(' ').map(n => n[0]).join('').toUpperCase();
-    if (avatarEl) avatarEl.innerHTML = initials || '<i class="fas fa-user"></i>';
-    
-    // Отображаем permission_sets
-    renderPermissionSets();
-    
-    console.log('[profile] UI обновлен, имя:', currentUser.name);
-}
-
-function renderPermissionSets() {
-    const container = document.getElementById('permissionSetsContainer');
-    if (!container) return;
-    
-    const permissionSets = currentUser.permission_sets || [];
-    
-    if (permissionSets.length === 0) {
-        container.innerHTML = '<span class="profile-info-item"><i class="fas fa-shield"></i>Базовые права</span>';
-        return;
-    }
-    
-    const setLabels = {
-        'BASE': '🔹 Базовый',
-        'AGENT': '🤵 Агент',
-        'MANAGER': '📊 Менеджер',
-        'ADMIN': '👑 Администратор'
-    };
-    
-    container.innerHTML = permissionSets.map(set => {
-        const label = setLabels[set] || set;
-        return `<span class="profile-info-item"><i class="fas fa-check-circle" style="color: #4caf50;"></i>${escapeHtml(label)}</span>`;
-    }).join('');
-}
-
-// ========== МОДАЛЬНОЕ ОКНО ==========
-
-let modal = null;
-let modalCloseHandler = null;
-
-function createModal() {
-    if (modal) return;
-    
-    modal = document.createElement('div');
-    modal.id = 'editProfileModal';
-    modal.className = 'modal';
-    modal.style.display = 'none';
-    modal.innerHTML = `
-        <div class="modal-content">
-            <h3><i class="fas fa-edit"></i> Редактировать профиль</h3>
-            <input type="text" id="editName" placeholder="Имя">
-            <div class="modal-buttons">
-                <button class="secondary modal-cancel">Отмена</button>
-                <button class="primary modal-save">Сохранить</button>
-            </div>
-        </div>
-    `;
-    
-    document.body.appendChild(modal);
-    
-    // Обработчики
-    modal.querySelector('.modal-cancel').addEventListener('click', closeEditModal);
-    modal.querySelector('.modal-save').addEventListener('click', saveProfileChanges);
-    
-    modalCloseHandler = (e) => {
-        if (e.target === modal) closeEditModal();
-    };
-    modal.addEventListener('click', modalCloseHandler);
-}
-
-function openEditModal() {
-    if (!modal) createModal();
-    
-    document.getElementById('editName').value = currentUser.name;
-    modal.style.display = 'flex';
-    modal.classList.add('active');
-}
-
-function closeEditModal() {
-    if (modal) {
-        modal.style.display = 'none';
-        modal.classList.remove('active');
-    }
-}
-
-async function saveProfileChanges() {
-    const newName = document.getElementById('editName').value.trim();
-    if (!newName) {
-        alert('Введите имя');
-        return;
-    }
-    
-    console.log('[profile] Сохранение изменений профиля:', { newName });
-    
-    const { error } = await supabase
-        .from('profiles')
-        .update({ name: newName, updated_at: new Date().toISOString() })
-        .eq('id', currentUser.id);
-    
-    if (!error) {
-        currentUser.name = newName;
-        updateProfileUI();
-        updateSupabaseUserInterface();
-        closeEditModal();
-        showToast('success', 'Профиль обновлен');
-    } else {
-        console.error('[profile] Ошибка сохранения:', error);
-        alert('Ошибка сохранения');
-    }
-}
-
-// ========== НАСТРОЙКИ ==========
-
-function loadSettings() {
-    const notificationsToggle = document.getElementById('notificationsToggle');
-    const confirmActionsToggle = document.getElementById('confirmActionsToggle');
-    const compactModeToggle = document.getElementById('compactModeToggle');
-    
-    if (!notificationsToggle) return;
-    
-    notificationsToggle.checked = localStorage.getItem('crm_notifications') === 'true';
-    confirmActionsToggle.checked = localStorage.getItem('crm_confirm_actions') !== 'false';
-    compactModeToggle.checked = localStorage.getItem('crm_compact_mode') === 'true';
-    
-    if (compactModeToggle.checked) {
-        document.body.classList.add('compact-mode');
-    }
-    
-    notificationsToggle.addEventListener('change', () => {
-        localStorage.setItem('crm_notifications', notificationsToggle.checked);
-    });
-    
-    confirmActionsToggle.addEventListener('change', () => {
-        localStorage.setItem('crm_confirm_actions', confirmActionsToggle.checked);
-    });
-    
-    compactModeToggle.addEventListener('change', () => {
-        localStorage.setItem('crm_compact_mode', compactModeToggle.checked);
-        if (compactModeToggle.checked) {
-            document.body.classList.add('compact-mode');
-        } else {
-            document.body.classList.remove('compact-mode');
-        }
-    });
-}
-
-// ========== ИНИЦИАЛИЗАЦИЯ ==========
-
-export async function initProfilePage() {
-    console.log('[profile] Инициализация страницы...');
-    
-    const isAuth = await requireSupabaseAuth('auth-supabase.html');
-    if (!isAuth) return;
-    
-    currentUser = getCurrentSupabaseUser();
-    updateSupabaseUserInterface();
-    console.log('[profile] Текущий пользователь:', currentUser?.name);
-    
-    await loadUserProfile();
-    await loadUserTasks();
-    updateProfileUI();
-    loadSettings();
-    
-    // Навешиваем обработчик на кнопку редактирования
-    document.getElementById('editProfileBtn')?.addEventListener('click', openEditModal);
-    
-    const sidebar = document.getElementById('sidebar');
-    if (sidebar && localStorage.getItem('sidebar_collapsed') === 'true') {
-        sidebar.classList.add('collapsed');
-    }
-    
-    console.log('[profile] Инициализация завершена');
-}
+export default { initProfilePage };
