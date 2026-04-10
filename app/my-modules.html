@@ -2,21 +2,22 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     
     <!-- 
     ============================================
     ФАЙЛ: app/my-modules.html
-    РОЛЬ: Страница управления личными модулями
+    РОЛЬ: Управление купленными модулями и лицензиями (НОВАЯ ВЕРСИЯ)
     
     ОСОБЕННОСТИ:
-      - Список доступных модулей
-      - Активация/покупка модулей
-      - Разделение на базовые, личные и командные модули
+      - Просмотр личных и командных лицензий
+      - Назначение/отзыв доступа для участников команды
+      - Отображение использования мест в лицензиях
+      - Быстрый переход к модулям
     
     ИСТОРИЯ:
       - 30.03.2026: Создание страницы
-      - 30.03.2026: Перенос в папку app, исправление путей
+      - 10.04.2026: ПОЛНАЯ ПЕРЕРАБОТКА под новую систему лицензий
     ============================================
     -->
     
@@ -25,11 +26,11 @@
             try {
                 const savedTheme = localStorage.getItem('crm_theme');
                 if (savedTheme === 'light') {
-                    if (document.documentElement) document.documentElement.classList.add('theme-light');
-                    if (document.body) document.body.classList.add('theme-light');
+                    document.documentElement.classList.add('theme-light');
+                    document.body.classList.add('theme-light');
                 } else if (savedTheme === 'dark') {
-                    if (document.documentElement) document.documentElement.classList.add('theme-dark');
-                    if (document.body) document.body.classList.add('theme-dark');
+                    document.documentElement.classList.add('theme-dark');
+                    document.body.classList.add('theme-dark');
                 }
             } catch(e) {}
         })();
@@ -42,206 +43,301 @@
     <link rel="stylesheet" href="../css/base.css">
     <link rel="stylesheet" href="../css/theme.css">
     <link rel="stylesheet" href="../css/components.css">
+    <link rel="stylesheet" href="../css/modal.css">
     <link rel="stylesheet" href="../css/responsive.css">
     <link rel="stylesheet" href="../css/animations.css">
     
     <style>
         .modules-container {
-            max-width: 1200px;
+            max-width: 1000px;
             margin: 0 auto;
-            padding: 40px 20px;
+            padding: 24px;
         }
         
         .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             margin-bottom: 32px;
-            animation: fadeInUp 0.4s ease;
+            flex-wrap: wrap;
+            gap: 16px;
         }
         
         .page-header h1 {
-            font-size: 2rem;
-            background: linear-gradient(135deg, var(--text-primary), var(--accent));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 8px;
-        }
-        
-        .page-header p {
-            color: var(--text-muted);
-        }
-        
-        .team-badge {
-            display: inline-block;
-            background: var(--hover-bg);
-            padding: 8px 16px;
-            border-radius: 40px;
-            font-size: 0.85rem;
-            margin-top: 16px;
-        }
-        
-        .section-title {
+            font-size: 1.8rem;
             display: flex;
             align-items: center;
             gap: 12px;
-            margin: 32px 0 20px;
         }
         
-        .section-title i {
+        .section {
+            margin-bottom: 40px;
+        }
+        
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        
+        .section-header i {
             font-size: 24px;
             color: var(--accent);
         }
         
-        .section-title h2 {
+        .section-header h2 {
             font-size: 1.3rem;
+            flex: 1;
         }
         
-        .modules-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-            gap: 24px;
+        .section-count {
+            background: var(--accent);
+            color: white;
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
         }
         
-        .module-card {
+        .licenses-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        
+        .license-card {
             background: var(--card-bg);
             border-radius: 20px;
             border: 1px solid var(--card-border);
-            padding: 24px;
+            overflow: hidden;
             transition: all 0.3s ease;
-            animation: fadeInScale 0.3s ease backwards;
-            position: relative;
+            animation: fadeInUp 0.3s ease backwards;
         }
         
-        .module-card:hover {
-            transform: translateY(-4px);
+        .license-card:hover {
             border-color: var(--accent);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
         }
         
-        .module-card.team-module {
-            border-left: 4px solid var(--accent);
+        .license-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 20px 24px;
+            background: var(--hover-bg);
+            border-bottom: 1px solid var(--card-border);
         }
         
-        .module-icon {
+        .license-icon {
             width: 48px;
             height: 48px;
             background: linear-gradient(135deg, var(--accent), var(--accent-hover));
-            border-radius: 16px;
+            border-radius: 14px;
             display: flex;
             align-items: center;
             justify-content: center;
-            margin-bottom: 16px;
-        }
-        
-        .module-icon i {
-            font-size: 24px;
             color: white;
+            font-size: 22px;
         }
         
-        .module-name {
-            font-size: 1.2rem;
+        .license-info {
+            flex: 1;
+        }
+        
+        .license-name {
+            font-size: 1.1rem;
             font-weight: 600;
             margin-bottom: 4px;
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 10px;
             flex-wrap: wrap;
         }
         
-        .module-badge {
+        .license-badge {
             font-size: 0.65rem;
             padding: 2px 8px;
             border-radius: 20px;
-            background: var(--hover-bg);
-            color: var(--text-muted);
+            font-weight: 500;
         }
         
-        .module-badge.team {
-            background: rgba(108, 108, 255, 0.2);
+        .license-badge.personal {
+            background: rgba(108, 108, 255, 0.15);
             color: var(--accent);
         }
         
-        .module-description {
+        .license-badge.team {
+            background: rgba(76, 175, 80, 0.15);
+            color: #4caf50;
+        }
+        
+        .license-meta {
+            display: flex;
+            gap: 20px;
+            font-size: 0.75rem;
             color: var(--text-muted);
-            font-size: 0.85rem;
-            margin-bottom: 16px;
-            line-height: 1.4;
         }
         
-        .module-features {
-            list-style: none;
-            margin: 16px 0;
-            padding: 0;
+        .license-actions {
+            display: flex;
+            gap: 8px;
         }
         
-        .module-features li {
-            padding: 6px 0;
+        .license-actions .btn-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            color: var(--text-primary);
+            cursor: pointer;
             display: flex;
             align-items: center;
-            gap: 8px;
-            font-size: 0.8rem;
-            color: var(--text-secondary);
+            justify-content: center;
+            transition: all 0.2s;
         }
         
-        .module-features i {
-            font-size: 0.75rem;
-            width: 18px;
+        .license-actions .btn-icon:hover {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
         }
         
-        .module-footer {
+        .license-body {
+            padding: 20px 24px;
+        }
+        
+        .seats-info {
+            margin-bottom: 20px;
+        }
+        
+        .seats-header {
             display: flex;
             justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 0.85rem;
+        }
+        
+        .seats-progress {
+            height: 8px;
+            background: var(--input-bg);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .seats-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent), var(--accent-hover));
+            border-radius: 4px;
+            transition: width 0.3s;
+        }
+        
+        .assignments-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .assignment-item {
+            display: flex;
             align-items: center;
-            margin-top: 20px;
+            justify-content: space-between;
+            padding: 10px 12px;
+            background: var(--input-bg);
+            border-radius: 10px;
+        }
+        
+        .assignment-user {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .user-avatar-small {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .user-info-small {
+            font-size: 0.9rem;
+        }
+        
+        .user-email-small {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+        
+        .assignment-actions {
+            display: flex;
+            gap: 4px;
+        }
+        
+        .btn-small {
+            padding: 6px 10px;
+            border-radius: 8px;
+            background: transparent;
+            border: 1px solid var(--card-border);
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 0.7rem;
+            transition: all 0.2s;
+        }
+        
+        .btn-small:hover {
+            background: rgba(255, 107, 107, 0.15);
+            color: #ff6b6b;
+            border-color: #ff6b6b;
+        }
+        
+        .assign-section {
+            margin-top: 16px;
             padding-top: 16px;
             border-top: 1px solid var(--card-border);
         }
         
-        .module-status {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 0.8rem;
-        }
-        
-        .status-active {
-            color: #4caf50;
-        }
-        
-        .status-pending {
-            color: #ffc107;
-        }
-        
-        .module-actions {
+        .assign-form {
             display: flex;
             gap: 12px;
+            align-items: flex-end;
         }
         
-        .module-btn {
-            padding: 6px 16px;
-            border-radius: 40px;
-            border: none;
-            font-size: 0.8rem;
-            cursor: pointer;
-            transition: all 0.2s;
+        .assign-select {
+            flex: 1;
         }
         
-        .module-btn.primary {
-            background: linear-gradient(135deg, var(--accent), var(--accent-hover));
-            color: white;
+        .assign-select label {
+            display: block;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-bottom: 6px;
         }
         
-        .module-btn.secondary {
-            background: var(--hover-bg);
-            color: var(--text-primary);
+        .assign-select select {
+            width: 100%;
+            padding: 10px 12px;
+            background: var(--input-bg);
             border: 1px solid var(--card-border);
-        }
-        
-        .module-btn:hover {
-            transform: translateY(-2px);
+            border-radius: 10px;
+            color: var(--text-primary);
         }
         
         .empty-state {
             text-align: center;
             padding: 60px;
             color: var(--text-muted);
+            background: var(--card-bg);
+            border-radius: 20px;
+            border: 1px dashed var(--card-border);
         }
         
         .empty-state i {
@@ -250,13 +346,59 @@
             opacity: 0.5;
         }
         
+        .loading-state {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-muted);
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border-radius: 40px;
+            background: var(--accent);
+            border: none;
+            color: white;
+            cursor: pointer;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(108, 108, 255, 0.4);
+        }
+        
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--card-border);
+            color: var(--text-primary);
+        }
+        
+        .btn-outline:hover {
+            background: var(--hover-bg);
+            box-shadow: none;
+        }
+        
         @media (max-width: 768px) {
-            .modules-grid {
-                grid-template-columns: 1fr;
+            .modules-container {
+                padding: 16px;
             }
-            .module-footer {
+            
+            .license-header {
+                flex-wrap: wrap;
+            }
+            
+            .license-actions {
+                width: 100%;
+                justify-content: flex-end;
+            }
+            
+            .assign-form {
                 flex-direction: column;
-                gap: 12px;
                 align-items: stretch;
             }
         }
@@ -275,7 +417,7 @@
                     <i class="fas fa-chevron-left"></i>
                     <span>Свернуть</span>
                 </button>
-                <button class="logout-btn" onclick="window.sidebar?.logout()" style="margin-top: 12px; width: 100%; padding: 10px; background: rgba(255, 107, 107, 0.2); border: none; border-radius: 12px; color: #ff6b6b; cursor: pointer;">
+                <button class="logout-btn" onclick="window.sidebar?.logout()">
                     <i class="fas fa-sign-out-alt"></i> Выйти
                 </button>
             </div>
@@ -296,17 +438,43 @@
             
             <div class="modules-container">
                 <div class="page-header">
-                    <h1><i class="fas fa-puzzle-piece"></i> Мои модули</h1>
-                    <p>Управляйте доступными вам модулями и расширениями</p>
-                    <div class="team-badge" id="teamBadge">
-                        <i class="fas fa-users"></i> <span id="teamInfo">Загрузка...</span>
+                    <h1>
+                        <i class="fas fa-puzzle-piece"></i>
+                        Мои модули
+                    </h1>
+                    <a href="marketplace.html" class="btn">
+                        <i class="fas fa-store"></i>
+                        Маркетплейс
+                    </a>
+                </div>
+                
+                <!-- Личные модули -->
+                <div class="section">
+                    <div class="section-header">
+                        <i class="fas fa-user"></i>
+                        <h2>Личные модули</h2>
+                        <span class="section-count" id="personalCount">0</span>
+                    </div>
+                    <div id="personalLicenses" class="licenses-list">
+                        <div class="loading-state">
+                            <i class="fas fa-spinner fa-pulse"></i>
+                            <p>Загрузка...</p>
+                        </div>
                     </div>
                 </div>
                 
-                <div id="modulesContent">
-                    <div class="empty-state">
-                        <i class="fas fa-spinner fa-pulse"></i>
-                        <p>Загрузка модулей...</p>
+                <!-- Командные модули -->
+                <div class="section">
+                    <div class="section-header">
+                        <i class="fas fa-users"></i>
+                        <h2>Модули команды</h2>
+                        <span class="section-count" id="teamCount">0</span>
+                    </div>
+                    <div id="teamLicenses" class="licenses-list">
+                        <div class="loading-state">
+                            <i class="fas fa-spinner fa-pulse"></i>
+                            <p>Загрузка...</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -315,180 +483,374 @@
     
     <script type="module">
         import { getCurrentSupabaseUser, requireSupabaseAuth, updateSupabaseUserInterface } from '../js/core/supabase-session.js';
+        import { supabase } from '../js/core/supabase.js';
+        import * as marketplace from '../js/services/marketplace-service.js';
+        import * as sidebar from '../layout.js';
         
-        // Каталог модулей
-        const MODULES_CATALOG = {
-            productivity: {
-                id: 'productivity',
-                name: 'Продуктивность',
-                icon: 'fa-rocket',
-                description: 'Базовые инструменты для организации работы',
-                features: ['Задачи', 'Календарь', 'Заметки', 'Привычки'],
-                type: 'free'
-            },
-            real_estate: {
-                id: 'real_estate',
-                name: 'Недвижимость',
-                icon: 'fa-building',
-                description: 'Полноценный CRM для агентов недвижимости',
-                features: ['Объекты недвижимости', 'Сделки', 'Контрагенты', 'Ипотечный калькулятор'],
-                type: 'team'
-            },
-            finance: {
-                id: 'finance',
-                name: 'Финансы',
-                icon: 'fa-coins',
-                description: 'Управление личными и семейными финансами',
-                features: ['Бюджет', 'Расходы/Доходы', 'Отчеты', 'Категории'],
-                type: 'personal'
-            },
-            education: {
-                id: 'education',
-                name: 'Образование',
-                icon: 'fa-graduation-cap',
-                description: 'Для студентов, учителей и родителей',
-                features: ['Расписание', 'Оценки', 'Домашние задания', 'Успеваемость'],
-                type: 'personal'
-            },
-            health: {
-                id: 'health',
-                name: 'Здоровье',
-                icon: 'fa-heartbeat',
-                description: 'Трекер здоровья и физической активности',
-                features: ['Тренировки', 'Питание', 'Замеры тела', 'Водный баланс'],
-                type: 'personal'
+        window.sidebar = sidebar;
+        
+        let currentUser = null;
+        let userLicenses = { personal: [], team: [] };
+        let companies = [];
+        let companyMembers = [];
+        
+        // ========== ЗАГРУЗКА ДАННЫХ ==========
+        
+        async function loadData() {
+            userLicenses = await marketplace.getUserLicenses();
+            
+            // Загружаем компании пользователя
+            const { data: companiesData } = await supabase
+                .from('companies')
+                .select('id, name')
+                .eq('owner_id', currentUser.id);
+            
+            companies = companiesData || [];
+            
+            // Загружаем участников компаний
+            if (companies.length > 0) {
+                const companyIds = companies.map(c => c.id);
+                const { data: members } = await supabase
+                    .from('profiles')
+                    .select('id, name, email, company_id')
+                    .in('company_id', companyIds);
+                
+                companyMembers = members || [];
+            }
+        }
+        
+        // ========== РЕНДЕРИНГ ==========
+        
+        function renderPersonalLicenses() {
+            const container = document.getElementById('personalLicenses');
+            const licenses = userLicenses.personal;
+            
+            document.getElementById('personalCount').textContent = licenses.length;
+            
+            if (licenses.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-user"></i>
+                        <p>У вас нет личных модулей</p>
+                        <a href="marketplace.html" class="btn" style="margin-top: 20px;">
+                            <i class="fas fa-store"></i> Перейти в маркетплейс
+                        </a>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = licenses.map(license => {
+                const item = license.item || {};
+                
+                return `
+                    <div class="license-card">
+                        <div class="license-header">
+                            <div class="license-icon">
+                                <i class="fas ${item.icon || 'fa-puzzle-piece'}"></i>
+                            </div>
+                            <div class="license-info">
+                                <div class="license-name">
+                                    ${escapeHtml(item.name || 'Модуль')}
+                                    <span class="license-badge personal">👤 Личная</span>
+                                </div>
+                                <div class="license-meta">
+                                    <span><i class="fas fa-calendar"></i> Куплено: ${formatDate(license.purchased_at)}</span>
+                                    ${license.expires_at ? `<span><i class="fas fa-clock"></i> До: ${formatDate(license.expires_at)}</span>` : ''}
+                                </div>
+                            </div>
+                            <div class="license-actions">
+                                <button class="btn-icon" onclick="openModule('${item.identifier}')" title="Открыть модуль">
+                                    <i class="fas fa-external-link-alt"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function renderTeamLicenses() {
+            const container = document.getElementById('teamLicenses');
+            const licenses = userLicenses.team;
+            
+            document.getElementById('teamCount').textContent = licenses.length;
+            
+            if (licenses.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-users"></i>
+                        <p>У вас нет командных модулей</p>
+                        <a href="marketplace.html" class="btn" style="margin-top: 20px;">
+                            <i class="fas fa-store"></i> Перейти в маркетплейс
+                        </a>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Группируем лицензии по компании
+            const licensesByCompany = {};
+            for (const license of licenses) {
+                const companyId = license.company_id;
+                if (!licensesByCompany[companyId]) {
+                    const company = companies.find(c => c.id === companyId);
+                    licensesByCompany[companyId] = {
+                        company: company || { id: companyId, name: 'Компания' },
+                        licenses: []
+                    };
+                }
+                licensesByCompany[companyId].licenses.push(license);
+            }
+            
+            let html = '';
+            
+            for (const [companyId, group] of Object.entries(licensesByCompany)) {
+                html += `
+                    <div style="margin-bottom: 24px;">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                            <i class="fas fa-building" style="color: var(--accent);"></i>
+                            <span style="font-weight: 600;">${escapeHtml(group.company.name)}</span>
+                        </div>
+                `;
+                
+                for (const license of group.licenses) {
+                    html += renderTeamLicenseCard(license, companyId);
+                }
+                
+                html += `</div>`;
+            }
+            
+            container.innerHTML = html;
+            
+            // Загружаем назначения для каждой лицензии
+            for (const license of licenses) {
+                loadAssignments(license.id);
+                loadAvailableMembers(license.id, license.company_id);
+            }
+        }
+        
+        function renderTeamLicenseCard(license, companyId) {
+            const item = license.item || {};
+            const maxSeats = getMaxSeats(license.license_type);
+            
+            const licenseTypeLabels = {
+                'team_3': '👥 До 3 мест',
+                'team_10': '👥 До 10 мест',
+                'team_unlimited': '🏢 Безлимит'
+            };
+            
+            return `
+                <div class="license-card" style="margin-bottom: 16px;" data-license-id="${license.id}">
+                    <div class="license-header">
+                        <div class="license-icon">
+                            <i class="fas ${item.icon || 'fa-puzzle-piece'}"></i>
+                        </div>
+                        <div class="license-info">
+                            <div class="license-name">
+                                ${escapeHtml(item.name || 'Модуль')}
+                                <span class="license-badge team">${licenseTypeLabels[license.license_type] || 'Командная'}</span>
+                            </div>
+                            <div class="license-meta">
+                                <span><i class="fas fa-calendar"></i> Куплено: ${formatDate(license.purchased_at)}</span>
+                            </div>
+                        </div>
+                        <div class="license-actions">
+                            <button class="btn-icon" onclick="openModule('${item.identifier}')" title="Открыть модуль">
+                                <i class="fas fa-external-link-alt"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="license-body">
+                        <div class="seats-info">
+                            <div class="seats-header">
+                                <span>Использовано мест</span>
+                                <span><span id="seats-used-${license.id}">0</span> / ${maxSeats === 999999 ? '∞' : maxSeats}</span>
+                            </div>
+                            <div class="seats-progress">
+                                <div class="seats-fill" id="seats-fill-${license.id}" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        
+                        <div id="assignments-${license.id}" class="assignments-list">
+                            <div class="loading-state" style="padding: 20px;">
+                                <i class="fas fa-spinner fa-pulse"></i>
+                            </div>
+                        </div>
+                        
+                        <div class="assign-section">
+                            <div class="assign-form">
+                                <div class="assign-select">
+                                    <label>Назначить пользователю</label>
+                                    <select id="select-${license.id}" data-license-id="${license.id}">
+                                        <option value="">Выберите пользователя</option>
+                                    </select>
+                                </div>
+                                <button class="btn-small" style="background: var(--accent); color: white;" onclick="assignUser('${license.id}')">
+                                    <i class="fas fa-plus"></i> Назначить
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        async function loadAssignments(licenseId) {
+            const { data, error } = await supabase
+                .from('license_assignments')
+                .select(`
+                    user_id,
+                    assigned_at,
+                    user:user_id(id, name, email)
+                `)
+                .eq('license_id', licenseId);
+            
+            if (error) {
+                console.error('Ошибка загрузки назначений:', error);
+                return;
+            }
+            
+            const assignments = data || [];
+            const container = document.getElementById(`assignments-${licenseId}`);
+            
+            if (!container) return;
+            
+            if (assignments.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 16px; color: var(--text-muted); font-size: 0.85rem;">
+                        <i class="fas fa-users-slash"></i> Нет назначенных пользователей
+                    </div>
+                `;
+            } else {
+                container.innerHTML = assignments.map(a => {
+                    const user = a.user || {};
+                    const initials = (user.name || '?').split(' ').map(n => n[0]).join('').toUpperCase();
+                    
+                    return `
+                        <div class="assignment-item">
+                            <div class="assignment-user">
+                                <div class="user-avatar-small">${initials}</div>
+                                <div class="user-info-small">
+                                    <div>${escapeHtml(user.name || '—')}</div>
+                                    <div class="user-email-small">${escapeHtml(user.email || '')}</div>
+                                </div>
+                            </div>
+                            <div class="assignment-actions">
+                                <button class="btn-small" onclick="revokeAccess('${licenseId}', '${a.user_id}')">
+                                    <i class="fas fa-times"></i> Отозвать
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+            
+            // Обновляем прогресс мест
+            const license = userLicenses.team.find(l => l.id === licenseId);
+            if (license) {
+                const maxSeats = getMaxSeats(license.license_type);
+                const used = assignments.length;
+                const percent = maxSeats === 999999 ? Math.min(100, used * 10) : (used / maxSeats) * 100;
+                
+                document.getElementById(`seats-used-${licenseId}`).textContent = used;
+                document.getElementById(`seats-fill-${licenseId}`).style.width = percent + '%';
+            }
+        }
+        
+        async function loadAvailableMembers(licenseId, companyId) {
+            const select = document.getElementById(`select-${licenseId}`);
+            if (!select) return;
+            
+            // Получаем уже назначенных пользователей
+            const { data: assigned } = await supabase
+                .from('license_assignments')
+                .select('user_id')
+                .eq('license_id', licenseId);
+            
+            const assignedIds = new Set((assigned || []).map(a => a.user_id));
+            
+            // Фильтруем доступных пользователей
+            const availableMembers = companyMembers.filter(m => 
+                m.company_id === companyId && !assignedIds.has(m.id)
+            );
+            
+            if (availableMembers.length === 0) {
+                select.innerHTML = '<option value="">Нет доступных пользователей</option>';
+                return;
+            }
+            
+            select.innerHTML = '<option value="">Выберите пользователя</option>';
+            for (const member of availableMembers) {
+                select.innerHTML += `<option value="${member.id}">${escapeHtml(member.name)} (${escapeHtml(member.email || '')})</option>`;
+            }
+        }
+        
+        // ========== ДЕЙСТВИЯ ==========
+        
+        window.openModule = function(identifier) {
+            const routes = {
+                'tasks': 'tasks.html',
+                'deals': 'deals.html',
+                'finance': 'finance.html',
+                'calendar': 'calendar.html',
+                'complexes': 'complexes.html',
+                'counterparties': 'counterparties.html',
+                'team': 'team.html',
+                'manager': 'manager.html',
+                'admin': 'admin.html'
+            };
+            
+            const url = routes[identifier];
+            if (url) {
+                window.location.href = url;
+            } else {
+                alert('Модуль в разработке');
             }
         };
         
-        let currentUser = null;
-        
-        // Демо-данные: какие модули доступны пользователю
-        let userModules = [];
-        
-        // Демо-данные: командные модули
-        let teamModules = [];
-        
-        function loadUserModules() {
-            const saved = localStorage.getItem('my_modules');
-            if (saved) {
-                userModules = JSON.parse(saved);
-            } else {
-                userModules = [
-                    { id: 'productivity', name: 'Продуктивность', type: 'free', status: 'active', installedAt: '2026-01-01' }
-                ];
+        window.assignUser = async function(licenseId) {
+            const select = document.getElementById(`select-${licenseId}`);
+            const userId = select.value;
+            
+            if (!userId) {
+                alert('Выберите пользователя');
+                return;
             }
             
-            const savedTeam = localStorage.getItem('team_modules');
-            if (savedTeam) {
-                teamModules = JSON.parse(savedTeam);
-            } else {
-                teamModules = [
-                    { id: 'real_estate', name: 'Недвижимость', type: 'team', status: 'active', users: ['admin', 'anna', 'dmitry'], maxUsers: 10 }
-                ];
+            try {
+                await marketplace.assignLicenseToUser(licenseId, userId);
+                await loadData();
+                renderTeamLicenses();
+                alert('✅ Доступ предоставлен');
+            } catch (error) {
+                alert('❌ Ошибка: ' + error.message);
             }
+        };
+        
+        window.revokeAccess = async function(licenseId, userId) {
+            if (!confirm('Отозвать доступ у пользователя?')) return;
             
-            saveModules();
-        }
-        
-        function saveModules() {
-            localStorage.setItem('my_modules', JSON.stringify(userModules));
-            localStorage.setItem('team_modules', JSON.stringify(teamModules));
-        }
-        
-        function isModuleActive(moduleId) {
-            return userModules.some(m => m.id === moduleId && m.status === 'active') ||
-                   teamModules.some(m => m.id === moduleId && m.status === 'active');
-        }
-        
-        function getModuleType(moduleId) {
-            const module = MODULES_CATALOG[moduleId];
-            if (!module) return 'unknown';
-            
-            if (module.type === 'free') return 'free';
-            if (module.type === 'team') return 'team';
-            return 'personal';
-        }
-        
-        function activateModule(moduleId) {
-            const module = MODULES_CATALOG[moduleId];
-            if (!module) return;
-            
-            if (module.type === 'free') {
-                if (!userModules.some(m => m.id === moduleId)) {
-                    userModules.push({
-                        id: moduleId,
-                        name: module.name,
-                        type: 'free',
-                        status: 'active',
-                        installedAt: new Date().toISOString().split('T')[0]
-                    });
-                    saveModules();
-                    renderModules();
-                    showToast(`Модуль "${module.name}" активирован`, 'success');
-                }
-            } else if (module.type === 'personal') {
-                // Личный модуль (покупка)
-                if (confirm(`Купить модуль "${module.name}" за 300 ₽? (демо-режим)`)) {
-                    if (!userModules.some(m => m.id === moduleId)) {
-                        userModules.push({
-                            id: moduleId,
-                            name: module.name,
-                            type: 'personal',
-                            status: 'active',
-                            purchasedAt: new Date().toISOString().split('T')[0]
-                        });
-                        saveModules();
-                        renderModules();
-                        showToast(`Модуль "${module.name}" приобретен!`, 'success');
-                    }
-                }
-            } else if (module.type === 'team') {
-                // Командный модуль (для админа)
-                if (currentUser?.role === 'admin') {
-                    if (confirm(`Купить модуль "${module.name}" для команды за 500 ₽/мес? (демо-режим)`)) {
-                        if (!teamModules.some(m => m.id === moduleId)) {
-                            teamModules.push({
-                                id: moduleId,
-                                name: module.name,
-                                type: 'team',
-                                status: 'active',
-                                users: [currentUser.github_username],
-                                maxUsers: 10,
-                                purchasedAt: new Date().toISOString().split('T')[0]
-                            });
-                            saveModules();
-                            renderModules();
-                            showToast(`Модуль "${module.name}" приобретен для команды!`, 'success');
-                        }
-                    }
-                } else {
-                    showToast('Только администратор может покупать командные модули', 'warning');
-                }
+            try {
+                await marketplace.revokeLicenseFromUser(licenseId, userId);
+                await loadData();
+                renderTeamLicenses();
+                alert('✅ Доступ отозван');
+            } catch (error) {
+                alert('❌ Ошибка: ' + error.message);
             }
-        }
+        };
         
-        function openModule(moduleId) {
-            const routes = {
-                'productivity': 'tasks.html',
-                'real_estate': 'deals.html',
-                'finance': '#',
-                'education': '#',
-                'health': '#'
-            };
-            const url = routes[moduleId];
-            if (url && url !== '#') {
-                window.location.href = url;
-            } else {
-                showToast('Модуль в разработке', 'info');
+        // ========== ВСПОМОГАТЕЛЬНЫЕ ==========
+        
+        function getMaxSeats(licenseType) {
+            switch (licenseType) {
+                case 'team_3': return 3;
+                case 'team_10': return 10;
+                case 'team_unlimited': return 999999;
+                default: return 1;
             }
-        }
-        
-        function showToast(message, type = 'info') {
-            const toast = document.createElement('div');
-            toast.className = `toast toast-${type}`;
-            toast.innerHTML = `<span>${escapeHtml(message)}</span>`;
-            document.body.appendChild(toast);
-            setTimeout(() => toast.remove(), 3000);
         }
         
         function escapeHtml(text) {
@@ -498,162 +860,13 @@
             return div.innerHTML;
         }
         
-        function renderModules() {
-            const container = document.getElementById('modulesContent');
-            if (!container) return;
-            
-            // Группируем модули
-            const freeModules = [];
-            const personalModules = [];
-            const teamModulesList = [];
-            
-            for (const [id, module] of Object.entries(MODULES_CATALOG)) {
-                const isActive = isModuleActive(id);
-                const moduleType = getModuleType(id);
-                
-                const moduleData = {
-                    ...module,
-                    isActive,
-                    moduleType
-                };
-                
-                if (module.type === 'free') {
-                    freeModules.push(moduleData);
-                } else if (module.type === 'personal') {
-                    personalModules.push(moduleData);
-                } else if (module.type === 'team') {
-                    moduleData.teamData = teamModules.find(t => t.id === id);
-                    teamModulesList.push(moduleData);
-                }
-            }
-            
-            let html = '';
-            
-            // Бесплатные модули
-            if (freeModules.length > 0) {
-                html += `
-                    <div class="section-title">
-                        <i class="fas fa-gift"></i>
-                        <h2>Базовые модули</h2>
-                    </div>
-                    <div class="modules-grid">
-                        ${freeModules.map((module, index) => renderModuleCard(module, index)).join('')}
-                    </div>
-                `;
-            }
-            
-            // Личные модули
-            if (personalModules.length > 0) {
-                html += `
-                    <div class="section-title">
-                        <i class="fas fa-user"></i>
-                        <h2>Личные модули</h2>
-                    </div>
-                    <div class="modules-grid">
-                        ${personalModules.map((module, index) => renderModuleCard(module, index)).join('')}
-                    </div>
-                `;
-            }
-            
-            // Командные модули
-            if (teamModulesList.length > 0) {
-                html += `
-                    <div class="section-title">
-                        <i class="fas fa-users"></i>
-                        <h2>Командные модули</h2>
-                    </div>
-                    <div class="modules-grid">
-                        ${teamModulesList.map((module, index) => renderModuleCard(module, index)).join('')}
-                    </div>
-                `;
-            }
-            
-            if (html === '') {
-                html = `
-                    <div class="empty-state">
-                        <i class="fas fa-puzzle-piece"></i>
-                        <p>У вас пока нет модулей</p>
-                        <button onclick="window.location.href='marketplace.html'" style="margin-top: 16px; padding: 10px 24px; background: var(--accent); border: none; border-radius: 40px; color: white; cursor: pointer;">
-                            Перейти в Маркетплейс
-                        </button>
-                    </div>
-                `;
-            }
-            
-            container.innerHTML = html;
+        function formatDate(dateStr) {
+            if (!dateStr) return '—';
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('ru-RU');
         }
         
-        function renderModuleCard(module, index) {
-            const isActive = module.isActive;
-            const teamData = module.teamData;
-            
-            let statusHtml = '';
-            let actionsHtml = '';
-            
-            if (isActive) {
-                statusHtml = `
-                    <div class="module-status">
-                        <i class="fas fa-check-circle status-active"></i>
-                        <span>Активен</span>
-                    </div>
-                `;
-                actionsHtml = `
-                    <div class="module-actions">
-                        <button class="module-btn primary" onclick="window.openModule('${module.id}')">
-                            <i class="fas fa-external-link-alt"></i> Открыть
-                        </button>
-                    </div>
-                `;
-            } else {
-                statusHtml = `
-                    <div class="module-status">
-                        <i class="fas fa-clock status-pending"></i>
-                        <span>Не активирован</span>
-                    </div>
-                `;
-                actionsHtml = `
-                    <div class="module-actions">
-                        <button class="module-btn primary" onclick="window.activateModule('${module.id}')">
-                            <i class="fas fa-download"></i> Активировать
-                        </button>
-                    </div>
-                `;
-            }
-            
-            let teamInfo = '';
-            if (module.type === 'team' && teamData) {
-                teamInfo = `<div class="module-badge team"><i class="fas fa-users"></i> Команда: ${teamData.users.length}/${teamData.maxUsers} лицензий</div>`;
-            }
-            
-            const badgeClass = module.type === 'team' ? 'team' : '';
-            
-            return `
-                <div class="module-card ${module.type === 'team' ? 'team-module' : ''}" style="animation-delay: ${index * 0.05}s">
-                    <div class="module-icon">
-                        <i class="fas ${module.icon}"></i>
-                    </div>
-                    <div class="module-name">
-                        ${module.name}
-                        <span class="module-badge ${badgeClass}">
-                            ${module.type === 'free' ? 'Бесплатный' : module.type === 'team' ? 'Для команды' : 'Личный'}
-                        </span>
-                        ${teamInfo}
-                    </div>
-                    <div class="module-description">${module.description}</div>
-                    <ul class="module-features">
-                        ${module.features.map(f => `<li><i class="fas fa-check-circle" style="color: #4caf50;"></i> ${f}</li>`).join('')}
-                    </ul>
-                    <div class="module-footer">
-                        ${statusHtml}
-                        ${actionsHtml}
-                    </div>
-                </div>
-            `;
-        }
-        
-        // Глобальные функции
-        window.activateModule = activateModule;
-        window.openModule = openModule;
+        // ========== ИНИЦИАЛИЗАЦИЯ ==========
         
         async function init() {
             const isAuth = await requireSupabaseAuth('../auth-supabase.html');
@@ -662,32 +875,16 @@
             currentUser = getCurrentSupabaseUser();
             updateSupabaseUserInterface();
             
-            loadUserModules();
-            renderModules();
+            await sidebar.initSidebar();
             
-            // Обновляем информацию о команде
-            const teamInfoSpan = document.getElementById('teamInfo');
-            if (teamInfoSpan) {
-                const teamSize = teamModules.reduce((sum, m) => sum + (m.users?.length || 0), 0);
-                teamInfoSpan.textContent = `В команде ${teamSize + 1} человек (включая вас)`;
-            }
-            
-            const sidebar = document.getElementById('sidebar');
-            if (sidebar && localStorage.getItem('sidebar_collapsed') === 'true') {
-                sidebar.classList.add('collapsed');
-            }
+            await loadData();
+            renderPersonalLicenses();
+            renderTeamLicenses();
             
             console.log('[my-modules] Страница загружена');
         }
         
         init();
-    </script>
-    
-    <!-- Инициализация бокового меню -->
-    <script type="module">
-        import * as sidebar from '../layout.js';
-        window.sidebar = sidebar;
-        sidebar.initSidebar();
     </script>
 </body>
 </html>
