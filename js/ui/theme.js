@@ -8,6 +8,7 @@
  *   - Сохранение темы в localStorage
  *   - Определение системных настроек
  *   - Единая точка управления темой
+ *   - ЧИСТЫЕ ES6 ЭКСПОРТЫ (БЕЗ ГЛОБАЛЬНЫХ ОБЪЕКТОВ)
  * 
  * ЗАВИСИМОСТИ:
  *   - CSS: variables.css, theme.css
@@ -15,6 +16,7 @@
  * ИСТОРИЯ:
  *   - 31.03.2026: Обновлен под новую систему переменных
  *   - 31.03.2026: Добавлена поддержка системных настроек
+ *   - 10.04.2026: УДАЛЁН ГЛОБАЛЬНЫЙ ОБЪЕКТ window.CRM.ui.theme и window.theme (правило №5)
  * ============================================
  */
 
@@ -38,7 +40,7 @@ let currentTheme = 'dark';
  * Инициализация темы
  * Загружает сохранённую тему или определяет системные настройки
  */
-function initTheme() {
+export function initTheme() {
     const savedTheme = localStorage.getItem('crm_theme');
     
     if (savedTheme && THEMES[savedTheme]) {
@@ -64,7 +66,7 @@ function initTheme() {
  * Установка темы
  * @param {string} theme - название темы ('dark' или 'light')
  */
-function setTheme(theme) {
+export function setTheme(theme) {
     if (!THEMES[theme]) {
         console.warn('[theme] Неизвестная тема:', theme);
         return;
@@ -110,7 +112,7 @@ function updateThemeButton() {
 /**
  * Переключение между темами
  */
-function toggleTheme() {
+export function toggleTheme() {
     const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
     setTheme(newTheme);
 }
@@ -119,7 +121,7 @@ function toggleTheme() {
  * Получить текущую тему
  * @returns {string}
  */
-function getCurrentTheme() {
+export function getCurrentTheme() {
     return currentTheme;
 }
 
@@ -127,35 +129,9 @@ function getCurrentTheme() {
  * Проверить, активна ли темная тема
  * @returns {boolean}
  */
-function isDarkTheme() {
+export function isDarkTheme() {
     return currentTheme === 'dark';
 }
-
-// ============================================
-// ЭКСПОРТ В ГЛОБАЛЬНЫЙ ОБЪЕКТ
-// ============================================
-
-// Основной глобальный объект CRM
-window.CRM = window.CRM || {};
-window.CRM.ui = window.CRM.ui || {};
-
-// Экспортируем функции в CRM.ui
-window.CRM.ui.theme = {
-    initTheme,
-    setTheme,
-    toggleTheme,
-    getCurrentTheme,
-    isDarkTheme
-};
-
-// Для обратной совместимости со старым кодом
-window.theme = {
-    initTheme,
-    setTheme,
-    toggleTheme,
-    getCurrentTheme,
-    isDarkTheme
-};
 
 // Автоматическая инициализация при загрузке DOM
 if (document.readyState === 'loading') {
@@ -164,4 +140,4 @@ if (document.readyState === 'loading') {
     initTheme();
 }
 
-console.log('[js/ui/theme.js] Загружен. Доступно: window.theme, window.CRM.ui.theme');
+console.log('[js/ui/theme.js] Загружен. Доступны экспорты: initTheme, setTheme, toggleTheme, getCurrentTheme, isDarkTheme');
