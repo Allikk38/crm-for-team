@@ -13,6 +13,8 @@
  * ИСТОРИЯ:
  *   - 31.03.2026: Добавлен двухрежимный интерфейс
  *   - 09.04.2026: Исправлен списочный режим, обработчики кликов
+ *   - 10.04.2026: УДАЛЕНЫ ГЛОБАЛЬНЫЕ ФУНКЦИИ (window.deleteDeal, window.closeDealModal, window.saveDeal)
+ *                 Переход на чистые ES6 модули и addEventListener.
  * ============================================
  */
 
@@ -26,7 +28,7 @@ import {
     getDeals, 
     createDeal, 
     updateDeal, 
-    deleteDeal, 
+    deleteDeal as deleteDealService, 
     updateDealStatus,
     addDealLog
 } from '../services/deals-supabase.js';
@@ -280,10 +282,10 @@ function renderKanban() {
                 });
                 const deleteBtn = card.querySelector('.delete-deal');
                 if (deleteBtn) {
-                    deleteBtn.onclick = (e) => {
+                    deleteBtn.addEventListener('click', (e) => {
                         e.stopPropagation();
-                        window.deleteDeal(deal.id);
-                    };
+                        handleDeleteDeal(deal.id);
+                    });
                 }
                 containerEl.appendChild(card);
             }
@@ -329,9 +331,7 @@ function createStageGroupElement(stageName, count = 0) {
 
 function attachGroupToggleHandlers() {
     document.querySelectorAll('.stage-group-header').forEach(header => {
-        if (header._clickHandler) {
-            header.removeEventListener('click', header._clickHandler);
-        }
+        header.removeEventListener('click', header._clickHandler);
         
         const clickHandler = (e) => {
             e.stopPropagation();
@@ -491,9 +491,9 @@ function renderCurrentView() {
 
 // ========== CRUD ОПЕРАЦИИ ==========
 
-window.deleteDeal = async function(dealId) {
+async function handleDeleteDeal(dealId) {
     if (!confirm(`Удалить заявку?`)) return;
-    const success = await deleteDeal(dealId);
+    const success = await deleteDealService(dealId);
     if (success) {
         dealsData = dealsData.filter(d => d.id != dealId);
         renderCurrentView();
@@ -501,7 +501,7 @@ window.deleteDeal = async function(dealId) {
     } else {
         showToast('error', 'Ошибка удаления');
     }
-};
+}
 
 // ========== МОДАЛЬНОЕ ОКНО ==========
 
@@ -555,11 +555,11 @@ async function openDealModal(dealId = null) {
     modal.classList.add('active');
 }
 
-window.closeDealModal = function() {
+function closeDealModal() {
     document.getElementById('dealModal').classList.remove('active');
-};
+}
 
-window.saveDeal = async function() {
+async function saveDeal() {
     const dealId = document.getElementById('dealId').value;
     const dealData = {
         complex_id: document.getElementById('dealComplex').value || null,
@@ -584,7 +584,7 @@ window.saveDeal = async function() {
         if (result) {
             const index = dealsData.findIndex(d => d.id == dealId);
             if (index !== -1) dealsData[index] = { ...dealsData[index], ...dealData };
-            window.closeDealModal();
+            closeDealModal();
             renderCurrentView();
             showToast('success', 'Заявка обновлена');
         }
@@ -592,13 +592,47 @@ window.saveDeal = async function() {
         result = await createDeal(dealData);
         if (result) {
             await loadDealsData();
-            window.closeDealModal();
+            closeDealModal();
             showToast('success', 'Заявка создана');
         }
     }
     
     if (!result) showToast('error', 'Ошибка сохранения');
-};
+}
+
+// ========== ПРИВЯЗКА СОБЫТИЙ ==========
+
+function bindEvents() {
+    // Кнопки режимов
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+        btn.addEventListener('click', () => setMode(btn.dataset.mode));
+    });
+    
+    // Группировка
+    const groupingFilter = document.getElementById('groupingFilter');
+    if (groupingFilter) {
+        groupingFilter.value = currentGrouping;
+        groupingFilter.addEventListener('change', (e) => setGrouping(e.target.value));
+    }
+    
+    // Кнопка добавления
+    document.getElementById('addDealBtn')?.addEventListener('click', () => openDealModal());
+    
+    // Поиск и фильтры
+    document.getElementById('searchInput')?.addEventListener('input', () => renderCurrentView());
+    document.getElementById('typeFilter')?.addEventListener('change', () => renderCurrentView());
+    document.getElementById('agentFilter')?.addEventListener('change', () => renderCurrentView());
+    
+    // Кнопки модального окна
+    document.querySelector('#dealModal .modal-close')?.addEventListener('click', closeDealModal);
+    document.querySelector('#dealModal .modal-cancel')?.addEventListener('click', closeDealModal);
+    document.querySelector('#dealModal .primary')?.addEventListener('click', saveDeal);
+    
+    // Закрытие по клику вне модалки
+    document.getElementById('dealModal')?.addEventListener('click', (e) => {
+        if (e.target.classList.contains('modal')) closeDealModal();
+    });
+}
 
 // ========== ИНИЦИАЛИЗАЦИЯ ==========
 
@@ -616,21 +650,7 @@ export async function initDealsPage() {
     await loadUsers();
     await loadDealsData();
     
-    document.querySelectorAll('.mode-btn').forEach(btn => {
-        btn.addEventListener('click', () => setMode(btn.dataset.mode));
-    });
-    
-    const groupingFilter = document.getElementById('groupingFilter');
-    if (groupingFilter) {
-        groupingFilter.value = currentGrouping;
-        groupingFilter.addEventListener('change', (e) => setGrouping(e.target.value));
-    }
-    
-    document.getElementById('addDealBtn')?.addEventListener('click', () => openDealModal());
-    document.getElementById('searchInput')?.addEventListener('input', () => renderCurrentView());
-    document.getElementById('typeFilter')?.addEventListener('change', () => renderCurrentView());
-    document.getElementById('agentFilter')?.addEventListener('change', () => renderCurrentView());
-    
+    bindEvents();
     setMode(currentMode);
     
     const sidebar = document.getElementById('sidebar');
