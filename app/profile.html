@@ -7,24 +7,19 @@
     <!-- 
     ============================================
     ФАЙЛ: app/profile.html
-    РОЛЬ: Личный кабинет пользователя
+    РОЛЬ: Центр управления личным аккаунтом (НОВАЯ ВЕРСИЯ)
     
     ОСОБЕННОСТИ:
-      - Просмотр и редактирование профиля
-      - Личная статистика (завершённые, активные, просроченные задачи)
-      - График активности за неделю
-      - Список последних завершённых задач
-      - Настройки интерфейса (сохраняются в localStorage)
-    
-    ЗАВИСИМОСТИ:
-      - js/pages/profile.js
-      - layout.js
+      - Двухколоночный layout
+      - Загрузка аватара
+      - Управление безопасностью
+      - Статистика продуктивности
+      - Мои модули и лицензии
+      - Лог активности
     
     ИСТОРИЯ:
-      - 27.03.2026: Создание supabase-версии профиля
-      - 27.03.2026: Исправлены вызовы функций для window.sidebar
-      - 27.03.2026: Рефакторинг — логика вынесена в js/pages/profile.js
-      - 31.03.2026: Перенос в папку app, исправление путей
+      - 27.03.2026: Создание supabase-версии
+      - 10.04.2026: ПОЛНАЯ ПЕРЕРАБОТКА — новый дизайн и функционал
     ============================================
     -->
     
@@ -33,216 +28,361 @@
             try {
                 const savedTheme = localStorage.getItem('crm_theme');
                 if (savedTheme === 'light') {
-                    if (document.documentElement) document.documentElement.classList.add('theme-light');
-                    if (document.body) document.body.classList.add('theme-light');
+                    document.documentElement.classList.add('theme-light');
+                    document.body.classList.add('theme-light');
                 } else if (savedTheme === 'dark') {
-                    if (document.documentElement) document.documentElement.classList.add('theme-dark');
-                    if (document.body) document.body.classList.add('theme-dark');
+                    document.documentElement.classList.add('theme-dark');
+                    document.body.classList.add('theme-dark');
                 }
             } catch(e) {}
         })();
     </script>
     
-    <title>Личный кабинет - CRM</title>
+    <title>Профиль - CRM</title>
     
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="../css/base.css">
     <link rel="stylesheet" href="../css/theme.css">
     <link rel="stylesheet" href="../css/components.css">
-    <link rel="stylesheet" href="../css/dashboard.css">
-    <link rel="stylesheet" href="../css/kanban.css">
-    <link rel="stylesheet" href="../css/manager.css">
-    <link rel="stylesheet" href="../css/calendar.css">
     <link rel="stylesheet" href="../css/modal.css">
     <link rel="stylesheet" href="../css/responsive.css">
     <link rel="stylesheet" href="../css/animations.css">
     
     <style>
-        /* Стили (без изменений) */
         .profile-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+        
+        .profile-header {
+            margin-bottom: 32px;
+        }
+        
+        .profile-header h1 {
+            font-size: 2rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .profile-grid {
             display: grid;
-            grid-template-columns: 320px 1fr;
+            grid-template-columns: 380px 1fr;
             gap: 24px;
         }
         
-        .profile-sidebar {
+        /* Карточки */
+        .profile-card {
             background: var(--card-bg);
-            backdrop-filter: blur(12px);
-            border-radius: 28px;
             border: 1px solid var(--card-border);
-            padding: 32px 24px;
-            text-align: center;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            animation: fadeInUp 0.4s ease;
+            border-radius: 20px;
+            overflow: hidden;
+            margin-bottom: 24px;
         }
         
-        .profile-sidebar:hover {
-            transform: translateY(-4px);
-            border-color: var(--accent);
-            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.15);
+        .card-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--card-border);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .card-header i {
+            font-size: 1.2rem;
+            color: var(--accent);
+        }
+        
+        .card-header h2 {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+        
+        .card-body {
+            padding: 24px;
+        }
+        
+        /* Аватар */
+        .avatar-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        
+        .avatar-wrapper {
+            position: relative;
+            cursor: pointer;
         }
         
         .profile-avatar {
             width: 120px;
             height: 120px;
+            border-radius: 50%;
             background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 48px;
+            color: white;
+            font-weight: 600;
+            object-fit: cover;
+            border: 3px solid var(--card-border);
+        }
+        
+        .avatar-overlay {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 36px;
+            height: 36px;
+            background: var(--accent);
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            margin: 0 auto 20px;
-            font-size: 3rem;
             color: white;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            cursor: pointer;
+            border: 3px solid var(--card-bg);
+            transition: all 0.2s;
         }
         
-        .profile-avatar:hover {
-            transform: scale(1.05) rotate(5deg);
-            box-shadow: 0 8px 24px rgba(108, 108, 255, 0.4);
+        .avatar-wrapper:hover .avatar-overlay {
+            transform: scale(1.1);
         }
         
-        .profile-name {
-            font-size: 1.5rem;
-            font-weight: 700;
-            margin-bottom: 4px;
-            transition: color 0.2s ease;
-        }
-        
-        .profile-sidebar:hover .profile-name {
-            color: var(--accent);
-        }
-        
-        .profile-role {
-            display: inline-block;
-            background: rgba(108, 108, 255, 0.2);
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 0.75rem;
-            margin-bottom: 16px;
-        }
-        
-        .profile-info-item {
+        /* Информация */
+        .info-item {
             display: flex;
             align-items: center;
-            gap: 12px;
             padding: 12px 0;
             border-bottom: 1px solid var(--card-border);
-            font-size: 0.85rem;
-            transition: all 0.2s ease;
-            animation: slideInFromLeft 0.3s ease backwards;
         }
         
-        .profile-info-item:hover {
-            transform: translateX(8px);
-            background: rgba(108, 108, 255, 0.05);
-            padding-left: 8px;
-            border-radius: 12px;
+        .info-item:last-child {
+            border-bottom: none;
         }
         
-        .profile-info-item i {
-            width: 24px;
+        .info-icon {
+            width: 40px;
+            color: var(--accent);
+            font-size: 1.1rem;
+        }
+        
+        .info-content {
+            flex: 1;
+        }
+        
+        .info-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-bottom: 2px;
+        }
+        
+        .info-value {
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .edit-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+        
+        .edit-btn:hover {
+            background: var(--hover-bg);
             color: var(--accent);
         }
         
-        .profile-stats {
+        /* Статистика */
+        .stats-grid {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
+            grid-template-columns: repeat(3, 1fr);
             gap: 16px;
-            margin-top: 24px;
-            padding-top: 20px;
-            border-top: 1px solid var(--card-border);
+            margin-bottom: 24px;
         }
         
-        .profile-stat {
+        .stat-item {
             text-align: center;
-            transition: all 0.2s ease;
+            padding: 16px;
+            background: var(--hover-bg);
+            border-radius: 16px;
         }
         
-        .profile-stat:hover {
-            transform: translateY(-4px);
-        }
-        
-        .profile-stat-value {
-            font-size: 1.5rem;
+        .stat-value {
+            font-size: 1.8rem;
             font-weight: 700;
-            background: linear-gradient(135deg, var(--text-primary), var(--accent));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            color: var(--accent);
         }
         
-        .profile-stat-label {
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+        
+        .streak-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: linear-gradient(135deg, #ff9800, #ff5722);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            margin-top: 8px;
+        }
+        
+        /* Модули */
+        .module-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--card-border);
+        }
+        
+        .module-item:last-child {
+            border-bottom: none;
+        }
+        
+        .module-icon {
+            width: 36px;
+            height: 36px;
+            background: var(--hover-bg);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 12px;
+        }
+        
+        .module-info {
+            flex: 1;
+        }
+        
+        .module-name {
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+        
+        .module-source {
             font-size: 0.7rem;
             color: var(--text-muted);
         }
         
-        .profile-main {
-            background: var(--card-bg);
-            backdrop-filter: blur(12px);
-            border-radius: 28px;
-            border: 1px solid var(--card-border);
-            padding: 32px;
-            transition: all 0.3s ease;
-            animation: fadeInUp 0.4s ease 0.1s backwards;
+        .module-badge {
+            font-size: 0.65rem;
+            padding: 2px 8px;
+            border-radius: 20px;
+            background: rgba(76, 175, 80, 0.15);
+            color: #4caf50;
         }
         
-        .profile-main:hover {
-            transform: translateY(-2px);
-            border-color: var(--accent);
+        .module-badge.team {
+            background: rgba(33, 150, 243, 0.15);
+            color: #2196f3;
         }
         
-        .profile-section {
-            margin-bottom: 32px;
+        /* Активность */
+        .activity-list {
+            max-height: 300px;
+            overflow-y: auto;
         }
         
-        .profile-section-title {
-            font-size: 1.1rem;
-            font-weight: 600;
-            margin-bottom: 20px;
+        .activity-item {
+            display: flex;
+            gap: 12px;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--card-border);
+        }
+        
+        .activity-item:last-child {
+            border-bottom: none;
+        }
+        
+        .activity-icon {
+            width: 32px;
+            height: 32px;
+            background: var(--hover-bg);
+            border-radius: 10px;
             display: flex;
             align-items: center;
-            gap: 10px;
-            padding-bottom: 12px;
-            border-bottom: 2px solid var(--card-border);
+            justify-content: center;
+            color: var(--accent);
         }
         
-        .settings-group {
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
+        .activity-content {
+            flex: 1;
         }
         
-        .setting-item {
+        .activity-text {
+            font-size: 0.85rem;
+            margin-bottom: 4px;
+        }
+        
+        .activity-time {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+        
+        /* Опасная зона */
+        .danger-zone {
+            border: 1px solid rgba(255, 107, 107, 0.3);
+            background: rgba(255, 107, 107, 0.05);
+        }
+        
+        .danger-zone .card-header {
+            color: #ff6b6b;
+        }
+        
+        .danger-zone .card-header i {
+            color: #ff6b6b;
+        }
+        
+        .danger-btn {
+            background: transparent;
+            border: 1px solid #ff6b6b;
+            color: #ff6b6b;
+            padding: 10px 20px;
+            border-radius: 40px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        
+        .danger-btn:hover {
+            background: #ff6b6b;
+            color: white;
+        }
+        
+        /* Переключатели */
+        .toggle-item {
             display: flex;
             justify-content: space-between;
             align-items: center;
             padding: 12px 0;
-            border-bottom: 1px solid var(--card-border);
-            transition: all 0.2s ease;
         }
         
-        .setting-item:hover {
-            transform: translateX(8px);
-            background: rgba(108, 108, 255, 0.05);
-            padding-left: 12px;
-            border-radius: 12px;
-        }
-        
-        .setting-label {
+        .toggle-label {
             display: flex;
             align-items: center;
             gap: 12px;
         }
         
-        .setting-label i {
+        .toggle-label i {
             width: 24px;
             color: var(--accent);
         }
         
         .toggle-switch {
             position: relative;
-            display: inline-block;
             width: 48px;
             height: 24px;
         }
@@ -260,7 +400,7 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background-color: rgba(255, 255, 255, 0.2);
+            background: var(--card-border);
             transition: 0.3s;
             border-radius: 24px;
         }
@@ -272,104 +412,93 @@
             width: 18px;
             left: 3px;
             bottom: 3px;
-            background-color: white;
+            background: white;
             transition: 0.3s;
             border-radius: 50%;
         }
         
         input:checked + .toggle-slider {
-            background-color: var(--accent);
+            background: var(--accent);
         }
         
         input:checked + .toggle-slider:before {
             transform: translateX(24px);
         }
         
-        .chart-bars-profile {
-            display: flex;
-            align-items: flex-end;
-            height: 100px;
-            gap: 8px;
-            margin-top: 12px;
-        }
-        
-        .chart-bar-profile {
-            flex: 1;
-            background: linear-gradient(180deg, var(--accent), var(--accent-hover));
-            border-radius: 6px 6px 0 0;
-            transition: height 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-            min-height: 4px;
-        }
-        
-        .recent-tasks-list {
-            max-height: 300px;
-            overflow-y: auto;
-        }
-        
-        .recent-task-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px 0;
-            border-bottom: 1px solid var(--card-border);
-            transition: all 0.2s ease;
-        }
-        
-        .recent-task-item:hover {
-            transform: translateX(8px);
-            background: rgba(108, 108, 255, 0.05);
-            padding-left: 12px;
-            border-radius: 12px;
-        }
-        
-        .recent-task-title {
+        /* Кнопки */
+        .btn {
+            padding: 10px 20px;
+            border-radius: 40px;
+            border: none;
+            cursor: pointer;
             font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
         }
         
-        .recent-task-date {
-            font-size: 0.7rem;
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(108, 108, 255, 0.4);
+        }
+        
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--card-border);
+            color: var(--text-primary);
+        }
+        
+        .btn-outline:hover {
+            background: var(--hover-bg);
+        }
+        
+        .btn-block {
+            width: 100%;
+            justify-content: center;
+        }
+        
+        /* Пустые состояния */
+        .empty-state {
+            text-align: center;
+            padding: 30px;
             color: var(--text-muted);
         }
         
-        .edit-btn {
-            background: rgba(108, 108, 255, 0.15);
-            border: none;
-            padding: 8px 20px;
-            border-radius: 40px;
-            color: var(--text-primary);
-            cursor: pointer;
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-            font-size: 0.8rem;
-            width: 100%;
-            margin-top: 20px;
+        .empty-state i {
+            font-size: 32px;
+            margin-bottom: 12px;
+            opacity: 0.5;
         }
         
-        .edit-btn:hover {
-            background: rgba(108, 108, 255, 0.3);
-            transform: translateY(-2px);
+        /* Загрузка */
+        .loading-state {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 200px;
+            color: var(--text-muted);
         }
         
-        .skeleton {
-            background: linear-gradient(90deg, var(--card-border) 25%, var(--card-hover) 50%, var(--card-border) 75%);
-            background-size: 200% 100%;
-            animation: skeletonLoading 1.5s infinite;
-            border-radius: 8px;
-        }
-        
-        @keyframes skeletonLoading {
-            0% { background-position: 200% 0; }
-            100% { background-position: -200% 0; }
+        /* Адаптивность */
+        @media (max-width: 900px) {
+            .profile-grid {
+                grid-template-columns: 1fr;
+            }
         }
         
         @media (max-width: 768px) {
             .profile-container {
+                padding: 16px;
+            }
+            
+            .stats-grid {
                 grid-template-columns: 1fr;
-            }
-            .profile-sidebar {
-                order: 2;
-            }
-            .profile-main {
-                order: 1;
             }
         }
     </style>
@@ -387,7 +516,7 @@
                     <i class="fas fa-chevron-left"></i>
                     <span>Свернуть</span>
                 </button>
-                <button class="logout-btn" onclick="window.sidebar?.logout()" style="margin-top: 12px; width: 100%; padding: 10px; background: rgba(255, 107, 107, 0.2); border: none; border-radius: 12px; color: #ff6b6b; cursor: pointer;">
+                <button class="logout-btn" onclick="window.sidebar?.logout()">
                     <i class="fas fa-sign-out-alt"></i> Выйти
                 </button>
             </div>
@@ -407,130 +536,292 @@
             </div>
             
             <div class="profile-container">
-                <div class="profile-sidebar">
-                    <div class="profile-avatar" id="profileAvatar">
-                        <i class="fas fa-user"></i>
-                    </div>
-                    <div class="profile-name" id="profileName">Загрузка...</div>
-                    <div class="profile-role" id="profileRole">—</div>
-                    
-                    <div class="profile-info-item">
-                        <i class="fas fa-envelope"></i>
-                        <span id="profileEmail">—</span>
-                    </div>
-                    <div class="profile-info-item">
-                        <i class="fab fa-github"></i>
-                        <span id="profileGithub">—</span>
-                    </div>
-                    
-                    <div class="profile-stats">
-                        <div class="profile-stat">
-                            <div class="profile-stat-value" id="statCompleted">0</div>
-                            <div class="profile-stat-label">Завершено</div>
-                        </div>
-                        <div class="profile-stat">
-                            <div class="profile-stat-value" id="statActive">0</div>
-                            <div class="profile-stat-label">Активных</div>
-                        </div>
-                        <div class="profile-stat">
-                            <div class="profile-stat-value" id="statOverdue">0</div>
-                            <div class="profile-stat-label">Просрочено</div>
-                        </div>
-                        <div class="profile-stat">
-                            <div class="profile-stat-value" id="statAvgTime">0</div>
-                            <div class="profile-stat-label">Ср. время (дни)</div>
-                        </div>
-                    </div>
-                    
-                    <button class="edit-btn" id="editProfileBtn">
-                        <i class="fas fa-edit"></i> Редактировать профиль
-                    </button>
+                <div class="profile-header">
+                    <h1>
+                        <i class="fas fa-user-circle"></i>
+                        Мой профиль
+                    </h1>
                 </div>
                 
-                <div class="profile-main">
-                    <div class="profile-section">
-                        <div class="profile-section-title">
-                            <i class="fas fa-chart-line"></i> Моя активность
-                        </div>
-                        <div class="activity-chart-small">
-                            <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted); margin-bottom: 8px;">
-                                <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Вс</span>
+                <div class="profile-grid">
+                    <!-- ЛЕВАЯ КОЛОНКА -->
+                    <div class="profile-left">
+                        <!-- Основная информация -->
+                        <div class="profile-card">
+                            <div class="card-header">
+                                <i class="fas fa-id-card"></i>
+                                <h2>Основная информация</h2>
                             </div>
-                            <div class="chart-bars-profile" id="personalChart"></div>
+                            <div class="card-body">
+                                <div class="avatar-section">
+                                    <div class="avatar-wrapper" id="avatarWrapper">
+                                        <div class="profile-avatar" id="profileAvatar">
+                                            <span id="avatarInitials">AD</span>
+                                        </div>
+                                        <div class="avatar-overlay">
+                                            <i class="fas fa-camera"></i>
+                                        </div>
+                                    </div>
+                                    <input type="file" id="avatarInput" accept="image/*" style="display: none;">
+                                </div>
+                                
+                                <div id="profileInfo">
+                                    <div class="loading-state">
+                                        <i class="fas fa-spinner fa-pulse"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Безопасность -->
+                        <div class="profile-card">
+                            <div class="card-header">
+                                <i class="fas fa-shield-alt"></i>
+                                <h2>Безопасность</h2>
+                            </div>
+                            <div class="card-body">
+                                <div class="info-item">
+                                    <div class="info-icon">
+                                        <i class="fas fa-key"></i>
+                                    </div>
+                                    <div class="info-content">
+                                        <div class="info-label">Пароль</div>
+                                        <div class="info-value">
+                                            ••••••••
+                                            <button class="edit-btn" id="changePasswordBtn">
+                                                <i class="fas fa-pen"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="info-item">
+                                    <div class="info-icon">
+                                        <i class="fas fa-mobile-alt"></i>
+                                    </div>
+                                    <div class="info-content">
+                                        <div class="info-label">Двухфакторная аутентификация</div>
+                                        <div class="info-value">
+                                            <span style="color: #ff6b6b;">Не настроена</span>
+                                            <button class="edit-btn" id="setup2FABtn">
+                                                Настроить
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="info-item">
+                                    <div class="info-icon">
+                                        <i class="fas fa-history"></i>
+                                    </div>
+                                    <div class="info-content">
+                                        <div class="info-label">Активные сессии</div>
+                                        <div class="info-value">
+                                            <span id="sessionCount">—</span> устройств
+                                            <button class="edit-btn" id="manageSessionsBtn">
+                                                Управлять
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <button class="btn btn-outline btn-block" id="logoutAllBtn" style="margin-top: 16px;">
+                                    <i class="fas fa-sign-out-alt"></i>
+                                    Выйти на всех устройствах
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Интерфейс -->
+                        <div class="profile-card">
+                            <div class="card-header">
+                                <i class="fas fa-palette"></i>
+                                <h2>Интерфейс</h2>
+                            </div>
+                            <div class="card-body">
+                                <div class="toggle-item">
+                                    <div class="toggle-label">
+                                        <i class="fas fa-moon"></i>
+                                        <span>Тёмная тема</span>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="themeToggle">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                                
+                                <div class="toggle-item">
+                                    <div class="toggle-label">
+                                        <i class="fas fa-bell"></i>
+                                        <span>Уведомления</span>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="notificationsToggle" checked>
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                                
+                                <div class="toggle-item">
+                                    <div class="toggle-label">
+                                        <i class="fas fa-compress"></i>
+                                        <span>Компактный режим</span>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="compactModeToggle">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Опасная зона -->
+                        <div class="profile-card danger-zone">
+                            <div class="card-header">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <h2>Опасная зона</h2>
+                            </div>
+                            <div class="card-body">
+                                <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 16px;">
+                                    Удаление аккаунта необратимо. Все ваши данные будут удалены без возможности восстановления.
+                                </p>
+                                <button class="danger-btn btn-block" id="deleteAccountBtn">
+                                    <i class="fas fa-trash"></i>
+                                    Удалить аккаунт
+                                </button>
+                            </div>
                         </div>
                     </div>
                     
-                    <div class="profile-section">
-                        <div class="profile-section-title">
-                            <i class="fas fa-sliders-h"></i> Настройки интерфейса
-                        </div>
-                        <div class="settings-group">
-                            <div class="setting-item">
-                                <div class="setting-label">
-                                    <i class="fas fa-bell"></i>
-                                    <span>Уведомления в браузере</span>
-                                </div>
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="notificationsToggle">
-                                    <span class="toggle-slider"></span>
-                                </label>
+                    <!-- ПРАВАЯ КОЛОНКА -->
+                    <div class="profile-right">
+                        <!-- Статистика -->
+                        <div class="profile-card">
+                            <div class="card-header">
+                                <i class="fas fa-chart-bar"></i>
+                                <h2>Продуктивность</h2>
                             </div>
-                            <div class="setting-item">
-                                <div class="setting-label">
-                                    <i class="fas fa-check-double"></i>
-                                    <span>Подтверждение действий</span>
+                            <div class="card-body">
+                                <div class="stats-grid" id="productivityStats">
+                                    <div class="stat-item">
+                                        <div class="stat-value" id="pomodoroCount">0</div>
+                                        <div class="stat-label">помидоров сегодня</div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="stat-value" id="tasksCompleted">0</div>
+                                        <div class="stat-label">задач завершено</div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="stat-value" id="activeStreak">0</div>
+                                        <div class="stat-label">дней подряд</div>
+                                    </div>
                                 </div>
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="confirmActionsToggle">
-                                    <span class="toggle-slider"></span>
-                                </label>
-                            </div>
-                            <div class="setting-item">
-                                <div class="setting-label">
-                                    <i class="fas fa-compress"></i>
-                                    <span>Компактный режим</span>
+                                
+                                <div id="streakBadge" class="streak-badge" style="display: none;">
+                                    <i class="fas fa-fire"></i>
+                                    <span id="streakText">🔥 5 дней продуктивности!</span>
                                 </div>
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="compactModeToggle">
-                                    <span class="toggle-slider"></span>
-                                </label>
                             </div>
                         </div>
-                    </div>
-                    
-                    <div class="profile-section">
-                        <div class="profile-section-title">
-                            <i class="fas fa-history"></i> Последние завершённые задачи
+                        
+                        <!-- Мои модули -->
+                        <div class="profile-card">
+                            <div class="card-header">
+                                <i class="fas fa-puzzle-piece"></i>
+                                <h2>Мои модули</h2>
+                                <a href="my-modules.html" style="margin-left: auto; font-size: 0.8rem; color: var(--accent); text-decoration: none;">
+                                    Все <i class="fas fa-arrow-right"></i>
+                                </a>
+                            </div>
+                            <div class="card-body" id="myModules">
+                                <div class="loading-state">
+                                    <i class="fas fa-spinner fa-pulse"></i>
+                                </div>
+                            </div>
                         </div>
-                        <div id="recentTasks" class="recent-tasks-list"></div>
+                        
+                        <!-- Последняя активность -->
+                        <div class="profile-card">
+                            <div class="card-header">
+                                <i class="fas fa-history"></i>
+                                <h2>Последняя активность</h2>
+                            </div>
+                            <div class="card-body" id="recentActivity">
+                                <div class="loading-state">
+                                    <i class="fas fa-spinner fa-pulse"></i>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </main>
     </div>
     
-    <div id="editProfileModal" class="modal">
+    <!-- Модальные окна -->
+    <div id="changePasswordModal" class="modal">
         <div class="modal-content">
-            <h3><i class="fas fa-edit"></i> Редактировать профиль</h3>
-            <input type="text" id="editName" placeholder="Имя">
-            <div class="modal-buttons">
-                <button onclick="window.closeEditModal()">Отмена</button>
-                <button class="primary" onclick="window.saveProfileChanges()">Сохранить</button>
+            <div class="modal-header">
+                <h3><i class="fas fa-key"></i> Сменить пароль</h3>
+                <button class="modal-close" onclick="closeModal('changePasswordModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Текущий пароль</label>
+                    <input type="password" id="currentPassword" placeholder="••••••••">
+                </div>
+                <div class="form-group">
+                    <label>Новый пароль</label>
+                    <input type="password" id="newPassword" placeholder="Минимум 6 символов">
+                </div>
+                <div class="form-group">
+                    <label>Подтвердите пароль</label>
+                    <input type="password" id="confirmPassword" placeholder="••••••••">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeModal('changePasswordModal')">Отмена</button>
+                <button class="btn btn-primary" id="confirmPasswordBtn">Сохранить</button>
             </div>
         </div>
     </div>
     
-    <!-- ========== ИНИЦИАЛИЗАЦИЯ СТРАНИЦЫ ========== -->
-    <script type="module">
-        import { initProfilePage } from '../js/pages/profile.js';
-        initProfilePage();
-    </script>
+    <div id="editProfileModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-user-edit"></i> Редактировать профиль</h3>
+                <button class="modal-close" onclick="closeModal('editProfileModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Имя</label>
+                    <input type="text" id="editName" placeholder="Ваше имя">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeModal('editProfileModal')">Отмена</button>
+                <button class="btn btn-primary" id="confirmEditBtn">Сохранить</button>
+            </div>
+        </div>
+    </div>
     
-    <!-- Инициализация бокового меню -->
+    <!-- Скрипты -->
     <script type="module">
+        import { getCurrentSupabaseUser, requireSupabaseAuth, updateSupabaseUserInterface } from '../js/core/supabase-session.js';
         import * as sidebar from '../layout.js';
+        
         window.sidebar = sidebar;
-        sidebar.initSidebar();
+        
+        async function init() {
+            const isAuth = await requireSupabaseAuth('../auth-supabase.html');
+            if (!isAuth) return;
+            
+            await sidebar.initSidebar();
+            
+            const { initProfilePage } = await import('../js/pages/profile.js');
+            await initProfilePage();
+        }
+        
+        init();
     </script>
 </body>
 </html>
