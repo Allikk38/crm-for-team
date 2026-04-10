@@ -32,25 +32,7 @@ import {
 } from '../services/deals-supabase.js';
 import { createDealCard, setupDragAndDrop } from '../components/kanban.js';
 import { createDealCardList } from '../components/deal-card-list.js';
-
-// ========== ОПРЕДЕЛЕНИЕ БАЗОВОГО ПУТИ ==========
-function getDealsBasePath() {
-    const fullPath = window.location.pathname;
-    if (fullPath.includes('/crm-for-team/')) {
-        return '/crm-for-team';
-    }
-    return '';
-}
-
-const DEALS_BASE_PATH = getDealsBasePath();
-console.log('[deals] BASE_PATH:', DEALS_BASE_PATH);
-
-function getDealDetailUrl(dealId) {
-    if (DEALS_BASE_PATH) {
-        return `${DEALS_BASE_PATH}/app/deal-detail.html?id=${dealId}`;
-    }
-    return `./deal-detail.html?id=${dealId}`;
-}
+import { getPageUrl, getDealDetailUrl } from '../utils/pathManager.js';
 
 // Состояние страницы
 let dealsData = [];
