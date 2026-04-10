@@ -11,6 +11,8 @@
  *   - 08.04.2026: ИСПРАВЛЕН редирект для GitHub Pages
  *   - 08.04.2026: УДАЛЕНО создание профиля (теперь через Database Trigger)
  *   - 08.04.2026: ДОБАВЛЕНА обработка подтверждения email (verifyOtp)
+ *   - 10.04.2026: УДАЛЕНЫ ГЛОБАЛЬНЫЕ ФУНКЦИИ (window.handleLogin и др.)
+ *                 Переход на чистые ES6 модули и addEventListener.
  * ============================================
  */
 
@@ -18,7 +20,6 @@ import { supabase } from '../core/supabase.js';
 import { acceptInvite } from '../services/team-supabase.js';
 import { validateEmailForRegistration, clearEmailCache } from '../services/email-check.js';
 import { isValidEmail, formatSupabaseError, debounce } from '../utils/helpers.js';
-import cacheService from '../services/cache-service.js';
 
 let currentMode = 'login';
 let inviteToken = null;
@@ -100,60 +101,38 @@ async function handleEmailConfirmation() {
     }
 }
 
-/**
- * Инициализация страницы авторизации
- */
-export function initAuthPage() {
-    console.log('[auth] Инициализация страницы, BASE_PATH:', BASE_PATH);
-    
-    const urlParams = new URLSearchParams(window.location.search);
-    inviteToken = urlParams.get('invite');
-    referralToken = urlParams.get('referral');
-    
-    // Сначала проверяем, не пришёл ли пользователь по ссылке подтверждения
-    handleEmailConfirmation().then(confirmed => {
-        if (confirmed) return;
-        
-        // Обычная инициализация
-        if (inviteToken) {
-            console.log('[auth] Найден invite-токен:', inviteToken);
-            const msgDiv = document.getElementById('message');
-            if (msgDiv) {
-                msgDiv.innerHTML = `
-                    <div class="message info">
-                        <i class="fas fa-users"></i> Вас пригласили в команду!
-                        Зарегистрируйтесь, чтобы присоединиться.
-                    </div>
-                `;
-            }
-            showRegister();
-        }
-        
-        if (referralToken) {
-            console.log('[auth] Найден referral-токен:', referralToken);
-            const msgDiv = document.getElementById('message');
-            if (msgDiv) {
-                msgDiv.innerHTML = `
-                    <div class="message info">
-                        <i class="fas fa-gift"></i> Вас пригласили по реферальной ссылке!
-                        При регистрации вы получите бонус.
-                    </div>
-                `;
-            }
-            showRegister();
-        }
-    });
-    
-    const regEmailInput = document.getElementById('reg-email');
-    if (regEmailInput) {
-        regEmailInput.addEventListener('input', debounce(validateEmailField, 500));
-    }
-    
-    window.handleLogin = handleLogin;
-    window.handleRegister = handleRegister;
-    window.showLogin = showLogin;
-    window.showRegister = showRegister;
+// ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ UI ==========
+
+function showLogin() {
+    currentMode = 'login';
+    const loginForm = document.getElementById('login-form');
+    const registerForm = document.getElementById('register-form');
+    if (loginForm) loginForm.style.display = 'block';
+    if (registerForm) registerForm.style.display = 'none';
 }
+
+function showRegister() {
+    currentMode = 'register';
+    const loginForm = document.getElementById('login-form');
+    const registerForm = document.getElementById('register-form');
+    if (loginForm) loginForm.style.display = 'none';
+    if (registerForm) registerForm.style.display = 'block';
+}
+
+function showMessage(text, type) {
+    const msgDiv = document.getElementById('message');
+    if (!msgDiv) return;
+    msgDiv.textContent = text;
+    msgDiv.className = `message ${type}`;
+    
+    setTimeout(() => {
+        if (msgDiv.textContent === text) {
+            msgDiv.className = 'message';
+        }
+    }, 5000);
+}
+
+// ========== ВАЛИДАЦИЯ ==========
 
 async function validateEmailField() {
     const emailInput = document.getElementById('reg-email');
@@ -195,24 +174,6 @@ async function validateEmailField() {
     }
 }
 
-function setRegisterButtonState(disabled, text = null) {
-    const btn = document.getElementById('register-btn');
-    if (!btn) return;
-    
-    if (disabled) {
-        btn.disabled = true;
-        btn.dataset.originalText = btn.textContent;
-        btn.textContent = text || '⏳ Регистрация...';
-        btn.style.opacity = '0.6';
-        btn.style.cursor = 'not-allowed';
-    } else {
-        btn.disabled = false;
-        btn.textContent = btn.dataset.originalText || 'Зарегистрироваться';
-        btn.style.opacity = '1';
-        btn.style.cursor = 'pointer';
-    }
-}
-
 async function validateRegisterForm() {
     const email = document.getElementById('reg-email').value.trim();
     const name = document.getElementById('reg-name').value.trim();
@@ -237,6 +198,8 @@ async function validateRegisterForm() {
     
     return { valid: true, message: null };
 }
+
+// ========== RATE LIMITING ==========
 
 function checkRegistrationRateLimit() {
     const key = 'crm_registration_attempts';
@@ -277,6 +240,26 @@ function showRateLimitMessage(seconds) {
     `;
     msgDiv.className = 'message warning';
 }
+
+function setRegisterButtonState(disabled, text = null) {
+    const btn = document.getElementById('register-btn');
+    if (!btn) return;
+    
+    if (disabled) {
+        btn.disabled = true;
+        btn.dataset.originalText = btn.textContent;
+        btn.textContent = text || '⏳ Регистрация...';
+        btn.style.opacity = '0.6';
+        btn.style.cursor = 'not-allowed';
+    } else {
+        btn.disabled = false;
+        btn.textContent = btn.dataset.originalText || 'Зарегистрироваться';
+        btn.style.opacity = '1';
+        btn.style.cursor = 'pointer';
+    }
+}
+
+// ========== ОСНОВНЫЕ ДЕЙСТВИЯ ==========
 
 async function handleLogin() {
     const email = document.getElementById('email').value.trim();
@@ -430,31 +413,121 @@ async function handleRegister() {
     }
 }
 
-function showLogin() {
-    currentMode = 'login';
-    const loginForm = document.getElementById('login-form');
-    const registerForm = document.getElementById('register-form');
-    if (loginForm) loginForm.style.display = 'block';
-    if (registerForm) registerForm.style.display = 'none';
-}
+// ========== ПРИВЯЗКА СОБЫТИЙ ==========
 
-function showRegister() {
-    currentMode = 'register';
+function bindEvents() {
+    // Кнопка входа
     const loginForm = document.getElementById('login-form');
-    const registerForm = document.getElementById('register-form');
-    if (loginForm) loginForm.style.display = 'none';
-    if (registerForm) registerForm.style.display = 'block';
-}
-
-function showMessage(text, type) {
-    const msgDiv = document.getElementById('message');
-    if (!msgDiv) return;
-    msgDiv.textContent = text;
-    msgDiv.className = `message ${type}`;
-    
-    setTimeout(() => {
-        if (msgDiv.textContent === text) {
-            msgDiv.className = 'message';
+    if (loginForm) {
+        const loginBtn = loginForm.querySelector('button');
+        if (loginBtn) {
+            loginBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                handleLogin();
+            });
         }
-    }, 5000);
+        
+        // Enter в полях ввода
+        const inputs = loginForm.querySelectorAll('input');
+        inputs.forEach(input => {
+            input.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleLogin();
+                }
+            });
+        });
+    }
+    
+    // Кнопка регистрации
+    const registerForm = document.getElementById('register-form');
+    if (registerForm) {
+        const registerBtn = document.getElementById('register-btn');
+        if (registerBtn) {
+            registerBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                handleRegister();
+            });
+        }
+        
+        // Enter в полях ввода
+        const inputs = registerForm.querySelectorAll('input');
+        inputs.forEach(input => {
+            input.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleRegister();
+                }
+            });
+        });
+    }
+    
+    // Переключение режимов
+    document.querySelectorAll('.switch-mode').forEach(el => {
+        el.addEventListener('click', (e) => {
+            e.preventDefault();
+            const text = el.textContent.toLowerCase();
+            if (text.includes('войти') || text.includes('аккаунт')) {
+                showLogin();
+            } else {
+                showRegister();
+            }
+        });
+    });
+    
+    // Валидация email при вводе
+    const regEmailInput = document.getElementById('reg-email');
+    if (regEmailInput) {
+        regEmailInput.addEventListener('input', debounce(validateEmailField, 500));
+    }
+}
+
+// ========== ИНИЦИАЛИЗАЦИЯ ==========
+
+/**
+ * Инициализация страницы авторизации
+ */
+export function initAuthPage() {
+    console.log('[auth] Инициализация страницы, BASE_PATH:', BASE_PATH);
+    
+    const urlParams = new URLSearchParams(window.location.search);
+    inviteToken = urlParams.get('invite');
+    referralToken = urlParams.get('referral');
+    
+    // Привязываем события
+    bindEvents();
+    
+    // Сначала проверяем, не пришёл ли пользователь по ссылке подтверждения
+    handleEmailConfirmation().then(confirmed => {
+        if (confirmed) return;
+        
+        // Обычная инициализация
+        if (inviteToken) {
+            console.log('[auth] Найден invite-токен:', inviteToken);
+            const msgDiv = document.getElementById('message');
+            if (msgDiv) {
+                msgDiv.innerHTML = `
+                    <div class="message info">
+                        <i class="fas fa-users"></i> Вас пригласили в команду!
+                        Зарегистрируйтесь, чтобы присоединиться.
+                    </div>
+                `;
+            }
+            showRegister();
+        }
+        
+        if (referralToken) {
+            console.log('[auth] Найден referral-токен:', referralToken);
+            const msgDiv = document.getElementById('message');
+            if (msgDiv) {
+                msgDiv.innerHTML = `
+                    <div class="message info">
+                        <i class="fas fa-gift"></i> Вас пригласили по реферальной ссылке!
+                        При регистрации вы получите бонус.
+                    </div>
+                `;
+            }
+            showRegister();
+        }
+    });
 }
