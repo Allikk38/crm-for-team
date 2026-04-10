@@ -483,7 +483,7 @@ async function loadServices() {
     const services = [
         '../services/dashboards-supabase.js',
         '../services/license-supabase.js',
-        '../services/finance-supabase.js'
+        '../services/finance/index.js'
     ];
     
     for (const service of services) {
