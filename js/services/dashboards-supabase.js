@@ -9,6 +9,7 @@
  *   - Создание нового дашборда
  *   - Загрузка шаблонов по роли
  *   - Кэширование дашбордов в localStorage
+ *   - ЧИСТЫЕ ES6 ЭКСПОРТЫ (БЕЗ ГЛОБАЛЬНЫХ ОБЪЕКТОВ)
  * 
  * ЗАВИСИМОСТИ:
  *   - js/core/supabase.js
@@ -16,6 +17,7 @@
  * 
  * ИСТОРИЯ:
  *   - 30.03.2026: Создание сервиса
+ *   - 10.04.2026: УДАЛЁН ГЛОБАЛЬНЫЙ ОБЪЕКТ window.CRM.Dashboards (правило №5)
  * ============================================
  */
 
@@ -212,12 +214,15 @@ export async function saveDashboardLayout(dashboardId, layout) {
             } catch (e) {}
         }
         
-        // Отправляем событие об обновлении дашборда
-        if (window.CRM?.EventBus) {
-            window.CRM.EventBus.emit('dashboard:updated', {
+        // Отправляем событие об обновлении дашборда через EventBus (если доступен)
+        try {
+            const { eventBus } = await import('../core/eventBus.js');
+            eventBus.emit('dashboard:updated', {
                 dashboardId,
                 layout
             });
+        } catch (e) {
+            // EventBus может быть не загружен
         }
         
         console.log('[dashboards] Макет сохранен');
@@ -345,12 +350,13 @@ export async function setActiveDashboard(dashboardId) {
         }
         
         // Отправляем событие о смене дашборда
-        if (window.CRM?.EventBus) {
-            window.CRM.EventBus.emit('dashboard:activated', {
+        try {
+            const { eventBus } = await import('../core/eventBus.js');
+            eventBus.emit('dashboard:activated', {
                 dashboardId,
                 dashboard: newActive
             });
-        }
+        } catch (e) {}
         
         console.log('[dashboards] Активный дашборд установлен');
         return true;
@@ -387,9 +393,10 @@ export async function deleteDashboard(dashboardId) {
         }
         
         // Отправляем событие
-        if (window.CRM?.EventBus) {
-            window.CRM.EventBus.emit('dashboard:deleted', { dashboardId });
-        }
+        try {
+            const { eventBus } = await import('../core/eventBus.js');
+            eventBus.emit('dashboard:deleted', { dashboardId });
+        } catch (e) {}
         
         console.log('[dashboards] Дашборд удален');
         return true;
@@ -404,26 +411,14 @@ export async function deleteDashboard(dashboardId) {
  * Получить доступные виджеты из зарегистрированных модулей
  * @returns {Array}
  */
-export function getAvailableWidgets() {
+export async function getAvailableWidgets() {
     const widgets = [];
     
-    if (window.CRM?.Registry) {
-        const modules = window.CRM.Registry.getAllModules();
-        
-        for (const module of modules) {
-            if (module.available && module.widgets) {
-                for (const [widgetId, widgetDef] of Object.entries(module.widgets)) {
-                    widgets.push({
-                        id: widgetId,
-                        moduleId: module.id,
-                        moduleName: module.name,
-                        title: widgetDef.title || widgetId,
-                        defaultSize: widgetDef.defaultSize || { w: 2, h: 2 },
-                        permissions: widgetDef.permissions || []
-                    });
-                }
-            }
-        }
+    try {
+        const { getAvailableWidgets: registryGetWidgets } = await import('../core/registry.js');
+        return registryGetWidgets();
+    } catch (e) {
+        console.warn('[dashboards] Registry не доступен, виджеты не загружены');
     }
     
     return widgets;
@@ -438,21 +433,6 @@ export function clearDashboardCache() {
         localStorage.removeItem(CACHE_KEY);
     } catch (e) {}
     console.log('[dashboards] Кэш сброшен');
-}
-
-// Экспортируем функции в глобальный объект для обратной совместимости
-if (typeof window !== 'undefined') {
-    window.CRM = window.CRM || {};
-    window.CRM.Dashboards = {
-        getActiveDashboard,
-        saveDashboardLayout,
-        createDashboard,
-        getUserDashboards,
-        setActiveDashboard,
-        deleteDashboard,
-        getAvailableWidgets,
-        clearDashboardCache
-    };
 }
 
 console.log('[dashboards-supabase] Сервис инициализирован');
