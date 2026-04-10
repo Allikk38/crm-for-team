@@ -19,6 +19,8 @@
  *   - 27.03.2026: Создание файла, вынос логики из complexes-supabase.html
  *   - 09.04.2026: Переход с role на permission_sets (canEditAllComplexes)
  *   - 09.04.2026: Убраны глобальные функции, переход на addEventListener
+ *   - 10.04.2026: ПОЛНОЕ УДАЛЕНИЕ ГЛОБАЛЬНЫХ ФУНКЦИЙ (window.closeComplexModal и др.)
+ *                 Вся привязка событий через addEventListener.
  * ============================================
  */
 
@@ -96,7 +98,6 @@ function getComplexTasks(complexId) {
 
 function canEditComplex(complex) {
     if (!currentUser) return false;
-    // Проверка через права
     if (isAdmin() || canEditAllComplexes()) return true;
     return complex.assigned_to === currentUser.github_username;
 }
@@ -175,7 +176,6 @@ function renderComplexes() {
         </div>`;
     }).join('');
     
-    // Навешиваем обработчики на карточки
     attachCardHandlers();
     
     document.querySelectorAll('.sort-btn').forEach(btn => {
@@ -192,7 +192,6 @@ function attachCardHandlers() {
     // Открытие карточки
     document.querySelectorAll('.complex-card').forEach(card => {
         card.addEventListener('click', (e) => {
-            // Не открываем если кликнули на кнопку
             if (e.target.closest('.complex-btn')) return;
             const complexId = card.dataset.complexId;
             openComplexModal(complexId);
@@ -253,10 +252,12 @@ function openComplexModal(complexId) {
         <div class="complex-detail-row"><div class="complex-detail-label">Связанные задачи:</div><div class="complex-detail-value tasks-list">${complexTasks.map(t => `<div class="task-item"><span>${escapeHtml(t.title)}</span><span>${t.status === 'completed' ? '✓ Выполнена' : '○ Активна'}</span></div>`).join('') || '<p>Нет задач</p>'}</div></div>
     `;
     
-    editBtn.onclick = () => {
+    // Устанавливаем новый обработчик вместо onclick
+    editBtn.onclick = null;
+    editBtn.addEventListener('click', () => {
         closeComplexModal();
         editComplex(complex.id);
-    };
+    }, { once: true });
     editBtn.style.display = canEditComplex(complex) ? 'block' : 'none';
     modal.classList.add('active');
     console.log('[complexes] Открыта карточка объекта:', complex.name);
@@ -335,10 +336,9 @@ async function saveComplex() {
 // ========== ОБНОВЛЕНИЕ UI ==========
 
 function updateFiltersUI() {
-    // Фильтруем пользователей по permission_sets, а не по role
     const availableUsers = users.filter(u => 
         hasPermission('view_complexes', u) || 
-        u.role === 'agent' || u.role === 'manager' // fallback
+        u.role === 'agent' || u.role === 'manager'
     );
     
     const agentSelect = document.getElementById('agentFilter');
@@ -366,24 +366,10 @@ function updateFiltersUI() {
     }
 }
 
-// ========== ИНИЦИАЛИЗАЦИЯ ==========
+// ========== ПРИВЯЗКА СОБЫТИЙ ==========
 
-export async function initComplexesPage() {
-    console.log('[complexes] Инициализация страницы...');
-    
-    const isAuth = await requireSupabaseAuth('auth-supabase.html');
-    if (!isAuth) return;
-    
-    currentUser = getCurrentSupabaseUser();
-    updateSupabaseUserInterface();
-    console.log('[complexes] Текущий пользователь:', currentUser?.name);
-    
-    await loadUsers();
-    await loadTasks();
-    await loadComplexes();
-    updateFiltersUI();
-    
-    // Навешиваем обработчики
+function bindEvents() {
+    // Кнопка добавления
     document.getElementById('addComplexBtn')?.addEventListener('click', () => {
         document.getElementById('complexFormTitle').innerHTML = 'Новый объект';
         document.getElementById('complexId').value = '';
@@ -400,6 +386,7 @@ export async function initComplexesPage() {
         document.getElementById('complexFormModal').classList.add('active');
     });
     
+    // Быстрое сохранение
     document.getElementById('quickSaveBtn')?.addEventListener('click', async () => {
         const data = {
             name: document.getElementById('quickTitle').value,
@@ -464,6 +451,25 @@ export async function initComplexesPage() {
         }
         renderComplexes();
     }));
+}
+
+// ========== ИНИЦИАЛИЗАЦИЯ ==========
+
+export async function initComplexesPage() {
+    console.log('[complexes] Инициализация страницы...');
+    
+    const isAuth = await requireSupabaseAuth('auth-supabase.html');
+    if (!isAuth) return;
+    
+    currentUser = getCurrentSupabaseUser();
+    updateSupabaseUserInterface();
+    console.log('[complexes] Текущий пользователь:', currentUser?.name);
+    
+    await loadUsers();
+    await loadTasks();
+    await loadComplexes();
+    updateFiltersUI();
+    bindEvents();
     
     const sidebar = document.getElementById('sidebar');
     if (sidebar && localStorage.getItem('sidebar_collapsed') === 'true') {
