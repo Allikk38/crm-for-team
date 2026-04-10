@@ -9,7 +9,7 @@
  *   - Проверка прав доступа к модулям (переход на permission_sets)
  *   - Поддержка разных тарифных планов
  *   - События жизненного цикла модулей
- *   - ЧИСТЫЕ ES6 ЭКСПОРТЫ
+ *   - ЧИСТЫЕ ES6 ЭКСПОРТЫ (БЕЗ ГЛОБАЛЬНЫХ ОБЪЕКТОВ)
  * 
  * ЗАВИСИМОСТИ:
  *   - js/core/permissions.js (hasPermission, isAdmin)
@@ -22,6 +22,7 @@
  *   - 09.04.2026: Добавлены чистые ES6 экспорты
  *   - 09.04.2026: Переход с role на permission_sets
  *   - 09.04.2026: Убрана зависимость от window.CRM
+ *   - 10.04.2026: УДАЛЁН ГЛОБАЛЬНЫЙ ОБЪЕКТ window.CRM.Registry (правило №5)
  * ============================================
  */
 
@@ -334,25 +335,6 @@ export function getAllModules() {
         status: module.status,
         available: isModuleAvailable(id)
     }));
-}
-
-// ========== ГЛОБАЛЬНЫЙ ОБЪЕКТ ДЛЯ ОБРАТНОЙ СОВМЕСТИМОСТИ ==========
-
-if (typeof window !== 'undefined') {
-    window.CRM = window.CRM || {};
-    window.CRM.Registry = {
-        registerModule,
-        getModule,
-        isModuleAvailable,
-        getAvailableModules,
-        loadModule,
-        unloadModule,
-        getAvailableWidgets,
-        getModulePages,
-        isModuleLoaded,
-        getAllModules,
-        MODULE_STATUS
-    };
 }
 
 console.log('[registry] Реестр модулей загружен');
