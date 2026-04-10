@@ -17,6 +17,7 @@
  * 
  * ИСТОРИЯ:
  *   - 10.04.2026: Выделен из tasks.js в отдельный компонент
+ *   - 10.04.2026: ИСПРАВЛЕНО: убраны приватные методы из bind()
  * ============================================
  */
 
@@ -35,7 +36,7 @@ export class TaskModal {
     #users = [];
     #currentTaskId = null;
     #currentTaskComments = [];
-    #onSaved = null;  // Коллбэк после сохранения
+    #onSaved = null;
     
     // Состояние автокомплита
     #mentionSuggestions = [];
@@ -53,15 +54,7 @@ export class TaskModal {
      */
     constructor(onSaved = null) {
         this.#onSaved = onSaved;
-        
-        // Привязка методов
-        this.#handleCommentInput = this.#handleCommentInput.bind(this);
-        this.#handleCommentKeydown = this.#handleCommentKeydown.bind(this);
-        this.#handleCommentBlur = this.#handleCommentBlur.bind(this);
-        this.#close = this.#close.bind(this);
-        this.#save = this.#save.bind(this);
-        this.#addComment = this.#addComment.bind(this);
-        this.#toggleComments = this.#toggleComments.bind(this);
+        console.log('[task-modal] Конструктор');
     }
 
     /**
@@ -90,13 +83,13 @@ export class TaskModal {
      */
     #cacheDomElements() {
         this.#modal = document.getElementById('taskModal');
-        if (!this.#modal) return;
+        if (!this.#modal) {
+            console.error('[task-modal] Модальное окно #taskModal не найдено');
+            return;
+        }
         
         this.#elements = {
-            // Заголовок
             title: document.getElementById('modalTitleText'),
-            
-            // Поля формы
             taskId: document.getElementById('taskId'),
             taskTitle: document.getElementById('taskTitle'),
             taskDescription: document.getElementById('taskDescription'),
@@ -105,26 +98,22 @@ export class TaskModal {
             taskImportant: document.getElementById('taskImportant'),
             taskStatus: document.getElementById('taskStatus'),
             taskPrivate: document.getElementById('taskPrivate'),
-            
-            // Динамические поля (исполнитель)
             dynamicFields: document.getElementById('dynamicFields'),
-            
-            // Комментарии
             commentsSection: document.getElementById('commentsSection'),
             commentsCount: document.getElementById('commentsCount'),
             commentsList: document.getElementById('commentsList'),
             newComment: document.getElementById('newComment'),
             commentsToggleIcon: document.getElementById('commentsToggleIcon'),
             commentsBody: document.getElementById('commentsBody'),
-            
-            // Подсказки упоминаний
             mentionSuggestions: document.getElementById('mentionSuggestions'),
-            
-            // Кнопки
-            closeBtn: document.querySelector('#taskModal .modal-close'),
-            cancelBtn: document.querySelector('#taskModal .secondary'),
-            saveBtn: document.querySelector('#taskModal .primary')
+            closeBtn: this.#modal.querySelector('.modal-close'),
+            cancelBtn: this.#modal.querySelector('#cancelModalBtn, .secondary'),
+            saveBtn: this.#modal.querySelector('#saveTaskBtn, .primary'),
+            addCommentBtn: document.getElementById('addCommentBtn'),
+            commentsHeader: document.getElementById('commentsHeader')
         };
+        
+        console.log('[task-modal] DOM элементы закэшированы');
     }
 
     /**
@@ -133,15 +122,15 @@ export class TaskModal {
     #bindEvents() {
         // Закрытие модалки
         if (this.#elements.closeBtn) {
-            this.#elements.closeBtn.addEventListener('click', this.#close);
+            this.#elements.closeBtn.addEventListener('click', () => this.#close());
         }
         if (this.#elements.cancelBtn) {
-            this.#elements.cancelBtn.addEventListener('click', this.#close);
+            this.#elements.cancelBtn.addEventListener('click', () => this.#close());
         }
         
         // Сохранение
         if (this.#elements.saveBtn) {
-            this.#elements.saveBtn.addEventListener('click', this.#save);
+            this.#elements.saveBtn.addEventListener('click', () => this.#save());
         }
         
         // Закрытие по клику вне модалки
@@ -152,21 +141,31 @@ export class TaskModal {
         // Поле комментария
         const newComment = this.#elements.newComment;
         if (newComment) {
-            newComment.addEventListener('input', this.#handleCommentInput);
-            newComment.addEventListener('keydown', this.#handleCommentKeydown);
-            newComment.addEventListener('blur', this.#handleCommentBlur);
+            newComment.addEventListener('input', (e) => this.#handleCommentInput(e));
+            newComment.addEventListener('keydown', (e) => this.#handleCommentKeydown(e));
+            newComment.addEventListener('blur', () => this.#handleCommentBlur());
+        }
+        
+        // Кнопка отправки комментария
+        if (this.#elements.addCommentBtn) {
+            this.#elements.addCommentBtn.addEventListener('click', () => this.#addComment());
+        }
+        
+        // Аккордеон комментариев
+        if (this.#elements.commentsHeader) {
+            this.#elements.commentsHeader.addEventListener('click', () => this.#toggleComments());
         }
         
         // Скрытие подсказок при скролле
         window.addEventListener('scroll', () => this.#hideMentionSuggestions(), true);
+        
+        console.log('[task-modal] События привязаны');
     }
 
     // ========== УПРАВЛЕНИЕ МОДАЛКОЙ ==========
 
     /**
      * Открыть модальное окно
-     * @param {string|null} taskId - ID задачи для редактирования (null = создание)
-     * @param {Object} presets - Предустановленные значения (например, { status: 'pending' })
      */
     async open(taskId = null, presets = {}) {
         if (!this.#initialized) {
@@ -174,17 +173,15 @@ export class TaskModal {
             return;
         }
         
-        this.#currentTaskId = taskId;
+        console.log('[task-modal] Открытие, taskId:', taskId);
         
-        // Очистка предыдущего состояния
+        this.#currentTaskId = taskId;
         this.#currentTaskComments = [];
         this.#hideMentionSuggestions();
         
-        // Рендерим поле исполнителя (если есть компания)
         await this.#renderAssigneeField();
         
         if (taskId) {
-            // Режим редактирования
             this.#elements.title.textContent = 'Редактировать задачу';
             
             const task = await getTaskById(taskId);
@@ -198,7 +195,6 @@ export class TaskModal {
                 this.#elements.taskStatus.value = task.status || 'pending';
                 this.#elements.taskPrivate.checked = task.is_private || false;
                 
-                // Исполнитель
                 setTimeout(() => {
                     const assigneeSelect = document.getElementById('taskAssignee');
                     if (assigneeSelect) assigneeSelect.value = task.assigned_to || '';
@@ -207,7 +203,6 @@ export class TaskModal {
                 await this.#loadComments(task.id);
             }
         } else {
-            // Режим создания
             this.#elements.title.textContent = 'Создать задачу';
             
             this.#elements.taskId.value = '';
@@ -222,11 +217,12 @@ export class TaskModal {
             this.#renderComments();
         }
         
-        // Сбрасываем аккордеон комментариев
         const commentsSection = this.#elements.commentsSection;
         if (commentsSection) {
             commentsSection.classList.remove('collapsed');
         }
+        const body = this.#elements.commentsBody;
+        if (body) body.style.display = 'block';
         const icon = this.#elements.commentsToggleIcon;
         if (icon) {
             icon.classList.remove('fa-chevron-right');
@@ -236,7 +232,6 @@ export class TaskModal {
         this.#modal.classList.add('active');
         this.#modal.style.display = 'flex';
         
-        // Фокус на поле названия
         setTimeout(() => this.#elements.taskTitle?.focus(), 100);
     }
 
@@ -244,6 +239,7 @@ export class TaskModal {
      * Закрыть модальное окно
      */
     #close() {
+        console.log('[task-modal] Закрытие');
         this.#modal.classList.remove('active');
         this.#modal.style.display = 'none';
         this.#currentTaskId = null;
@@ -253,20 +249,18 @@ export class TaskModal {
 
     // ========== РЕНДЕРИНГ ==========
 
-    /**
-     * Рендеринг поля выбора исполнителя (если есть компания)
-     */
     async #renderAssigneeField() {
         const container = this.#elements.dynamicFields;
         if (!container) return;
         
         container.innerHTML = '';
         
-        // Проверяем, есть ли компания
+        if (!this.#currentUser) return;
+        
         const { data: profile } = await supabase
             .from('profiles')
             .select('company_id')
-            .eq('id', this.#currentUser?.id)
+            .eq('id', this.#currentUser.id)
             .single();
         
         const hasCompany = profile?.company_id;
@@ -287,9 +281,6 @@ export class TaskModal {
         }
     }
 
-    /**
-     * Загрузка комментариев
-     */
     async #loadComments(taskId) {
         try {
             const { data, error } = await supabase
@@ -308,9 +299,6 @@ export class TaskModal {
         this.#renderComments();
     }
 
-    /**
-     * Рендеринг комментариев
-     */
     #renderComments() {
         const container = this.#elements.commentsList;
         const countSpan = this.#elements.commentsCount;
@@ -358,7 +346,6 @@ export class TaskModal {
             `;
         }).join('');
         
-        // Обработчики для ссылок на упоминания
         container.querySelectorAll('.mention-link').forEach(link => {
             link.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -369,7 +356,6 @@ export class TaskModal {
             });
         });
         
-        // Обработчики удаления комментариев
         container.querySelectorAll('.delete-comment').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
@@ -381,10 +367,9 @@ export class TaskModal {
 
     // ========== CRUD ОПЕРАЦИИ ==========
 
-    /**
-     * Сохранить задачу
-     */
     async #save() {
+        console.log('[task-modal] Сохранение задачи');
+        
         const taskId = this.#elements.taskId.value;
         const assigneeSelect = document.getElementById('taskAssignee');
         
@@ -423,9 +408,6 @@ export class TaskModal {
         }
     }
 
-    /**
-     * Добавить комментарий
-     */
     async #addComment() {
         const taskId = this.#currentTaskId || this.#elements.taskId.value;
         if (!taskId) {
@@ -439,7 +421,6 @@ export class TaskModal {
             return;
         }
         
-        // Поиск @упоминаний
         const mentionRegex = /@(\w+)/g;
         const mentions = [];
         let match;
@@ -468,7 +449,6 @@ export class TaskModal {
             await this.#loadComments(taskId);
             this.#hideMentionSuggestions();
             
-            // Создание уведомлений для упомянутых
             for (const username of mentions) {
                 const mentionedUser = this.#users.find(u => u.github_username === username);
                 if (mentionedUser) {
@@ -493,9 +473,6 @@ export class TaskModal {
         }
     }
 
-    /**
-     * Удалить комментарий
-     */
     async #deleteComment(commentId) {
         if (!confirm('Удалить комментарий?')) return;
         
@@ -628,7 +605,6 @@ export class TaskModal {
         container.innerHTML = html;
         container.style.display = 'block';
         
-        // Позиционирование
         const textarea = this.#elements.newComment;
         if (textarea) {
             const rect = textarea.getBoundingClientRect();
@@ -638,7 +614,6 @@ export class TaskModal {
             container.style.width = Math.max(rect.width, 280) + 'px';
         }
         
-        // Обработчики для элементов
         container.querySelectorAll('.mention-suggestion-item').forEach(item => {
             item.addEventListener('click', () => {
                 const username = item.dataset.username;
@@ -685,7 +660,6 @@ export class TaskModal {
             }
         }
         
-        // Ctrl+Enter для отправки комментария
         if (e.key === 'Enter' && e.ctrlKey) {
             e.preventDefault();
             this.#addComment();
@@ -734,26 +708,16 @@ export class TaskModal {
 
     // ========== ПУБЛИЧНЫЕ МЕТОДЫ ==========
 
-    /**
-     * Обновить список пользователей
-     */
     updateUsers(users) {
         this.#users = users;
     }
 
-    /**
-     * Проверить, открыта ли модалка
-     */
     isOpen() {
         return this.#modal?.classList.contains('active') || false;
     }
 
-    /**
-     * Уничтожить компонент
-     */
     destroy() {
         this.#close();
-        // Очистка слушателей
         if (this.#elements.closeBtn) {
             this.#elements.closeBtn.removeEventListener('click', this.#close);
         }
