@@ -10,6 +10,7 @@
  *   - 30.03.2026: Добавлены экспорты для модульной архитектуры
  *   - 30.03.2026: Полный переход на модульную загрузку
  *   - 02.04.2026: Добавлены функции isValidEmail и formatSupabaseError
+ *   - 10.04.2026: УДАЛЁНЫ ГЛОБАЛЬНЫЕ ОБЪЕКТЫ window.CRM.helpers, window.isValidEmail, window.formatSupabaseError (правило №5)
  * ============================================
  */
 
@@ -193,26 +194,4 @@ export function formatSupabaseError(error) {
     
     // Для остальных ошибок возвращаем стандартное сообщение
     return message || 'Ошибка при выполнении запроса. Попробуйте позже.';
-}
-
-// Обновляем глобальную регистрацию для обратной совместимости
-if (typeof window !== 'undefined') {
-    window.CRM = window.CRM || {};
-    window.CRM.helpers = {
-        escapeHtml,
-        formatDate,
-        showToast,
-        getTaskStatusText,
-        getTaskPriorityText,
-        getUserRoleText,
-        getDealStatusText,
-        generateId,
-        debounce,
-        isValidEmail,
-        formatSupabaseError
-    };
-    
-    // Для обратной совместимости
-    window.isValidEmail = isValidEmail;
-    window.formatSupabaseError = formatSupabaseError;
 }
