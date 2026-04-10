@@ -17,6 +17,7 @@
     ИСТОРИЯ:
       - 31.03.2026: Добавлен двухрежимный интерфейс
       - 30.03.2026: Переход на модульную архитектуру
+      - 10.04.2026: УДАЛЕНЫ onclick, заменены на addEventListener в JS
     ============================================
     -->
     
@@ -374,11 +375,11 @@
             </div>
             <nav class="sidebar-nav" id="sidebar-nav"></nav>
             <div class="sidebar-footer">
-                <button class="collapse-btn" onclick="window.sidebar?.toggleSidebar()">
+                <button class="collapse-btn" id="sidebarToggleBtn">
                     <i class="fas fa-chevron-left"></i>
                     <span>Свернуть</span>
                 </button>
-                <button class="logout-btn" onclick="window.sidebar?.logout()" style="margin-top: 12px; width: 100%; padding: 10px; background: rgba(255, 107, 107, 0.2); border: none; border-radius: 12px; color: #ff6b6b; cursor: pointer;">
+                <button class="logout-btn" id="logoutBtn" style="margin-top: 12px; width: 100%; padding: 10px; background: rgba(255, 107, 107, 0.2); border: none; border-radius: 12px; color: #ff6b6b; cursor: pointer;">
                     <i class="fas fa-sign-out-alt"></i> Выйти
                 </button>
             </div>
@@ -399,7 +400,7 @@
                         <i class="fas fa-plus"></i> Новая заявка
                     </button>
                 </div>
-                <div class="user-profile" onclick="window.sidebar?.goToProfile()">
+                <div class="user-profile" id="userProfileBtn">
                     <div class="user-info">
                         <div class="user-name" id="userName">Загрузка...</div>
                         <div class="user-role" id="userRole">—</div>
@@ -541,8 +542,8 @@
             </div>
              
             <div class="modal-buttons">
-                <button onclick="window.closeDealModal()">Отмена</button>
-                <button class="primary" onclick="window.saveDeal()">Сохранить</button>
+                <button id="cancelDealModalBtn">Отмена</button>
+                <button class="primary" id="saveDealBtn">Сохранить</button>
             </div>
         </div>
     </div>
