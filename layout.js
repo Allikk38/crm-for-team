@@ -25,6 +25,8 @@
  *   - 08.04.2026: Исправлены пути для GitHub Pages (относительные)
  *   - 08.04.2026: Добавлена обработка кликов в свернутом меню
  *   - 08.04.2026: Убраны глобальные объекты, скрыты недоступные модули
+ *   - 10.04.2026: ПОЛНОЕ УДАЛЕНИЕ window.sidebar. Переход на программную привязку событий.
+ *                 Все onclick заменены на addEventListener. Экспорт чистых функций.
  * ============================================
  */
 
@@ -37,7 +39,7 @@ import { getPageUrl, BASE_PATH } from './js/utils/pathManager.js';
 
 let sidebarCollapsed = false;
 let isInitialized = false;
-
+let currentTheme = localStorage.getItem('crm_theme') || 'dark';
 
 // ========== КАТЕГОРИИ МОДУЛЕЙ ==========
 const MODULE_CATEGORIES = {
@@ -102,10 +104,6 @@ const MODULE_INFO = {
 
 function getModuleHref(module) {
     return getPageUrl(module.page);
-}
-
-function getFullPath(page) {
-    return getPageUrl(page);
 }
 
 function getCurrentUser() {
@@ -197,6 +195,7 @@ function attachCategoryHandlers() {
     const categories = document.querySelectorAll('.sidebar-category');
     
     categories.forEach(category => {
+        const header = category.querySelector('.sidebar-category-header');
         const items = category.querySelector('.sidebar-category-items');
         const toggle = category.querySelector('.category-toggle');
         
@@ -207,59 +206,41 @@ function attachCategoryHandlers() {
             items.classList.add('collapsed');
             if (toggle) toggle.classList.add('collapsed');
         }
-    });
-}
-
-function setupCollapsedIconHandlers() {
-    const sidebar = document.getElementById('sidebar');
-    if (!sidebar) return;
-    
-    const categoryHeaders = sidebar.querySelectorAll('.sidebar-category-header');
-    
-    categoryHeaders.forEach(header => {
-        header.removeEventListener('click', header._clickHandler);
         
-        const clickHandler = (e) => {
-            e.stopPropagation();
-            
-            const sidebarEl = document.getElementById('sidebar');
-            const isCollapsed = sidebarEl?.classList.contains('collapsed');
-            const category = header.closest('.sidebar-category');
-            
-            if (!category) return;
-            
-            const items = category.querySelector('.sidebar-category-items');
-            const toggle = category.querySelector('.category-toggle');
-            const catId = category.dataset.category;
-            
-            if (isCollapsed) {
-                toggleSidebar();
+        // Программная привязка вместо onclick
+        if (header) {
+            header.addEventListener('click', (e) => {
+                e.stopPropagation();
                 
-                const wasCollapsed = items?.classList.contains('collapsed') || 
-                                    localStorage.getItem(`sidebar_category_${catId}`) === 'true';
+                const sidebarEl = document.getElementById('sidebar');
+                const isSidebarCollapsed = sidebarEl?.classList.contains('collapsed');
                 
-                if (wasCollapsed) {
-                    setTimeout(() => {
-                        if (items) {
-                            items.classList.remove('collapsed');
-                            if (toggle) toggle.classList.remove('collapsed');
-                            localStorage.setItem(`sidebar_category_${catId}`, 'false');
-                        }
-                    }, 100);
-                }
-            } else {
-                if (items) {
-                    items.classList.toggle('collapsed');
-                    if (toggle) toggle.classList.toggle('collapsed');
+                if (isSidebarCollapsed) {
+                    toggleSidebar();
                     
-                    const newState = items.classList.contains('collapsed');
-                    localStorage.setItem(`sidebar_category_${catId}`, newState);
+                    const wasCollapsed = items?.classList.contains('collapsed') || 
+                                        localStorage.getItem(`sidebar_category_${catId}`) === 'true';
+                    
+                    if (wasCollapsed) {
+                        setTimeout(() => {
+                            if (items) {
+                                items.classList.remove('collapsed');
+                                if (toggle) toggle.classList.remove('collapsed');
+                                localStorage.setItem(`sidebar_category_${catId}`, 'false');
+                            }
+                        }, 100);
+                    }
+                } else {
+                    if (items) {
+                        items.classList.toggle('collapsed');
+                        if (toggle) toggle.classList.toggle('collapsed');
+                        
+                        const newState = items.classList.contains('collapsed');
+                        localStorage.setItem(`sidebar_category_${catId}`, newState);
+                    }
                 }
-            }
-        };
-        
-        header._clickHandler = clickHandler;
-        header.addEventListener('click', clickHandler);
+            });
+        }
     });
 }
 
@@ -270,31 +251,59 @@ function updateFooterButtons() {
     const isCollapsed = sidebarCollapsed;
     sidebarFooter.innerHTML = '';
     
+    // Кнопка сворачивания
     const toggleBtn = document.createElement('button');
     toggleBtn.className = 'sidebar-toggle-btn';
     toggleBtn.innerHTML = isCollapsed 
         ? '<i class="fas fa-chevron-right"></i><span>Развернуть</span>'
         : '<i class="fas fa-chevron-left"></i><span>Свернуть</span>';
-    toggleBtn.onclick = () => toggleSidebar();
+    toggleBtn.addEventListener('click', () => toggleSidebar());
     sidebarFooter.appendChild(toggleBtn);
     
+    // Кнопка темы
     const themeBtn = document.createElement('button');
     themeBtn.className = 'theme-btn';
-    const currentTheme = localStorage.getItem('crm_theme') || 'dark';
     themeBtn.innerHTML = currentTheme === 'dark' 
         ? '<i class="fas fa-sun"></i><span>Светлая</span>' 
         : '<i class="fas fa-moon"></i><span>Тёмная</span>';
-    themeBtn.onclick = () => toggleTheme();
+    themeBtn.addEventListener('click', () => toggleTheme());
     sidebarFooter.appendChild(themeBtn);
     
+    // Кнопка выхода
     const logoutBtn = document.createElement('button');
     logoutBtn.className = 'logout-btn';
     logoutBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i><span>Выйти</span>';
-    logoutBtn.onclick = () => logout();
+    logoutBtn.addEventListener('click', () => logout());
     sidebarFooter.appendChild(logoutBtn);
     
     if (isCollapsed) {
         [toggleBtn, themeBtn, logoutBtn].forEach(btn => btn.classList.add('collapsed-mode'));
+    }
+}
+
+function bindGlobalUIElements() {
+    // Привязка кнопки сворачивания (если есть в HTML)
+    const collapseBtn = document.querySelector('.collapse-btn');
+    if (collapseBtn) {
+        collapseBtn.replaceWith(collapseBtn.cloneNode(true));
+        const newBtn = document.querySelector('.collapse-btn');
+        newBtn.addEventListener('click', () => toggleSidebar());
+    }
+    
+    // Привязка профиля пользователя
+    const userProfile = document.querySelector('.user-profile');
+    if (userProfile) {
+        userProfile.replaceWith(userProfile.cloneNode(true));
+        const newProfile = document.querySelector('.user-profile');
+        newProfile.addEventListener('click', () => goToProfile());
+    }
+    
+    // Привязка кнопки выхода
+    const logoutBtn = document.querySelector('.logout-btn');
+    if (logoutBtn) {
+        logoutBtn.replaceWith(logoutBtn.cloneNode(true));
+        const newLogoutBtn = document.querySelector('.logout-btn');
+        newLogoutBtn.addEventListener('click', () => logout());
     }
 }
 
@@ -315,14 +324,13 @@ export async function initSidebar() {
     }
     
     renderSidebarMenu();
-    setupCollapsedIconHandlers();
     
     window.addEventListener('userLoaded', () => {
         console.log('[layout] userLoaded событие, обновляем меню');
         renderSidebarMenu();
-        setupCollapsedIconHandlers();
     });
     
+    bindGlobalUIElements();
     initMobileMenu();
     addNotificationButtonToTopBar();
     addPomodoroWidget();
@@ -347,8 +355,6 @@ export function toggleSidebar() {
     }
     
     updateFooterButtons();
-    
-    setTimeout(() => setupCollapsedIconHandlers(), 100);
     
     window.dispatchEvent(new CustomEvent('sidebarToggled', { 
         detail: { collapsed: sidebarCollapsed } 
@@ -382,24 +388,22 @@ function initMobileMenu() {
         box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     `;
     
-    // Применяем display в зависимости от ширины экрана
     const updateVisibility = () => {
         toggleBtn.style.display = window.innerWidth <= 768 ? 'flex' : 'none';
     };
     updateVisibility();
     window.addEventListener('resize', updateVisibility);
     
-    toggleBtn.onclick = (e) => {
+    toggleBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         const sidebar = document.getElementById('sidebar');
         if (sidebar) {
             sidebar.classList.toggle('mobile-open');
         }
-    };
+    });
     
     document.body.appendChild(toggleBtn);
     
-    // Добавляем стили для мобильной версии
     const styleId = 'mobile-menu-styles';
     if (!document.getElementById(styleId)) {
         const style = document.createElement('style');
@@ -435,7 +439,6 @@ function initMobileMenu() {
         document.head.appendChild(style);
     }
     
-    // Закрытие по клику вне меню
     document.addEventListener('click', (e) => {
         const sidebar = document.getElementById('sidebar');
         const toggle = document.querySelector('.mobile-menu-toggle');
@@ -458,9 +461,9 @@ function addNotificationButtonToTopBar() {
     notificationWrapper.style.position = 'relative';
     notificationWrapper.style.marginRight = '16px';
     notificationWrapper.style.cursor = 'pointer';
-    notificationWrapper.onclick = () => {
-        window.location.href = getFullPath('notifications.html');
-    };
+    notificationWrapper.addEventListener('click', () => {
+        window.location.href = getPageUrl('notifications.html');
+    });
     
     notificationWrapper.innerHTML = `
         <i class="fas fa-bell" style="font-size: 1.2rem; color: var(--text-primary);"></i>
@@ -505,12 +508,14 @@ function toggleTheme() {
         document.documentElement.classList.add('theme-light');
         document.body.classList.remove('theme-dark');
         document.body.classList.add('theme-light');
+        currentTheme = 'light';
         localStorage.setItem('crm_theme', 'light');
     } else {
         document.documentElement.classList.remove('theme-light');
         document.documentElement.classList.add('theme-dark');
         document.body.classList.remove('theme-light');
         document.body.classList.add('theme-dark');
+        currentTheme = 'dark';
         localStorage.setItem('crm_theme', 'dark');
     }
     updateFooterButtons();
@@ -599,7 +604,7 @@ function addPomodoroWidget() {
         
         widget.addEventListener('click', (e) => {
             if (!e.target.closest('.pomodoro-widget-btn')) {
-                window.location.href = getFullPath('pomodoro.html');
+                window.location.href = getPageUrl('pomodoro.html');
             }
         });
         
@@ -661,6 +666,6 @@ notificationStyle.textContent = `
 `;
 document.head.appendChild(notificationStyle);
 
-export { updateNotificationBadge, getFullPath, BASE_PATH };
+export { updateNotificationBadge, BASE_PATH };
 
 console.log('[layout] Модуль загружен, BASE_PATH:', BASE_PATH);
