@@ -943,36 +943,37 @@ class DashboardContainer {
      * Подписаться на события шины событий
      */
     subscribeEvents() {
-    if (!eventBus) {
-        console.warn('[dashboard-container] EventBus недоступен, события не будут обрабатываться');
-        return;
-    }
-    
-    try {
-        eventBus.on('task:created', () => {
-            console.log('[dashboard-container] task:created, обновляем виджеты');
-            this.refreshAllWidgets();
-        });
+        if (!eventBus) {
+            console.warn('[dashboard-container] EventBus недоступен, события не будут обрабатываться');
+            return;
+        }
         
-        eventBus.on('task:updated', () => {
-            this.refreshAllWidgets();
-        });
-        
-        eventBus.on('task:deleted', () => {
-            this.refreshAllWidgets();
-        });
-        
-        eventBus.on('complex:created', () => {
-            this.refreshAllWidgets();
-        });
-        
-        eventBus.on('user:created', () => {
-            this.refreshAllWidgets();
-        });
-        
-        console.log('[dashboard-container] Подписки на события активированы');
-    } catch (error) {
-        console.warn('[dashboard-container] Ошибка подписки на события:', error);
+        try {
+            eventBus.on('task:created', () => {
+                console.log('[dashboard-container] task:created, обновляем виджеты');
+                this.refreshAllWidgets();
+            });
+            
+            eventBus.on('task:updated', () => {
+                this.refreshAllWidgets();
+            });
+            
+            eventBus.on('task:deleted', () => {
+                this.refreshAllWidgets();
+            });
+            
+            eventBus.on('complex:created', () => {
+                this.refreshAllWidgets();
+            });
+            
+            eventBus.on('user:created', () => {
+                this.refreshAllWidgets();
+            });
+            
+            console.log('[dashboard-container] Подписки на события активированы');
+        } catch (error) {
+            console.warn('[dashboard-container] Ошибка подписки на события:', error);
+        }
     }
 }
 
@@ -987,6 +988,5 @@ if (!document.querySelector('#widget-spinner-style')) {
     `;
     document.head.appendChild(style);
 }
-
 
 export default DashboardContainer;
