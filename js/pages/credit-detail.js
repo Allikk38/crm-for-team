@@ -25,7 +25,7 @@ import {
     requireSupabaseAuth, 
     updateSupabaseUserInterface 
 } from '../core/supabase-session.js';
-import financeService from '../services/finance-supabase.js';
+import * as financeService from '../services/finance/index.js';
 import { eventBus } from '../core/eventBus.js';
 
 // ========== СОСТОЯНИЕ ==========
