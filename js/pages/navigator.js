@@ -22,30 +22,7 @@ import { escapeHtml, showToast } from '../utils/helpers.js';
 import { supabase } from '../core/supabase.js';
 import planManager from '../core/planManager.js';
 import { isAdmin, hasPermission, canManageTeam } from '../core/permissions.js';
-
-// ========== ОПРЕДЕЛЕНИЕ БАЗОВОГО ПУТИ ==========
-function getBasePath() {
-    const fullPath = window.location.pathname;
-    const match = fullPath.match(/^(\/crm-for-team)/);
-    if (match) return match[1];
-    
-    if (window.location.hostname.includes('github.io')) {
-        const parts = fullPath.split('/');
-        if (parts.length > 1 && parts[1] && parts[1] !== 'app') {
-            return `/${parts[1]}`;
-        }
-    }
-    return '';
-}
-
-const NAV_BASE_PATH = getBasePath();
-
-function getPageUrl(page) {
-    if (NAV_BASE_PATH) {
-        return `${NAV_BASE_PATH}/app/${page}`;
-    }
-    return `/app/${page}`;
-}
+import { getPageUrl, BASE_PATH } from '../utils/pathManager.js';
 
 // Конфигурация модулей
 const MODULES_CONFIG = {
