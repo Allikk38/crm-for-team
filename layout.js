@@ -33,44 +33,11 @@ import { getState, start, pause, subscribe } from './js/services/pomodoro.js';
 import { hasPermission } from './js/core/permissions.js';
 import { getCurrentSupabaseUser } from './js/core/supabase-session.js';
 import { supabase } from './js/core/supabase.js';
+import { getPageUrl, BASE_PATH } from './js/utils/pathManager.js';
 
 let sidebarCollapsed = false;
 let isInitialized = false;
 
-// ========== ОПРЕДЕЛЕНИЕ БАЗОВОГО ПУТИ ДЛЯ GITHUB PAGES ==========
-function getBasePath() {
-    const fullPath = window.location.pathname;
-    
-    const match = fullPath.match(/^(\/crm-for-team)/);
-    if (match) {
-        return match[1];
-    }
-    
-    if (window.location.hostname.includes('github.io')) {
-        const parts = fullPath.split('/');
-        if (parts.length > 1 && parts[1] && parts[1] !== 'app') {
-            return `/${parts[1]}`;
-        }
-    }
-    
-    return '';
-}
-
-const BASE_PATH = getBasePath();
-
-function getPageUrl(page) {
-    // Если мы уже находимся в папке app, используем относительный путь
-    const currentPath = window.location.pathname;
-    if (currentPath.includes('/app/')) {
-        return `./${page}`;
-    }
-    
-    // Для GitHub Pages или корня сайта
-    if (BASE_PATH) {
-        return `${BASE_PATH}/app/${page}`;
-    }
-    return `app/${page}`;
-}
 
 // ========== КАТЕГОРИИ МОДУЛЕЙ ==========
 const MODULE_CATEGORIES = {
@@ -550,7 +517,7 @@ function toggleTheme() {
 }
 
 export function goToProfile() {
-    window.location.href = getFullPath('profile.html');
+    window.location.href = getPageUrl('profile.html');
 }
 
 export function logout() {
