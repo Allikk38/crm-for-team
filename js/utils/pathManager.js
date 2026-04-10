@@ -2,6 +2,9 @@
  * ============================================
  * ФАЙЛ: js/utils/pathManager.js
  * РОЛЬ: ЕДИНСТВЕННЫЙ источник правды для путей в приложении
+ * 
+ * ИСТОРИЯ:
+ *   - 10.04.2026: УДАЛЁН ГЛОБАЛЬНЫЙ ОБЪЕКТ window.CRM.PathManager (правило №5)
  * ============================================
  */
 
@@ -72,14 +75,3 @@ export function getTaskUrl(taskId) {
 
 // Экспортируем константу
 export { BASE_PATH };
-
-// Глобально для обратной совместимости (на время перехода)
-if (typeof window !== 'undefined') {
-    window.CRM = window.CRM || {};
-    window.CRM.PathManager = {
-        BASE_PATH,
-        getPageUrl,
-        getDealDetailUrl,
-        getTaskUrl
-    };
-}
