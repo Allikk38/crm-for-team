@@ -8,6 +8,7 @@
  *   - Назначение модулей пользователям
  *   - Интеграция с системой прав (permissions.js)
  *   - Работа с таблицами: modules, company_licenses, user_module_assignments, companies
+ *   - ЧИСТЫЕ ES6 ЭКСПОРТЫ (БЕЗ ГЛОБАЛЬНЫХ ОБЪЕКТОВ)
  * 
  * ЗАВИСИМОСТИ:
  *   - js/core/supabase.js
@@ -17,6 +18,7 @@
  *   - 30.03.2026: Создание сервиса
  *   - 30.03.2026: Переход на Supabase
  *   - 31.03.2026: Интеграция с новой структурой таблиц (modules, company_licenses, user_module_assignments)
+ *   - 10.04.2026: УДАЛЁН ГЛОБАЛЬНЫЙ ОБЪЕКТ window.CRM.License (правило №5)
  * ============================================
  */
 
@@ -458,15 +460,13 @@ export async function updateUserPermissions(userId) {
         if (currentUser && currentUser.id === userId) {
             currentUser.permission_sets = uniquePermissions;
             
-            if (window.CRM?.Permissions?.updatePermissionsCache) {
-                window.CRM.Permissions.updatePermissionsCache(currentUser);
-            }
+            // Импортируем динамически чтобы избежать циклической зависимости
+            const { updatePermissionsCache } = await import('../core/permissions.js');
+            updatePermissionsCache(currentUser);
         }
         
-        // Обновляем навигацию
-        if (window.sidebar?.renderNavigation) {
-            window.sidebar.renderNavigation();
-        }
+        // Обновляем навигацию через событие
+        window.dispatchEvent(new CustomEvent('permissionsUpdated', { detail: { userId } }));
         
         console.log(`[license] Права пользователя ${userId} обновлены:`, uniquePermissions);
         return true;
@@ -535,27 +535,6 @@ export async function getUserSubscription() {
         console.error('[license] Ошибка загрузки подписки:', error);
         return { plan_type: 'free', status: 'active' };
     }
-}
-
-// Экспортируем в глобальный объект
-if (typeof window !== 'undefined') {
-    window.CRM = window.CRM || {};
-    window.CRM.License = {
-        getModulesCatalog,
-        getModulePermissions,
-        getModulePages,
-        purchaseModuleForTeam,
-        assignModuleToUser,
-        revokeModuleFromUser,
-        getUserModules,
-        hasUserModule,
-        updateUserPermissions,
-        getCompanyLicenses,
-        getAllAssignments,
-        getUserSubscription,
-        getCompanyMembers,
-        getOrCreateCompany
-    };
 }
 
 console.log('[license-supabase] Сервис инициализирован (Supabase)');
