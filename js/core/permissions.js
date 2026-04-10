@@ -7,7 +7,7 @@
  *   - Полный отказ от проверки role в пользу permission_sets
  *   - Хелперы isAdmin(), isManager(), isAgent() на основе прав
  *   - Кэширование прав при загрузке пользователя
- *   - ЧИСТЫЕ ES6 ЭКСПОРТЫ
+ *   - ЧИСТЫЕ ES6 ЭКСПОРТЫ (БЕЗ ГЛОБАЛЬНЫХ ОБЪЕКТОВ)
  * 
  * ЗАВИСИМОСТИ:
  *   - getCurrentSupabaseUser из supabase-session.js (импорт)
@@ -17,6 +17,7 @@
  *   - 09.04.2026: Полный переход на права, чистые ES6 экспорты
  *   - 09.04.2026: Добавлены хелперы isAdmin, isManager, isAgent
  *   - 09.04.2026: Исправлено дублирование updatePermissionsCache
+ *   - 10.04.2026: УДАЛЁН ГЛОБАЛЬНЫЙ ОБЪЕКТ window.CRM.Permissions (правило №5)
  * ============================================
  */
 
@@ -364,39 +365,5 @@ setInterval(() => {
         refreshUserPermissions();
     }
 }, 1000);
-
-// ========== ГЛОБАЛЬНЫЙ ОБЪЕКТ ДЛЯ ОБРАТНОЙ СОВМЕСТИМОСТИ ==========
-
-if (typeof window !== 'undefined') {
-    window.CRM = window.CRM || {};
-    window.CRM.Permissions = {
-        hasPermission,
-        hasAnyPermission,
-        hasAllPermissions,
-        getUserPermissions,
-        canAccessModule,
-        getAccessibleModules,
-        isAdmin,
-        isManager,
-        isAgent,
-        canEditAllComplexes,
-        canViewAllComplexes,
-        canViewAllCounterparties,
-        canEditAllCounterparties,
-        canCreateCounterparties,
-        canExportCounterparties,
-        canManageTeam,
-        canViewTeamKpi,
-        canViewTeamTasks,
-        canAssignTasks,
-        canEditAnyTask,
-        getUserRole,
-        hasRole,
-        getPermissionSetInfo,
-        getAllPermissionSets,
-        refreshUserPermissions,
-        updatePermissionsCache: refreshPermissionsCache
-    };
-}
 
 console.log('[permissions] Модуль загружен. Доступные хелперы: isAdmin(), isManager(), isAgent(), canEditAllComplexes() и др.');
