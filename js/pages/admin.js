@@ -1,440 +1,271 @@
 /**
  * ============================================
  * ФАЙЛ: js/pages/admin.js
- * РОЛЬ: Логика страницы управления пользователями (админ-панель)
+ * РОЛЬ: Оркестратор страницы администрирования
  * 
  * ОСОБЕННОСТИ:
- *   - Список всех пользователей
- *   - Создание нового пользователя
- *   - Сброс пин-кода
- *   - Изменение роли пользователя
- *   - Удаление пользователя
- *   - Только для администраторов (проверка по правам)
+ *   - Проверка прав доступа (только для админов)
+ *   - Ленивая загрузка компонентов при переключении вкладок
+ *   - Управление состоянием активной вкладки
+ *   - Кэширование загруженных компонентов
  * 
  * ЗАВИСИМОСТИ:
- *   - js/core/supabase.js
  *   - js/core/supabase-session.js
  *   - js/core/permissions.js
+ *   - js/components/admin-users.js
+ *   - js/components/admin-licenses.js
+ *   - js/components/admin-permissions.js
+ *   - js/components/admin-stats.js
  * 
  * ИСТОРИЯ:
- *   - 27.03.2026: Создание файла, вынос логики из admin-supabase.html
- *   - 09.04.2026: Переход с role на permission_sets (isAdmin)
- *   - 09.04.2026: Убраны глобальные функции, переход на addEventListener
+ *   - 27.03.2026: Создание файла
+ *   - 10.04.2026: ПОЛНЫЙ РЕФАКТОРИНГ — разделение на компоненты
  * ============================================
  */
 
-import { supabase } from '../core/supabase.js';
-import { 
-    getCurrentSupabaseUser, 
-    requireSupabaseAuth, 
-    updateSupabaseUserInterface 
-} from '../core/supabase-session.js';
+import { getCurrentSupabaseUser, requireSupabaseAuth, updateSupabaseUserInterface } from '../core/supabase-session.js';
 import { isAdmin } from '../core/permissions.js';
 
-// Состояние страницы
-let usersList = [];
-let currentAdmin = null;
+console.log('[admin-page] Загрузка оркестратора...');
 
-console.log('[admin.js] Модуль загружен');
+// ========== СОСТОЯНИЕ ==========
 
-// ========== ВСПОМОГАТЕЛЬНЫЕ ==========
+let currentUser = null;
+let activeTab = 'users';
+let loadedComponents = new Map();
 
-function escapeHtml(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
+// DOM элементы
+let tabs = {};
+let containers = {};
+
+// ========== ПРОВЕРКА ДОСТУПА ==========
+
+function checkAdminAccess() {
+    if (!isAdmin()) {
+        const container = document.querySelector('.admin-container');
+        if (container) {
+            container.innerHTML = `
+                <div style="text-align: center; padding: 80px 20px;">
+                    <i class="fas fa-lock" style="font-size: 64px; color: var(--text-muted); margin-bottom: 24px;"></i>
+                    <h2 style="margin-bottom: 16px;">Доступ ограничен</h2>
+                    <p style="color: var(--text-muted); margin-bottom: 24px;">
+                        Эта страница доступна только администраторам системы.
+                    </p>
+                    <a href="dashboard.html" style="display: inline-block; padding: 12px 24px; background: var(--accent); color: white; border-radius: 40px; text-decoration: none;">
+                        <i class="fas fa-arrow-left"></i> Вернуться на главную
+                    </a>
+                </div>
+            `;
+        }
+        return false;
+    }
+    return true;
 }
 
-function showToast(type, message) {
-    const toast = document.createElement('div');
-    toast.className = `toast toast-${type}`;
-    toast.innerHTML = `<span>${escapeHtml(message)}</span>`;
-    document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 3000);
-}
+// ========== КЭШИРОВАНИЕ DOM ==========
 
-function generateRandomPin() {
-    return Math.floor(1000 + Math.random() * 9000).toString();
-}
-
-function getRoleLabel(role) {
-    const labels = {
-        admin: 'Администратор',
-        manager: 'Менеджер',
-        agent: 'Агент',
-        viewer: 'Наблюдатель'
+function cacheDomElements() {
+    tabs = {
+        users: document.querySelector('[data-tab="users"]'),
+        licenses: document.querySelector('[data-tab="licenses"]'),
+        permissions: document.querySelector('[data-tab="permissions"]'),
+        stats: document.querySelector('[data-tab="stats"]')
     };
-    return labels[role] || role;
+    
+    containers = {
+        users: document.getElementById('tabUsers'),
+        licenses: document.getElementById('tabLicenses'),
+        permissions: document.getElementById('tabPermissions'),
+        stats: document.getElementById('tabStats')
+    };
 }
 
-// ========== ЗАГРУЗКА ПОЛЬЗОВАТЕЛЕЙ ==========
+// ========== ПЕРЕКЛЮЧЕНИЕ ВКЛАДОК ==========
 
-async function loadUsers() {
-    const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: true });
+async function switchTab(tabId) {
+    if (activeTab === tabId && loadedComponents.has(tabId)) {
+        return; // Уже загружена и активна
+    }
     
-    if (!error && data) {
-        usersList = data;
-        console.log(`[admin] Загружено ${usersList.length} пользователей`);
-        renderUsersTable();
-    } else {
-        console.error('[admin] Ошибка загрузки пользователей:', error);
-        usersList = [];
-        renderUsersTable();
+    console.log(`[admin-page] Переключение на вкладку: ${tabId}`);
+    
+    // Обновляем UI вкладок
+    Object.entries(tabs).forEach(([id, btn]) => {
+        if (btn) {
+            btn.classList.toggle('active', id === tabId);
+        }
+    });
+    
+    Object.entries(containers).forEach(([id, container]) => {
+        if (container) {
+            container.style.display = id === tabId ? 'block' : 'none';
+        }
+    });
+    
+    activeTab = tabId;
+    
+    // Ленивая загрузка компонента
+    if (!loadedComponents.has(tabId)) {
+        await loadComponent(tabId);
     }
 }
 
-// ========== РЕНДЕРИНГ ТАБЛИЦЫ ==========
+// ========== ЛЕНИВАЯ ЗАГРУЗКА КОМПОНЕНТОВ ==========
 
-async function updateUserRole(userId, newRole) {
-    console.log('[admin] Обновление роли:', userId, '→', newRole);
-    
-    const { error } = await supabase
-        .from('profiles')
-        .update({ role: newRole, updated_at: new Date().toISOString() })
-        .eq('id', userId);
-    
-    if (!error) {
-        await loadUsers();
-        showToast('success', 'Роль пользователя обновлена');
-    } else {
-        console.error('[admin] Ошибка обновления роли:', error);
-        showToast('error', 'Ошибка обновления роли');
-    }
-}
-
-function renderUsersTable() {
-    const container = document.getElementById('usersTable');
+async function loadComponent(tabId) {
+    const container = containers[tabId];
     if (!container) return;
     
-    if (usersList.length === 0) {
-        container.innerHTML = '<div class="empty-state"><i class="fas fa-users-slash"></i><p>Нет пользователей</p></div>';
-        return;
-    }
-    
-    let html = `
-        <table>
-            <thead>
-                <tr>
-                    <th>Логин</th>
-                    <th>Имя</th>
-                    <th>Роль</th>
-                    <th>Email</th>
-                    <th>Дата регистрации</th>
-                    <th>Действия</th>
-                </tr>
-            </thead>
-            <tbody>
+    // Показываем загрузку
+    container.innerHTML = `
+        <div class="loading-container">
+            <i class="fas fa-spinner fa-pulse fa-2x" style="color: var(--text-muted);"></i>
+        </div>
     `;
     
-    for (const user of usersList) {
-        const canDelete = user.id !== currentAdmin?.id;
+    try {
+        let component;
         
-        html += `
-            <tr data-user-id="${user.id}">
-                <td>${escapeHtml(user.github_username || '—')}</td>
-                <td>${escapeHtml(user.name)}</td>
-                <td>
-                    <select class="role-select" data-user-id="${user.id}">
-                        <option value="agent" ${user.role === 'agent' ? 'selected' : ''}>Агент</option>
-                        <option value="manager" ${user.role === 'manager' ? 'selected' : ''}>Менеджер</option>
-                        <option value="viewer" ${user.role === 'viewer' ? 'selected' : ''}>Наблюдатель</option>
-                        <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>Администратор</option>
-                    </select>
-                </td>
-                <td>${escapeHtml(user.email || '—')}</td>
-                <td>${escapeHtml(user.created_at ? user.created_at.split('T')[0] : '—')}</td>
-                <td>
-                    <button class="action-btn reset-pin-btn" data-user-id="${user.id}" data-user-name="${escapeHtml(user.name)}" title="Сбросить пин-код">
-                        <i class="fas fa-key"></i>
-                    </button>
-                    ${canDelete ? `
-                    <button class="action-btn danger delete-user-btn" data-user-id="${user.id}" data-user-name="${escapeHtml(user.name)}" title="Удалить пользователя">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                    ` : ''}
-                </td>
-            </tr>
+        switch (tabId) {
+            case 'users':
+                const { AdminUsers } = await import('../components/admin-users.js');
+                component = new AdminUsers(container);
+                break;
+                
+            case 'licenses':
+                const { AdminLicenses } = await import('../components/admin-licenses.js');
+                component = new AdminLicenses(container);
+                break;
+                
+            case 'permissions':
+                const { AdminPermissions } = await import('../components/admin-permissions.js');
+                component = new AdminPermissions(container);
+                break;
+                
+            case 'stats':
+                const { AdminStats } = await import('../components/admin-stats.js');
+                component = new AdminStats(container);
+                break;
+                
+            default:
+                console.error(`[admin-page] Неизвестная вкладка: ${tabId}`);
+                return;
+        }
+        
+        await component.render();
+        loadedComponents.set(tabId, component);
+        
+        console.log(`[admin-page] Компонент ${tabId} загружен`);
+        
+    } catch (error) {
+        console.error(`[admin-page] Ошибка загрузки компонента ${tabId}:`, error);
+        container.innerHTML = `
+            <div style="text-align: center; padding: 40px; color: #ff6b6b;">
+                <i class="fas fa-exclamation-triangle" style="font-size: 32px; margin-bottom: 16px;"></i>
+                <p>Ошибка загрузки компонента</p>
+                <button onclick="location.reload()" style="margin-top: 16px; padding: 8px 20px; background: var(--accent); color: white; border: none; border-radius: 40px; cursor: pointer;">
+                    <i class="fas fa-sync-alt"></i> Обновить
+                </button>
+            </div>
         `;
     }
-    
-    html += '</tbody></table>';
-    container.innerHTML = html;
-    
-    // Навешиваем обработчики
-    attachTableHandlers();
-    
-    console.log('[admin] Таблица отрисована');
 }
 
-function attachTableHandlers() {
-    // Обработчики изменения роли
-    document.querySelectorAll('.role-select').forEach(select => {
-        select.addEventListener('change', async (e) => {
-            const userId = select.dataset.userId;
-            const newRole = select.value;
-            await updateUserRole(userId, newRole);
-        });
-    });
-    
-    // Обработчики сброса пин-кода
-    document.querySelectorAll('.reset-pin-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const userId = btn.dataset.userId;
-            const userName = btn.dataset.userName;
-            openResetPinModal(userId, userName);
-        });
-    });
-    
-    // Обработчики удаления
-    document.querySelectorAll('.delete-user-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const userId = btn.dataset.userId;
-            const userName = btn.dataset.userName;
-            deleteUser(userId, userName);
-        });
-    });
-}
+// ========== ОБРАБОТЧИКИ СОБЫТИЙ ==========
 
-// ========== CRUD ОПЕРАЦИИ ==========
-
-async function createUser(username, name, role, email) {
-    console.log('[admin] Создание пользователя:', username);
-    
-    const tempPin = generateRandomPin();
-    const tempEmail = email || `${username}@temp.com`;
-    
-    // Создаем пользователя в auth.users
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: tempEmail,
-        password: tempPin,
-        options: {
-            data: { 
-                full_name: name,
-                github_username: username
-            }
+function bindEvents() {
+    // Переключение вкладок
+    Object.entries(tabs).forEach(([tabId, btn]) => {
+        if (btn) {
+            btn.addEventListener('click', () => switchTab(tabId));
         }
     });
     
-    if (authError) {
-        console.error('[admin] Ошибка создания auth пользователя:', authError);
-        return { success: false, error: authError.message };
-    }
-    
-    if (authData.user) {
-        // Добавляем профиль
-        const { error: profileError } = await supabase
-            .from('profiles')
-            .insert([{
-                id: authData.user.id,
-                github_username: username,
-                name: name,
-                role: role,
-                email: tempEmail,
-                created_at: new Date().toISOString()
-            }]);
+    // Горячие клавиши
+    document.addEventListener('keydown', (e) => {
+        if (!e.ctrlKey && !e.metaKey) return;
         
-        if (profileError) {
-            console.error('[admin] Ошибка создания профиля:', profileError);
-            return { success: false, error: profileError.message };
+        switch (e.key) {
+            case '1':
+                e.preventDefault();
+                switchTab('users');
+                break;
+            case '2':
+                e.preventDefault();
+                switchTab('licenses');
+                break;
+            case '3':
+                e.preventDefault();
+                switchTab('permissions');
+                break;
+            case '4':
+                e.preventDefault();
+                switchTab('stats');
+                break;
         }
-        
-        console.log('[admin] Пользователь создан, ID:', authData.user.id);
-        return { success: true, tempPin: tempPin };
-    }
-    
-    return { success: false, error: 'Неизвестная ошибка' };
-}
-
-async function resetUserPin(userId) {
-    const newPin = generateRandomPin();
-    console.log('[admin] Сброс пин-кода для пользователя:', userId);
-    
-    const { error } = await supabase
-        .from('profiles')
-        .update({ pin: newPin, updated_at: new Date().toISOString() })
-        .eq('id', userId);
-    
-    if (!error) {
-        return { success: true, newPin };
-    }
-    
-    console.error('[admin] Ошибка сброса пин-кода:', error);
-    return { success: false, error: 'Ошибка сброса пин-кода' };
-}
-
-async function deleteUserById(userId) {
-    console.log('[admin] Удаление пользователя:', userId);
-    
-    // Удаляем профиль
-    const { error: profileError } = await supabase
-        .from('profiles')
-        .delete()
-        .eq('id', userId);
-    
-    if (profileError) {
-        console.error('[admin] Ошибка удаления профиля:', profileError);
-        return { success: false, error: profileError.message };
-    }
-    
-    return { success: true };
-}
-
-async function deleteUser(userId, userName) {
-    if (!confirm(`Вы уверены, что хотите удалить пользователя "${userName}"? Это действие необратимо.`)) return;
-    
-    console.log('[admin] Удаление пользователя:', userName);
-    
-    const row = document.querySelector(`tr[data-user-id="${userId}"]`);
-    if (row) row.classList.add('row-removing');
-    
-    setTimeout(async () => {
-        const result = await deleteUserById(userId);
-        if (result.success) {
-            showToast('success', 'Пользователь удалён');
-            await loadUsers();
-        } else {
-            showToast('error', result.error || 'Ошибка удаления');
-            if (row) row.classList.remove('row-removing');
-        }
-    }, 200);
-}
-
-// ========== МОДАЛЬНЫЕ ОКНА ==========
-
-let currentResetUserId = null;
-
-function openAddUserModal() {
-    const modal = document.getElementById('addUserModal');
-    modal.style.display = 'flex';
-    console.log('[admin] Открыто модальное окно добавления пользователя');
-}
-
-function closeAddUserModal() {
-    const modal = document.getElementById('addUserModal');
-    modal.style.display = 'none';
-    document.getElementById('newUsername').value = '';
-    document.getElementById('newName').value = '';
-    document.getElementById('newEmail').value = '';
-    document.getElementById('newRole').value = 'agent';
-}
-
-async function addUser() {
-    const username = document.getElementById('newUsername').value.trim();
-    const name = document.getElementById('newName').value.trim();
-    const role = document.getElementById('newRole').value;
-    const email = document.getElementById('newEmail').value.trim();
-    
-    if (!username || !name) {
-        showToast('warning', 'Заполните логин и имя');
-        return;
-    }
-    
-    console.log('[admin] Добавление пользователя:', { username, name, role, email });
-    
-    const result = await createUser(username, name, role, email);
-    
-    if (result.success) {
-        showToast('success', `Пользователь создан! Пин-код: ${result.tempPin}`, 5000);
-        closeAddUserModal();
-        await loadUsers();
-        
-        // Подсвечиваем новую строку
-        setTimeout(() => {
-            const newRow = document.querySelector('tr:last-child');
-            if (newRow) newRow.classList.add('table-row-highlight');
-        }, 100);
-    } else {
-        showToast('error', result.error || 'Ошибка создания');
-    }
-}
-
-function openResetPinModal(userId, userName) {
-    currentResetUserId = userId;
-    document.getElementById('resetUserName').textContent = userName;
-    const modal = document.getElementById('resetPinModal');
-    modal.style.display = 'flex';
-    console.log('[admin] Открыто модальное окно сброса пин-кода для:', userName);
-}
-
-function closeResetPinModal() {
-    const modal = document.getElementById('resetPinModal');
-    modal.style.display = 'none';
-    currentResetUserId = null;
-}
-
-async function resetPin() {
-    if (!currentResetUserId) return;
-    
-    console.log('[admin] Сброс пин-кода для пользователя:', currentResetUserId);
-    
-    const result = await resetUserPin(currentResetUserId);
-    
-    if (result.success) {
-        showToast('success', `Пин-код сброшен! Новый пин-код: ${result.newPin}`, 5000);
-        closeResetPinModal();
-        await loadUsers();
-    } else {
-        showToast('error', result.error || 'Ошибка сброса');
-    }
+    });
 }
 
 // ========== ИНИЦИАЛИЗАЦИЯ ==========
 
 export async function initAdminPage() {
-    console.log('[admin] Инициализация страницы...');
+    console.log('[admin-page] Инициализация страницы...');
     
-    const isAuth = await requireSupabaseAuth('auth-supabase.html');
+    // Проверяем авторизацию
+    const isAuth = await requireSupabaseAuth('../auth-supabase.html');
     if (!isAuth) return;
     
-    currentAdmin = getCurrentSupabaseUser();
+    currentUser = getCurrentSupabaseUser();
     updateSupabaseUserInterface();
-    console.log('[admin] Текущий пользователь:', currentAdmin?.name);
     
-    // Проверка прав доступа (через permission_sets)
-    if (!isAdmin()) {
-        const main = document.querySelector('.main-content');
-        if (main) {
-            main.innerHTML = `
-                <div class="info-panel" style="text-align: center; padding: 60px;">
-                    <i class="fas fa-lock" style="font-size: 3rem; margin-bottom: 20px;"></i>
-                    <h2>Доступ ограничен</h2>
-                    <p>Эта страница доступна только администраторам.</p>
-                    <a href="dashboard.html" class="nav-btn" style="margin-top: 20px; display: inline-block; padding: 10px 20px; background: var(--accent); border-radius: 40px; color: white; text-decoration: none;">Вернуться на главную</a>
-                </div>
-            `;
-        }
+    console.log('[admin-page] Текущий пользователь:', currentUser?.name);
+    
+    // Проверяем права администратора
+    if (!checkAdminAccess()) {
+        console.warn('[admin-page] Доступ запрещён — не администратор');
         return;
     }
     
-    await loadUsers();
+    // Кэшируем DOM
+    cacheDomElements();
     
-    // Навешиваем обработчики на кнопки
-    document.getElementById('addUserBtn')?.addEventListener('click', openAddUserModal);
-    document.getElementById('confirmAddUserBtn')?.addEventListener('click', addUser);
-    document.getElementById('confirmResetPinBtn')?.addEventListener('click', resetPin);
+    // Привязываем события
+    bindEvents();
     
-    // Кнопки закрытия модальных окон
-    document.querySelector('#addUserModal .modal-close')?.addEventListener('click', closeAddUserModal);
-    document.querySelector('#addUserModal .modal-cancel')?.addEventListener('click', closeAddUserModal);
-    document.querySelector('#resetPinModal .modal-close')?.addEventListener('click', closeResetPinModal);
-    document.querySelector('#resetPinModal .modal-cancel')?.addEventListener('click', closeResetPinModal);
+    // Загружаем активную вкладку
+    await loadComponent(activeTab);
     
-    // Закрытие модальных окон по клику вне
-    window.addEventListener('click', (event) => {
-        const addModal = document.getElementById('addUserModal');
-        const resetModal = document.getElementById('resetPinModal');
-        if (event.target === addModal) closeAddUserModal();
-        if (event.target === resetModal) closeResetPinModal();
-    });
+    // Отмечаем загруженным
+    loadedComponents.set(activeTab, true);
     
-    const sidebar = document.getElementById('sidebar');
-    if (sidebar && localStorage.getItem('sidebar_collapsed') === 'true') {
-        sidebar.classList.add('collapsed');
-    }
-    
-    console.log('[admin] Инициализация завершена');
+    console.log('[admin-page] Инициализация завершена');
 }
+
+// ========== ПУБЛИЧНЫЕ МЕТОДЫ ==========
+
+/**
+ * Обновить текущую вкладку
+ */
+export async function refreshCurrentTab() {
+    const component = loadedComponents.get(activeTab);
+    if (component && component.refresh) {
+        await component.refresh();
+    }
+}
+
+/**
+ * Получить текущего пользователя
+ */
+export function getCurrentAdmin() {
+    return currentUser;
+}
+
+// ========== ЭКСПОРТ ПО УМОЛЧАНИЮ ==========
+
+export default {
+    initAdminPage,
+    refreshCurrentTab,
+    getCurrentAdmin
+};
+
+console.log('[admin-page] Оркестратор загружен');
