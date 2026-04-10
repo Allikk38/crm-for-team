@@ -14,6 +14,7 @@
  * ИСТОРИЯ:
  *   - 30.03.2026: Переход на чистые импорты/экспорты
  *   - 08.04.2026: Добавлены категории и важное в карточки задач
+ *   - 10.04.2026: УДАЛЁН ГЛОБАЛЬНЫЙ ОБЪЕКТ window.CRM.Kanban (правило №5)
  * ============================================
  */
 
@@ -257,16 +258,6 @@ export function setupDragAndDrop(containerSelector, onDrop) {
         container.addEventListener('dragleave', handleDragLeave);
         container.addEventListener('drop', handleDrop);
     });
-}
-
-// Глобальный объект для обратной совместимости
-if (typeof window !== 'undefined') {
-    window.CRM = window.CRM || {};
-    window.CRM.Kanban = {
-        createTaskCard,
-        createDealCard,
-        setupDragAndDrop
-    };
 }
 
 console.log('[kanban.js] Компонент загружен');
