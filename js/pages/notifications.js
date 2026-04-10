@@ -1,3 +1,4 @@
+```javascript
 /**
  * ============================================
  * ФАЙЛ: js/pages/notifications.js
@@ -17,6 +18,8 @@
  * 
  * ИСТОРИЯ:
  *   - 27.03.2026: Создание файла, вынос логики из notifications-supabase.html
+ *   - 10.04.2026: УДАЛЕНЫ ГЛОБАЛЬНЫЕ ФУНКЦИИ (window.handleNotificationClick и др.)
+ *                 Переход на чистые ES6 модули и делегирование событий.
  * ============================================
  */
 
@@ -159,8 +162,8 @@ async function handleMarkAsRead(notificationId, event) {
                 element.classList.remove('unread');
             }
             updateUnreadBadge();
-            if (window.showToast) {
-                window.showToast('success', 'Отмечено прочитанным');
+            if (window.CRM?.helpers?.showToast) {
+                window.CRM.helpers.showToast('success', 'Отмечено прочитанным');
             }
         }
     }
@@ -186,8 +189,8 @@ async function handleDeleteNotification(notificationId, event) {
             notifications = notifications.filter(n => n.id !== notificationId);
             renderNotifications();
             updateUnreadBadge();
-            if (window.showToast) {
-                window.showToast('success', 'Уведомление удалено');
+            if (window.CRM?.helpers?.showToast) {
+                window.CRM.helpers.showToast('success', 'Уведомление удалено');
             }
             console.log('[notifications] Уведомление удалено');
         }
@@ -205,8 +208,8 @@ async function handleMarkAllRead() {
         notifications.forEach(n => { n.read = true; });
         renderNotifications();
         updateUnreadBadge();
-        if (window.showToast) {
-            window.showToast('success', 'Все уведомления отмечены прочитанными');
+        if (window.CRM?.helpers?.showToast) {
+            window.CRM.helpers.showToast('success', 'Все уведомления отмечены прочитанными');
         }
         console.log('[notifications] Все уведомления отмечены прочитанными');
     }
@@ -225,11 +228,49 @@ async function handleClearAll() {
         notifications = [];
         renderNotifications();
         updateUnreadBadge();
-        if (window.showToast) {
-            window.showToast('success', 'Все уведомления удалены');
+        if (window.CRM?.helpers?.showToast) {
+            window.CRM.helpers.showToast('success', 'Все уведомления удалены');
         }
         console.log('[notifications] Все уведомления удалены');
     }
+}
+
+// ========== ДЕЛЕГИРОВАНИЕ СОБЫТИЙ ==========
+
+/**
+ * Глобальный обработчик кликов для контейнера уведомлений
+ * Заменяет window.handleNotificationClick, handleMarkAsRead, handleDeleteNotification
+ */
+function setupNotificationsDelegation() {
+    const container = document.getElementById('notificationsList');
+    if (!container) return;
+
+    container.addEventListener('click', async (e) => {
+        // Находим родительский элемент уведомления
+        const notificationItem = e.target.closest('.notification-item');
+        if (!notificationItem) return;
+
+        const notificationId = notificationItem.dataset.id;
+        const notification = notifications.find(n => n.id === notificationId);
+        if (!notification) return;
+
+        // Проверяем, был ли клик по кнопке "Прочитано"
+        const markReadBtn = e.target.closest('[data-action="mark-read"]');
+        if (markReadBtn) {
+            await handleMarkAsRead(notificationId, e);
+            return;
+        }
+
+        // Проверяем, был ли клик по кнопке "Удалить"
+        const deleteBtn = e.target.closest('[data-action="delete"]');
+        if (deleteBtn) {
+            await handleDeleteNotification(notificationId, e);
+            return;
+        }
+
+        // Иначе это клик по самому уведомлению
+        await handleNotificationClick(notification);
+    });
 }
 
 // ========== ОБНОВЛЕНИЕ UI ==========
@@ -277,7 +318,7 @@ function renderNotifications() {
         const typeLabel = TYPE_LABELS[n.type] || n.type;
         
         html += `
-            <div class="notification-item ${unreadClass}" data-id="${n.id}" onclick="window.handleNotificationClick('${n.id}')">
+            <div class="notification-item ${unreadClass}" data-id="${n.id}">
                 <div class="notification-header">
                     <span class="${typeClass}">
                         ${typeIcon} ${typeLabel}
@@ -289,8 +330,8 @@ function renderNotifications() {
                 <div class="notification-title">${escapeHtml(n.title)}</div>
                 <div class="notification-message">${escapeHtml(n.message)}</div>
                 <div class="notification-actions">
-                    ${!n.read ? `<button onclick="window.handleMarkAsRead('${n.id}', event)"><i class="fas fa-check"></i> Прочитано</button>` : ''}
-                    <button class="delete-btn" onclick="window.handleDeleteNotification('${n.id}', event)"><i class="fas fa-trash"></i> Удалить</button>
+                    ${!n.read ? `<button data-action="mark-read"><i class="fas fa-check"></i> Прочитано</button>` : ''}
+                    <button class="delete-btn" data-action="delete"><i class="fas fa-trash"></i> Удалить</button>
                 </div>
             </div>
         `;
@@ -313,26 +354,6 @@ async function loadNotifications() {
     updateUnreadBadge();
 }
 
-// ========== ЭКСПОРТ ГЛОБАЛЬНЫХ ФУНКЦИЙ ДЛЯ HTML ==========
-
-// Экспортируем функции в window для доступа из onclick в HTML
-window.handleNotificationClick = async (id) => {
-    const notification = notifications.find(n => n.id === id);
-    if (notification) {
-        await handleNotificationClick(notification);
-    } else {
-        console.warn('[notifications] Уведомление не найдено:', id);
-    }
-};
-
-window.handleMarkAsRead = async (id, event) => {
-    await handleMarkAsRead(id, event);
-};
-
-window.handleDeleteNotification = async (id, event) => {
-    await handleDeleteNotification(id, event);
-};
-
 // ========== ИНИЦИАЛИЗАЦИЯ ==========
 
 /**
@@ -350,6 +371,10 @@ export async function initNotificationsPage() {
     
     await loadNotifications();
     
+    // Настройка делегирования событий
+    setupNotificationsDelegation();
+    
+    // Обработчики для кнопок управления
     document.getElementById('markAllReadBtn')?.addEventListener('click', handleMarkAllRead);
     document.getElementById('clearAllBtn')?.addEventListener('click', handleClearAll);
     
@@ -364,3 +389,4 @@ export async function initNotificationsPage() {
     
     console.log('[notifications] Инициализация завершена');
 }
+```
